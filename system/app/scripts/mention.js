@@ -183,7 +183,8 @@ function place() {
     var r = null; if (!plainBox(st.el)) try { var gs = window.getSelection(); if (gs && gs.rangeCount) { var rg = gs.getRangeAt(0).cloneRange(); rg.collapse(true); var rs = rg.getClientRects(); r = rs && rs.length ? rs[0] : rg.getBoundingClientRect(); } } catch (e) { r = null; }
     if (!r || (!r.left && !r.top)) r = st.el.getBoundingClientRect();
     var w = m.offsetWidth || 260, h = m.offsetHeight || 200, vw = window.innerWidth || 1200, vh = window.innerHeight || 800;
-    var x = Math.max(8, Math.min(vw - w - 8, r.left)), y = r.bottom + 4 + h > vh - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4;
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var x = Math.max(8, Math.min(vw - w - 8, r.left)), y = r.bottom + 4 + h > vh - 8 ? Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), r.top - h - 4) : r.bottom + 4;
     m.style.left = Math.round(x) + 'px'; m.style.top = Math.round(y) + 'px';
 }
 // [shelfcheck:mentionplain-start]

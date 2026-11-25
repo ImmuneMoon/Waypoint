@@ -349,7 +349,8 @@ function presShow(box, focus) {
     d.style.display = 'flex';
     var r = box.getBoundingClientRect(), w = d.offsetWidth, ht = d.offsetHeight;
     var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)), top = r.bottom + 4;
-    if (top + ht > window.innerHeight - 8) top = Math.max(8, r.top - ht - 4);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (top + ht > window.innerHeight - 8) top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), r.top - ht - 4);
     d.style.left = Math.round(left) + 'px'; d.style.top = Math.round(top) + 'px';
     if (focus) { var f = d.querySelector('.pres-row'); if (f) f.focus(); }
 }

@@ -38,6 +38,7 @@ function railNext(st, ev) {
         if (sec) {
             if (s.mode === 'rail') { s.mode = 'open'; s.show = sec; }             // hidden: it opens over the map at that section
             else if (s.mode === 'open' && s.show === sec) s.mode = 'rail';        // the icon of the section it is open at hides it again
+            else if (s.mode === 'docked' && (typeof ev.lit === 'string' ? ev.lit : s.show) === sec) { s.mode = 'rail'; s.auto = s.play; if (s.play) s.pin = false; }   // 1.6.4 (Fulllion, 2026-11-24): the lit icon pressed hides the panel, as its arrow does
             else s.show = sec;                                                     // shown: it shows that section instead
         }
     } else if (t === 'away') { if (s.mode === 'open') s.mode = 'rail'; }
@@ -144,9 +145,9 @@ function wire() {
     rail.addEventListener('click', function(e) {
         var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b) return;
         if (b.id === 'railPin') act({ t: 'pin' });
-        else if (b.id === 'railAll') act({ t: 'icon', sec: 'all' });
+        else if (b.id === 'railAll') act({ t: 'icon', sec: 'all', lit: st.mode === 'rail' ? '' : railShows(document, st) });
         else if (b.id === 'railSearch') { act({ t: 'away' }); if (window.wpCmdkOpen) window.wpCmdkOpen(); }
-        else if (b.getAttribute('data-rail')) act({ t: 'icon', sec: b.getAttribute('data-rail') });
+        else if (b.getAttribute('data-rail')) act({ t: 'icon', sec: b.getAttribute('data-rail'), lit: st.mode === 'rail' ? '' : railShows(document, st) });   // lit: the icon lit now, whose press hides the panel
     });
     document.addEventListener('pointerdown', function(e) {   // a press anywhere but the panel, the rail and a menu of theirs hides a panel that was only opened (1.6.0, found by hand: hiding it took the row of the panel's own menu away from under the press)
         if (st.mode !== 'open') return;

@@ -761,7 +761,8 @@ pendingChecks.push((async () => {
 /* ================= the local server: request bodies are decoded as UTF-8 across chunk boundaries ================= */
 {
     const rdS = rel => fs.readFileSync(path.join(__dirname, '..', ...rel.split('/')), 'utf8');
-    const srvs = [['system/resources/app/main.js', 6], ['tools/dev-server.js', 5]].map(([rel, n]) => { const s = rdS(rel); return { rel, n, readers: (s.match(/reqguard\.readBody\(req, res, reqguard\.BODY\.(small|prefs|data), /g) || []).length, own: (s.match(/req\.on\('data'/g) || []).length, raw: (s.match(/body \+= (c|chunk)\.toString\(\)/g) || []).length }; });
+    const srvs = [['system/resources/app/main.js', 7],   // 1.6.4: the window bar's POST /api/winbar reads its body through reqguard.readBody too
+        ['tools/dev-server.js', 5]].map(([rel, n]) => { const s = rdS(rel); return { rel, n, readers: (s.match(/reqguard\.readBody\(req, res, reqguard\.BODY\.(small|prefs|data), /g) || []).length, own: (s.match(/req\.on\('data'/g) || []).length, raw: (s.match(/body \+= (c|chunk)\.toString\(\)/g) || []).length }; });
     const rgS = rdS('system/resources/app/reqguard.js'), rbA = rgS.indexOf('function readBody('), rbB = rgS.indexOf('/* ---- the error log ---- */'), rbSrc = rbA >= 0 && rbB > rbA ? rgS.slice(rbA, rbB) : '';
     check('local server: every request body is read as UTF-8 text (setEncoding before the data handler) — a character split between two chunks can never be saved as \uFFFD (main.js and the dev server alike, each through the one bounded reader they share, reqguard.readBody, and no reader of its own)',
         srvs.every(x => x.readers === x.n && x.own === 0 && x.raw === 0) && rbSrc.indexOf("req.setEncoding('utf8');") > 0 && rbSrc.indexOf("req.setEncoding('utf8');") < rbSrc.indexOf("req.on('data'") && !/toString\(\)/.test(rbSrc), j(srvs));

@@ -91,6 +91,7 @@ const server = http.createServer((req, res) => {
     if (account.ACCOUNT_ROUTES.includes(url.pathname)) { accountHandler(req, res, url); return; }   // 1.6.0: the website account link, as the shell   // the shell's own list (a core update's routes too: here they answer that this copy cannot install one)
     if (url.pathname === '/api/open-external' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"note":"dev server: not opening a browser"}'); }
     if (url.pathname === '/api/ping') { res.writeHead(200); return res.end(); }
+    if (url.pathname === '/api/winbar' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"note":"dev server: no window bar"}'); }   // 1.6.4: the shell sets its window bar's colors; a browser has none
     if (url.pathname === '/api/version') {
         let v = shellPkg.version;
         try { const j = JSON.parse(fs.readFileSync(path.join(appDir, 'version.json'), 'utf8')); if (j.version && updater.cmpVersion(j.version, v) > 0) v = j.version; } catch (e) {}

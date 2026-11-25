@@ -17,6 +17,27 @@ Names on the map
   every name on a map with Show names on this map in Map properties.
   Your players' pins follow, and Places here still lists every place.
 
+The window bar (draft for Fulllion)
+- The desktop app's window has no system title bar any more. Its
+  minimize, maximize and close buttons sit on a slim strip in the app's
+  own colors, and the strip changes when you switch the theme.
+- Drag the strip to move the window, and double-click it to maximize.
+
+Seeing as one character (draft for Fulllion)
+- Tick See as selected in the View menu, then select a character token.
+  The map now shows what that one token sees, and selecting another
+  moves you into its eyes.
+- Solid covers the map the way a player's screen is covered, and the
+  creatures it can't see leave your board. See-through keeps your own
+  fog. The camera can follow the token, jump to it once, or stay put.
+- It's your screen alone. Your players see no change.
+
+The Characters list (draft for Fulllion)
+- Point at a character and the list tells you its whole name, who plays
+  it and which map its token is on.
+- Players folds closed now, the same way NPCs do.
+- Pressing the rail icon that's already lit hides the left panel.
+
 Pictures where a token stands (draft for Fulllion)
 - A place or a trigger zone can carry a picture now, from your Image
   Library or one of your picture handouts. Pick it under Picture here in

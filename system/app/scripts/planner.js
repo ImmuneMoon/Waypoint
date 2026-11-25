@@ -245,7 +245,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var f = m.querySelector('.pbe-find'); f.value = q || ''; pbeDraw();
       m.hidden = false;
       var r = anchor.getBoundingClientRect(), h = Math.min(m.offsetHeight || 320, 340), top = r.bottom + 4;
-      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+      // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+      if (top + h > window.innerHeight - 8) top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), r.top - h - 4);
       m.style.top = top + 'px'; m.style.left = Math.max(8, Math.min(window.innerWidth - (m.offsetWidth || 240) - 8, r.left)) + 'px';
       f.focus();
   }
@@ -752,7 +753,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tbMenuEl._at = { idx: idx, ri: ri, ci: ci, k: k > 0 ? k : 1 }; tbMenuEl._back = from || null;   // k: how many columns the heading takes, so Add a column right lands after all of them
       tbMenuEl.style.display = 'flex';
       var w = tbMenuEl.offsetWidth || 180, h = tbMenuEl.offsetHeight || 100;
-      tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
+      // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+      tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
       var first = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; })[0]; if (first) try { first.focus(); } catch (e) {}
   }
   /* 1.6.2, a big table in a window of its own (the owner, 2026-11-14, by prompt: "Edit a big table in its own window"). The book's largest
@@ -1442,7 +1444,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (tsHosts.length) tsxWatch(hxP ? by || box : null);
       var right = hr !== own ? hr.right : hr.left + (ref.clientLeft || 0) + (ref.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
       var out = !!by && by === E.host;   // the bar stands by the very panel it lives in (a small panel of its own, as the table notepad's): OUTSIDE it, so the window bounds the bar, which is as wide as that panel
-      if (out) { hr = { left: 0, top: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 }; right = hr.right; }
+      // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+      if (out) { hr = { left: 0, top: (window.wpWinBarH ? window.wpWinBarH() : 0), right: window.innerWidth || 0, bottom: window.innerHeight || 0 }; right = hr.right; }
       E.root.style.maxWidth = Math.max(180, Math.round(out ? br.right - br.left : right - hr.left - 12)) + 'px';
       var tb = tsTableOf(box);
       var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0, tb && tb.getBoundingClientRect ? tb.getBoundingClientRect() : null, !!hxP && hxP.barUnder(box));
@@ -1670,7 +1673,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // the panel the bar is laid out against: the window, for a host's root that has no area of its own
   function tsxRect(E, hr) {
       if (!E.home || E.host === E.home || (hr.right > hr.left && hr.bottom > hr.top)) return hr;
-      return { left: 0, top: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 };
+      // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+      return { left: 0, top: (window.wpWinBarH ? window.wpWinBarH() : 0), right: window.innerWidth || 0, bottom: window.innerHeight || 0 };
   }
   // What a host's bar stands by is watched for its size. A box dragged taller by its grip, or a font that loads late, moves the edge the bar
   // stands at with no key, press or scroll to say so. ONE observer, on one element at a time, and none for a planner's own box

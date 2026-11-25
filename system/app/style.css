@@ -86,6 +86,9 @@
     overflow:hidden;
   }
   .app{display:flex;flex-direction:column;height:100vh}
+  /* 1.6.4: the window bar (scripts/winbar.js). In the desktop app the system draws its three buttons over the top right corner and this strip is the ground they stand on, in the top row's own colors; --winbar is the height the system gives them, 0 in a browser, on a website and in a window of its own, so the strip is there only where they are. A box the app pins near the window's top keeps below it: an overlay that covers the window starts at var(--winbar) and is that much shorter, a banner's or a floating box's first top is moved down by it, and a height worked out from 100vh takes it off, so with --winbar 0 (a browser, the website, a window of its own, the stream window) nothing moves at all */
+  :root { --winbar: env(titlebar-area-height, 0px); }
+  #winBar { flex: none; height: var(--winbar); background: var(--bg2); color: var(--ink); -webkit-app-region: drag; }
   /* the viewing of 2026-11-09 (the owner, by prompt: "One font (Recommended)"): a button, a list and a text box take the app’s font, never the browser’s own Arial; any rule that names a font of its own still wins */
   button, input, select, textarea { font-family: inherit; }
   a.wp-mention { display: inline-block; padding: 0 7px; margin: 0 1px; border-radius: 10px; background: rgba(224,165,79,0.14); color: var(--gold); text-decoration: none; font-weight: 500; line-height: 1.45; }   /* 1.6.2 (backlog 166 f): a mention, a chip in its current name */
@@ -144,7 +147,7 @@
   /* 107, the row's menus (toprow.js). A menu takes controls out of the row and takes none away: a row of a menu is the control itself, with its
      id, its tooltip and its handler. The campaign's name opens the first: the list of campaigns, then Search, New, Rename, System and Delete */
   .row-menu-wrap { position: relative; display: inline-flex; min-width: 0; }
-  .row-menu { position: absolute; top: 100%; left: 0; z-index: 90020; margin-top: 6px; min-width: 240px; max-width: 340px; max-height: calc(100vh - 80px); overflow-y: auto; box-sizing: border-box; padding: 5px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }   /* over an open menu of the map's tools (90010), Table Chat and every floating box: opened later, it is in front */
+  .row-menu { position: absolute; top: 100%; left: 0; z-index: 90020; margin-top: 6px; min-width: 240px; max-width: 340px; max-height: calc(100vh - 80px - var(--winbar)); overflow-y: auto; box-sizing: border-box; padding: 5px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }   /* over an open menu of the map's tools (90010), Table Chat and every floating box: opened later, it is in front */
   .row-menu[hidden] { display: none; }
   #campaignSelect[hidden] { display: none; }   /* the page's own campaign list: every module's source for the campaigns, out of sight whatever a later rule says of a select */
   .rm-label { padding: 6px 8px 2px; font-size: 10px; letter-spacing: .5px; text-transform: uppercase; color: var(--faint); }
@@ -201,7 +204,7 @@
   .rm-row.off-mine { position: relative; }
   .rm-row.off-mine::after { content: ''; position: absolute; left: 8px; width: 14px; top: 50%; height: 2px; margin-top: -1px; background: var(--red); border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }
   #moreMenu .dropdown-wrap { display: block; }
-  #moreMenu #saveAsMenu { top: -6px; left: auto; right: 100%; margin: 0 7px 0 0; min-width: 210px; max-height: calc(100vh - 90px); overflow-y: auto; padding: 5px; background: var(--panel); border-color: var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  #moreMenu #saveAsMenu { top: -6px; left: auto; right: 100%; margin: 0 7px 0 0; min-width: 210px; max-height: calc(100vh - 90px - var(--winbar)); overflow-y: auto; padding: 5px; background: var(--panel); border-color: var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #moreMenu #saveAsMenu .menu-item { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 5px; font-size: 12.5px; }
   #moreMenu #saveAsMenu .menu-item > .ico { flex: none; color: var(--dim); }
   #moreMenu #saveAsMenu .menu-item > small { margin-left: auto; padding-left: 12px; color: var(--faint); font-size: 11px; }   /* 1.6.3 (the release click test): Export this campaign and Full export say what each makes */
@@ -712,7 +715,18 @@
     body:not(.stream-mode):has(#sidebar:not(.collapsed):not([style*="none"])) #main > #wbEdgeTools:not(.lay-at) { right: min(calc(28px + var(--lay-propr, 0px) + var(--rightw, 320px)), calc(100vw - 64px)); }
     /* The View menu's Show group: a row is ticked while its thing is shown (whiteboard.js syncViewTicks) */
     #wbCenterMenu .view-show-label { border-top: 1px solid #333; margin-top: 4px; padding: 8px 12px 3px; }
-    #wbEdgeTools #wbCenterMenu { bottom: -80px !important; max-height: calc(100vh - 274px); overflow-y: auto; }   /* the tallest of the column's menus stands on the column's foot, and scrolls in a short window: no row is cut off */
+    /* 1.6.4: See as selected (seeas.js): its two rows of choices under the tick, the GM's board putting away what the token cannot see, and a
+       thin gold line round the map while it is on, so the GM knows the board is not their own view */
+    #wbCenterMenu .see-as-opts { padding: 2px 12px 8px; display: flex; flex-direction: column; gap: 6px; }
+    #wbCenterMenu .see-as-opts[hidden] { display: none; }
+    #wbCenterMenu .see-as-row { display: flex; align-items: center; gap: 8px; }
+    #wbCenterMenu .see-as-lab { flex: 0 0 52px; font-size: 11px; color: var(--dim); }
+    #wbCenterMenu .see-as-row .ui-seg > .tool { font-size: 11.5px; padding: 4px 8px; white-space: nowrap; }
+    /* 1.6.4: See as selected (seeas.js): a creature the token cannot see leaves the GM's board while the view is solid, and the map wears a thin gold
+    line while See as selected is on */
+    body:not(.net-client):not(.stream-mode) #whiteboard .wb-item.seeas-hid { visibility: hidden !important; pointer-events: none !important; }
+    body.seeas-on:not(.net-client):not(.stream-mode) #whiteboardWrap { box-shadow: inset 0 0 0 2px rgba(227,166,59,.55); }
+    #wbEdgeTools #wbCenterMenu { bottom: -80px !important; max-height: calc(100vh - 274px - var(--winbar)); overflow-y: auto; }   /* the tallest of the column's menus stands on the column's foot, and scrolls in a short window: no row is cut off */
     .wb-tool-btn.view-row, .wb-tool-btn.view-tick { flex: 0 0 auto; width: 100%; height: auto; border-radius: 0; font-size: 12px; justify-content: flex-start; white-space: nowrap; }
     .wb-tool-btn.view-row { padding: 7px 12px 7px 34px; }   /* an action's words begin where a tick's words do */
     .wb-tool-btn.view-tick { padding: 7px 12px; gap: 8px; }
@@ -829,16 +843,16 @@
     }
     /* The fog menu is the tallest tool menu (per-map + campaign-wide fog controls); cap it to the viewport and scroll
        inside so it never clips off the top of the screen on shorter displays. */
-    #fogMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
-    #blastMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* the Radius tool's options are tall too */
-    #buildMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* and Build's */
-    #drawMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* and the pen's, since it says what a drawing is (1.6.2): in a short window its Opacity row stood outside it, over the bar */
+    #fogMenu { max-height: calc(100vh - 96px - var(--winbar)); overflow-y: auto; overflow-x: hidden; }
+    #blastMenu { max-height: calc(100vh - 96px - var(--winbar)); overflow-y: auto; overflow-x: hidden; }   /* the Radius tool's options are tall too */
+    #buildMenu { max-height: calc(100vh - 96px - var(--winbar)); overflow-y: auto; overflow-x: hidden; }   /* and Build's */
+    #drawMenu { max-height: calc(100vh - 96px - var(--winbar)); overflow-y: auto; overflow-x: hidden; }   /* and the pen's, since it says what a drawing is (1.6.2): in a short window its Opacity row stood outside it, over the bar */
     #drawMenu > * { flex-shrink: 0; }
     /* 1.6.2 (backlog 59 i; the owner: "Find and fix the rest (Recommended)"): every other tool's options scroll inside too, measured at 1024 by 540,
        where the Environment tool's ran 50 px past their own box */
-    #envMenu, #measureMenu, #fillMenu, #eraserMenu, #snapMenu, #linkMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
+    #envMenu, #measureMenu, #fillMenu, #eraserMenu, #snapMenu, #linkMenu { max-height: calc(100vh - 96px - var(--winbar)); overflow-y: auto; overflow-x: hidden; }
     #envMenu > *, #measureMenu > *, #fillMenu > *, #eraserMenu > *, #snapMenu > *, #linkMenu > * { flex-shrink: 0; }
-    #gridMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; } #gridMenu > * { flex-shrink: 0; }   /* 1.6.3 (finding 17): the Grid menu holds the map's scale and cell now, so it scrolls in a short window as the measure options do */
+    #gridMenu { max-height: calc(100vh - 96px - var(--winbar)); overflow-y: auto; overflow-x: hidden; } #gridMenu > * { flex-shrink: 0; }   /* 1.6.3 (finding 17): the Grid menu holds the map's scale and cell now, so it scrolls in a short window as the measure options do */
     .fog-tick { flex-wrap: wrap; }   /* a tick of the fog menu: its name, and under it a gray line that says what it does */
     .fog-tick > small { flex-basis: 100%; padding-left: 21px; color: var(--dim); font-size: 11px; line-height: 1.35; }
     .menu-fold {   /* a fold of a toolbar menu: a line that shows or puts away the part under it */
@@ -979,7 +993,7 @@
   body.stream-mode #whiteboardWrap, body.stream-mode #whiteboardWrap * { cursor: grab !important; }
   body.stream-mode .wb-item.wb-absent { opacity: 1 !important; filter: none !important; }
   /* ---- doc panel: a planner / handbook popped OVER the map (like the sheet panel), read-only + live ---- */
-  #docPanel { position: fixed; right: 18px; top: 120px; width: 440px; max-width: 96vw; height: 70vh; max-height: 86vh; min-width: 280px; min-height: 180px; z-index: 9000; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; resize: both; }
+  #docPanel { position: fixed; right: 18px; top: calc(120px + var(--winbar)); width: 440px; max-width: 96vw; height: 70vh; max-height: 86vh; min-width: 280px; min-height: 180px; z-index: 9000; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; resize: both; }
   #docPanelHead { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
   #docPanelHead .docpanel-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); }
   #docPanelHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 14px; }
@@ -1164,7 +1178,7 @@
     .pv-toc button:hover, .pv-toc button:focus-visible { color: var(--ink); border-color: var(--gold); outline: none; }
     .pv-toc button.on { color: var(--gold); border-color: var(--gold); }
     .pv-toc .pv-toc-card { display: none; }
-    .pv-toc.pv-toc-col { display: block; position: sticky; float: left; width: 190px; max-height: calc(100vh - 190px); overflow: auto; padding: 2px 8px 10px 0; border-bottom: 0; z-index: 1; }
+    .pv-toc.pv-toc-col { display: block; position: sticky; float: left; width: 190px; max-height: calc(100vh - 190px - var(--winbar)); overflow: auto; padding: 2px 8px 10px 0; border-bottom: 0; z-index: 1; }
     .pv-toc.pv-toc-col + #plannerPreview { display: flow-root; }   /* the page keeps its own floats and clears to itself: a multi-column section's clear would otherwise clear the column and leave a gap */
     .pv-toc-col .pv-toc-head { display: block; margin: 0 0 4px 4px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
     .pv-toc-col button { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; border-radius: 4px; padding: 2px 4px; text-align: left; white-space: normal; font-size: 11.5px; }
@@ -1347,7 +1361,7 @@
   .tok-card .tc-chip.buff { border-color: var(--green); } .tok-card .tc-chip.debuff, .tok-card .tc-chip.down { border-color: var(--red); } .tok-card .tc-chip.down { color: var(--red); } .tok-card .tc-chip.gm { border-style: dashed; } .tok-card .tc-chip.ranged, .tok-card .tc-chip.env { color: var(--dim); }
   .tok-card .tc-note { font-size: 12px; line-height: 1.4; white-space: pre-wrap; } .tok-card .tc-note + .tc-note { border-top: 1px dashed var(--edge); padding-top: 4px; }
   .tok-card .tc-where { display: flex; gap: 8px; font-size: 12px; } .tok-card .tc-where-k { flex: 0 0 40px; color: var(--dim); } .tok-card .tc-where-v { min-width: 0; overflow-wrap: anywhere; }
-  #tokCardPanel { position: fixed; left: 80px; top: 120px; width: 300px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #tokCardPanel { position: fixed; left: 80px; top: calc(120px + var(--winbar)); width: 300px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #tokCardHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #tokCardHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
   #tokCardBody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -1521,7 +1535,7 @@
   .build-find:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
   .build-eras { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; }
   .build-matbody { height: auto; overflow: visible; }   /* 1.6.2, backlog 171: one scroll, the panel's own. The panel keeps one height on the Build tab instead, so a list that changes its height never moves the box being typed in */
-  #buildMenu[data-btab="build"] { height: min(640px, calc(100vh - 96px)); }
+  #buildMenu[data-btab="build"] { height: min(640px, calc(100vh - 96px - var(--winbar))); }
   #buildMenu[data-btab="build"] [data-bpart]:not([data-bpart="build"]), #buildMenu[data-btab="objects"] [data-bpart]:not([data-bpart="objects"]), #buildMenu[data-btab="generate"] [data-bpart]:not([data-bpart="generate"]) { display: none !important; }
   .build-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--edge); margin: 0 0 8px; position: sticky; top: -8px; z-index: 2; background: inherit; }
   .floating-toolbar .build-tab { width: auto; height: auto; min-width: 0; padding: 6px 12px; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px; color: var(--dim); font-size: 12px; cursor: pointer; }
@@ -1825,7 +1839,7 @@
     max-width: 0 !important; flex-basis: 0 !important; padding-left: 0; padding-right: 0; border-left: none; overflow: hidden;
   }
   /* 1.6.2, backlog 217 (the owner, by prompt: "Floating window"): Properties floats over the map where it was last left, and never narrows it */
-  body:not(.stream-mode) #sidebar { position: fixed; right: calc(18px + var(--lay-propr, 0px)); top: 110px; width: var(--rightw, 320px); max-width: calc(100vw - 24px); max-height: calc(100vh - 170px); z-index: 9000; border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  body:not(.stream-mode) #sidebar { position: fixed; right: calc(18px + var(--lay-propr, 0px)); top: calc(110px + var(--winbar)); width: var(--rightw, 320px); max-width: calc(100vw - 24px); max-height: calc(100vh - 170px - var(--winbar)); z-index: 9000; border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   body:not(.stream-mode) #sidebar.collapsed { display: none !important; }
   #rightGrip { display: none; }
   #propHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
@@ -1956,7 +1970,7 @@
   /* Developer console (see scripts/devconsole.js) — a drop-down JS console toggled with ~. Always dark
      since it's a debug surface; accents follow the theme's gold/red. Hidden until summoned. */
   #devConsole {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100020;
+    position: fixed; top: var(--winbar); left: 0; right: 0; z-index: 100020;
     display: none; flex-direction: column; height: 42vh; max-height: 460px;
     background: rgba(10, 12, 16, 0.96); border-bottom: 2px solid var(--gold);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
@@ -2269,7 +2283,7 @@
      never over it nor under it. trackers.js place writes the bar's bottom on the page as --trkfoot (none while the bar is put away, or held off the top by the layout editor), and each
      banner takes the lower of its own top and 8 px under the bar. The travel banner stands over the map's bars (8990) */
   #pauseBanner {
-    position: fixed; top: max(60px, calc(var(--trkfoot, 0px) + 8px)); left: 50%; transform: translateX(-50%); z-index: 95000;
+    position: fixed; top: max(calc(60px + var(--winbar)), calc(var(--trkfoot, 0px) + 8px)); left: 50%; transform: translateX(-50%); z-index: 95000;
     background: var(--panel2); border: 1px solid var(--gold); color: var(--gold);
     padding: 9px 22px; border-radius: 24px; font-size: 13.5px; display: none;
     box-shadow: 0 6px 20px rgba(0,0,0,0.5); white-space: nowrap;
@@ -2286,7 +2300,7 @@
   /* 1.6.3 (the multiplayer review, findings 6 and 15): a player's reconnect, where the pause banner stands: its words, Stop trying, and once this
      app stopped trying, Rejoin and a close */
   #reconnBar {
-    position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 95000; display: none; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+    position: fixed; top: calc(60px + var(--winbar)); left: 50%; transform: translateX(-50%); z-index: 95000; display: none; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
     background: var(--panel2); border: 1px solid var(--gold); color: var(--gold); padding: 7px 10px 7px 18px; border-radius: 24px; font-size: 13.5px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.5); max-width: calc(100vw - 32px); box-sizing: border-box;
   }
@@ -2381,12 +2395,12 @@
   /* Help modal — topic rail + tutorial panes */
   #helpNav { display:flex; flex-direction:column; gap:4px; min-width:180px; border-right:1px solid var(--edge); padding-right:14px; overflow-y:auto; }
   /* Interactive tutorial: a spotlight cut out of a dim sheet, and a card beside it */
-  #tourOverlay { display:none; position:fixed; inset:0; z-index:100001; pointer-events:none; }
+  #tourOverlay { display:none; position:fixed; inset:var(--winbar) 0 0 0; z-index:100001; pointer-events:none; clip-path:inset(0); }   /* 1.6.4: under the window bar; the clip keeps the spot's dim off the strip too */
   body.tour-on #tourOverlay { display:block; }
   #tourSpot { position:fixed; border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.62), 0 0 0 2px var(--gold); pointer-events:none; transition:left .2s, top .2s, width .2s, height .2s; }
   #tourSpot.nospot { box-shadow:0 0 0 9999px rgba(0,0,0,0.62); }
-  #tourShield { position:fixed; inset:0; pointer-events:auto; }
-  #tourCard { position:fixed; pointer-events:auto; display:flex; flex-direction:column; max-height:calc(100vh - 24px); background:var(--bg2); border:1px solid var(--gold); border-radius:10px; padding:16px 18px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:var(--ink); font-size:13.5px; line-height:1.5; }
+  #tourShield { position:fixed; inset:var(--winbar) 0 0 0; pointer-events:auto; }
+  #tourCard { position:fixed; pointer-events:auto; display:flex; flex-direction:column; max-height:calc(100vh - 24px - var(--winbar)); background:var(--bg2); border:1px solid var(--gold); border-radius:10px; padding:16px 18px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:var(--ink); font-size:13.5px; line-height:1.5; }
   #tourCard h3 { margin:2px 0 8px; color:var(--gold); font-size:16px; }
   #tourCard .tour-step { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   #tourCard .tour-secbtn { font:inherit; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); background:none; border:none; padding:0; cursor:pointer; }
@@ -2441,7 +2455,7 @@
   .sidebar-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin: 0 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
   .section-title { cursor: pointer; user-select: none; }
   /* The Characters section (charlist.js): the players' characters, then the NPCs under one fold */
-  .sidebar-section[hidden], .ch-npcs[hidden] { display: none; }
+  .sidebar-section[hidden], .ch-npcs[hidden], .ch-row[hidden] { display: none; }
   .ch-tpls[hidden] { display: none; }   /* 1.6.2 (backlog 227): the templates' fold */
   .ch-sub { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 2px 10px 4px; }
   .ch-row { padding: 8px 10px; border-radius: 5px; color: var(--ink); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; transition: background 0.1s; border: 1px solid transparent; }   /* the look of a row of the tree (.sidebar-item), under a class of its own */
@@ -2454,9 +2468,9 @@
   .ch-fold:hover { color: var(--ink); }
   /* the dungeon generator's dialog (the map builder, fold B2): the app's own dark box, a row a setting, as the owner passed it drawn */
   /* 1.5.6 trading: the barter window */
-  .trade-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100004; align-items: center; justify-content: center; }
+  .trade-modal { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.6); z-index: 100004; align-items: center; justify-content: center; }
   #tradeModal { z-index: 100005; }   /* 157 M1h: a trade that comes in stands over the trade log */
-  .trade-box { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 16px 18px; width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+  .trade-box { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 16px 18px; width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px - var(--winbar)); overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
   .trade-box h3 { margin: 0; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
   .trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 560px) { .trade-cols { grid-template-columns: 1fr; } }
@@ -2549,8 +2563,8 @@
   .trade-msg { font-size: 12.5px; color: var(--ink); }
   .trade-cost { font-size: 12.5px; color: var(--ink); font-weight: 600; }
   .trade-foot { display: flex; justify-content: flex-end; }
-  .gen-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100005; align-items: center; justify-content: center; }
-  .gen-box { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 18px 20px; width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; }
+  .gen-modal { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.7); z-index: 100005; align-items: center; justify-content: center; }
+  .gen-box { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 18px 20px; width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px - var(--winbar)); overflow-y: auto; box-sizing: border-box; }
   .gen-box h3 { margin: 0 0 12px; color: var(--gold); }
   .sel-swap { display: inline-flex; align-items: center; gap: 0; }
   #selSwap:not(.on-pan) #panModeBtn, #selSwap.on-pan #moveModeBtn { display: none; }   /* Select and Pan share one place; the mark in its corner switches them (its look stands with the tools' own corner marks) */
@@ -2591,7 +2605,7 @@
   #genSeedNew { padding: 3px 10px; margin: 0; }
   .gen-line { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 4px 0; }
   /* 1.6.2 (backlog 166 e): Start a campaign with questions */
-  .cq-box { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+  .cq-box { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px - var(--winbar)); overflow: auto; }
   .cq-step { color: var(--gold); font-weight: 600; margin-top: 8px; }
   .cq-step-body[hidden] { display: none; }
   .cq-q { display: block; margin: 10px 0 3px; }
@@ -2670,7 +2684,7 @@
   .share-kb { flex: 0 0 76px; text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
   .gen-line[hidden] { display: none; }
   /* 1.6.2 (backlog 227): Export all on the share sheet */
-  .share-box { max-height: calc(100vh - 40px); overflow-y: auto; }
+  .share-box { max-height: calc(100vh - 40px - var(--winbar)); overflow-y: auto; }
   .share-tags-head { margin-top: 10px; }
   .share-tags[hidden], .share-tags-head[hidden] { display: none; }
   .share-tag { align-items: center; }
@@ -2860,7 +2874,7 @@
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item.image:not(.tok-pic-hexagon):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.sel):not(.wb-hidden-gm):not(.wb-trap):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.wb-door-near) > img { filter: var(--imgf, none); }
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item:is(.image, .wb-hextok):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.sel):not(.wb-hidden-gm):not(.wb-trap):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.wb-door-near) > .tok-selring { display: none; }
   /* The token creator (owner, 2026-09-27): a picture framed to a square — drag, zoom, the grid's outline previewed over it */
-  .frame-modal { position: fixed; inset: 0; z-index: 100006; background: var(--overlay); display: flex; align-items: center; justify-content: center; }
+  .frame-modal { position: fixed; inset: var(--winbar) 0 0 0; z-index: 100006; background: var(--overlay); display: flex; align-items: center; justify-content: center; }
   .frame-box { width: min(380px, 94vw); max-height: 94vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
   .frame-head { display: flex; align-items: center; gap: 8px; }
   .frame-title { flex: 1; font-weight: 600; color: var(--gold); }
@@ -2885,7 +2899,7 @@
   /* Party menu: the strip's right-click actions. Lives outside the toolbar, so it gets the
      toolbar menu's look here explicitly. */
   #partyMenu {
-    display: none; flex-direction: column; gap: 2px; min-width: 240px; max-width: 340px; padding: 6px; max-height: calc(100vh - 12px); overflow-y: auto;
+    display: none; flex-direction: column; gap: 2px; min-width: 240px; max-width: 340px; padding: 6px; max-height: calc(100vh - 12px - var(--winbar)); overflow-y: auto;
     background: var(--deep); border: 1px solid #3a3a4a; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.6);
   }
   #partyMenu.show { display: flex; }
@@ -2939,7 +2953,7 @@
   .journal-all { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); white-space: nowrap; cursor: pointer; }
   .journal-all input { accent-color: var(--gold); }
   .journal-in { display: none; margin-left: 6px; padding: 0 7px; border: 1px solid var(--edge); border-radius: 9px; font-size: 10px; color: var(--blue); }   /* a row's own campaign: said only while a search takes in every journal */
-  #travelLockBanner { position: fixed; top: max(64px, calc(var(--trkfoot, 0px) + 8px)); left: 50%; transform: translateX(-50%); z-index: 8995; background: var(--panel2); border: 1px solid var(--gold); color: var(--ink); padding: 5px 12px; border-radius: 6px; font-size: 12px; box-shadow: var(--shadow); }
+  #travelLockBanner { position: fixed; top: max(calc(64px + var(--winbar)), calc(var(--trkfoot, 0px) + 8px)); left: 50%; transform: translateX(-50%); z-index: 8995; background: var(--panel2); border: 1px solid var(--gold); color: var(--ink); padding: 5px 12px; border-radius: 6px; font-size: 12px; box-shadow: var(--shadow); }
   body.net-paused #travelLockBanner { margin-top: 48px; }   /* under the pause banner while both show */
   /* 1.6.3 (finding 27): the session password is typed hidden, with an eye beside it that shows it and hides it again (net.js passShow) */
   #netPaneHost .net-pass-row { display: flex; gap: 6px; align-items: center; }
@@ -3056,7 +3070,7 @@
   header #rowHideBtn .ico { transform: rotate(180deg); }   /* the app's small "this opens" arrow, pointing up (the map's toolbar wore it beside a tool until 1.6.2) */
   /* the tab that shows a hidden row stands at the top edge, in the corner where the two rulers meet, which holds nothing: it covers no ruler, no map tab and no pill.
      --mainleft is where the map's area begins, measured by rowhide.js: past the rail, or past a docked panel and its grip */
-  #rowShowTab { position: fixed; top: 0; left: var(--mainleft, 34px); z-index: 4031; box-sizing: border-box; width: 36px; height: 18px; padding: 0; border: 1px solid var(--edge); border-top: 0; border-left: 0; border-radius: 0 0 7px 0; background: var(--bg2); color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #rowShowTab { position: fixed; top: var(--winbar); left: var(--mainleft, 34px); z-index: 4031; box-sizing: border-box; width: 36px; height: 18px; padding: 0; border: 1px solid var(--edge); border-top: 0; border-left: 0; border-radius: 0 0 7px 0; background: var(--bg2); color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
   #rowShowTab[hidden], body.tour-on #rowShowTab, body.stream-mode #rowShowTab { display: none; }
   #rowShowTab:hover, #rowShowTab:focus-visible { color: var(--gold); border-color: var(--gold); }
   #rowShowTab .ico { width: 12px; height: 12px; }
@@ -3064,7 +3078,7 @@
      With no ruler on screen it stands at the top edge */
   body.row-hidden:not(.tour-on) { --rowbar: 22px; }
   body.row-hidden:not(.tour-on).no-rulers { --rowbar: 3px; }
-  body.row-hidden:not(.tour-on) header { position: fixed; top: var(--rowbar); left: calc(var(--mainleft, 34px) + 42px + var(--lay-rl, 0px)); right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
+  body.row-hidden:not(.tour-on) header { position: fixed; top: calc(var(--rowbar) + var(--winbar)); left: calc(var(--mainleft, 34px) + 42px + var(--lay-rl, 0px)); right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
   /* where the window is too narrow for the bar it gives way and never spills over the Properties panel: the tabs down to the plus alone, as a folded row's do,
      the clock cut short first, and then each pill down to its drawing alone (32 px: its drawing, its padding and its edge), its words cut short. Past that the pills' box
      clips sideways: nothing of the bar is ever drawn past its own right edge */
@@ -3098,10 +3112,10 @@
   body.row-hidden:not(.tour-on):not(.stream-mode) #partyStrip, body.row-hidden:not(.tour-on):not(.stream-mode) #joinCard, body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: calc(var(--rowbar) + 74px); }
   body.row-hidden:not(.tour-on):not(.stream-mode).no-pointerpos.no-zoomctl #partyStrip { top: calc(var(--rowbar) + 32px); }
   body.row-hidden:not(.tour-on):not(.stream-mode) #plannerWrap { margin-top: 32px; }
-  body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: max(calc(var(--rowbar) + 27px), calc(var(--trkfoot, 0px) + 8px)); }
-  body.row-hidden:not(.tour-on):not(.stream-mode) #soundGate, body.row-hidden:not(.tour-on):not(.stream-mode) #musicGate { top: calc(var(--rowbar) + 32px); }
-  body.row-hidden:not(.tour-on):not(.stream-mode) #docReaderModal { top: calc(var(--rowbar) + 26px) !important; }
-  body.row-hidden:not(.tour-on):not(.stream-mode) #updateBanner { top: calc(var(--rowbar) + 34px) !important; }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: max(calc(var(--rowbar) + 27px + var(--winbar)), calc(var(--trkfoot, 0px) + 8px)); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #soundGate, body.row-hidden:not(.tour-on):not(.stream-mode) #musicGate { top: calc(var(--rowbar) + 32px + var(--winbar)); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #docReaderModal { top: calc(var(--rowbar) + 26px + var(--winbar)) !important; }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #updateBanner { top: calc(var(--rowbar) + 34px + var(--winbar)) !important; }
   /* ---- the left panel's rail (step R4 of the slim row; leftrail.js; 1.6.2: on every view). A narrow column of icons at the window's left edge:
      each shows its section alone, All shows every section, and the arrow at its foot hides and shows the panel. Opened from the rail while
      hidden, the panel lies over the map beside it, and takes no room from the map ---- */
@@ -3199,7 +3213,7 @@
   #tableWhere .tw-camp { color: var(--gold); font-weight: bold; max-width: 240px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #tableWhereMap .tw-map { color: var(--ink); font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #updateBanner {
-    position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 99990;
+    position: fixed; top: calc(56px + var(--winbar)); left: 50%; transform: translateX(-50%); z-index: 99990;
     display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 14px;
     background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px;
     box-shadow: 0 6px 18px rgba(0,0,0,0.45); font-size: 13px; color: var(--ink); max-width: min(92vw, 640px);
@@ -3535,7 +3549,7 @@
   .help-code { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 12px; color: var(--ink); overflow-x: auto; }
 
   /* The Handbook reader: a page over the play map for a joined player (handbook.js) */
-  #docReaderModal { position: fixed; top: 52px; left: 0; bottom: 0; width: min(760px, 72vw); z-index: 99990; background: var(--bg); border-right: 1px solid var(--gold); box-shadow: 6px 0 24px rgba(0,0,0,0.45); flex-direction: column; }
+  #docReaderModal { position: fixed; top: calc(52px + var(--winbar)); left: 0; bottom: 0; width: min(760px, 72vw); z-index: 99990; background: var(--bg); border-right: 1px solid var(--gold); box-shadow: 6px 0 24px rgba(0,0,0,0.45); flex-direction: column; }
   #docReaderModal .doc-reader-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--edge); background: var(--bg2); }
   #docReaderModal .doc-reader-head h3 { margin: 0; flex: 1; min-width: 0; color: var(--gold); font-size: 14px; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #docReaderOutline { flex: none; }
@@ -3550,6 +3564,7 @@
   body.stream-mode #docReaderModal { display: none !important; }
 
   @media print {
+      :root { --winbar: 0px; } #winBar { display: none !important; }   /* 1.6.4: the window bar never on paper, and nothing kept clear of it there */
       body:not(.print-sheet) header, body:not(.print-sheet) .sidebar, body:not(.print-sheet) #plannerEditor, body:not(.print-sheet) .tool, body:not(.print-sheet) .canvas-controls { display: none !important; }   /* a printed sheet (F2b) shows its own buttons as on screen */
       #plannerFindBar { display: none !important; }
       #plannerPreview mark.pf-hit { background: transparent !important; color: inherit !important; box-shadow: none !important; }
@@ -4084,7 +4099,7 @@
 
   /* Table notepad */
   .wp-away { display: none !important; }   /* 1.5.4 (floats.js): a floating box put away on a view it was not asked for on. Nothing is closed: back on the play map it is as it was left */
-  #notepadPanel { position: fixed; right: 18px; top: 140px; width: 320px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #notepadPanel { position: fixed; right: 18px; top: calc(140px + var(--winbar)); width: 320px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #notepadHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   .notepad-title { color: var(--gold); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
   .notepad-who { flex: 1; min-width: 0; color: var(--dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4096,18 +4111,18 @@
   #notepadPanel.min #notepadText, #notepadPanel.min .notepad-foot { display: none; }
 
   /* Sound (1.5.0): the GM's panel, the library, the speaker in the Table pill and its popover, the autoplay gate */
-  #soundPanel { position: fixed; right: 18px; top: 200px; width: 380px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #soundPanel { position: fixed; right: 18px; top: calc(200px + var(--winbar)); width: 380px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #soundHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #soundPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
   /* 1.6.0, backlog 173: the Time rules panel and its chat line */
-  #timePanel { position: fixed; right: 18px; top: 140px; width: 440px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #timePanel { position: fixed; right: 18px; top: calc(140px + var(--winbar)); width: 440px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #timeHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #timeHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
-  #layersPanel { position: fixed; right: 18px; top: 120px; width: 320px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }   /* 1.6.2, backlog 217: Layers */
+  #layersPanel { position: fixed; right: 18px; top: calc(120px + var(--winbar)); width: 320px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }   /* 1.6.2, backlog 217: Layers */
   #layersHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #layersHead .notepad-btn { padding: 1px 7px; font-size: 11px; } #layersHead .ly-map { color: var(--dim); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* 1.6.2 (backlog 166 h): the timeline ribbon, in its window and in the Calendar's Timeline tab */
-  #timelinePanel { position: fixed; left: max(12px, calc(50% - 400px)); top: 110px; width: min(800px, calc(100vw - 24px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #timelinePanel { position: fixed; left: max(12px, calc(50% - 400px)); top: calc(110px + var(--winbar)); width: min(800px, calc(100vw - 24px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #timelineHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #timelineHead .notepad-btn { padding: 1px 7px; font-size: 11px; } #timelineBody { padding: 8px 10px 10px; }
   .cal-ribbon { margin: 6px 0 10px; }
@@ -4125,7 +4140,7 @@
   .tl-mark:hover, .tl-mark:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; z-index: 2; }
   .tl-note-label { position: absolute; top: 68px; width: 120px; text-align: center; font-size: 11px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   /* 1.6.2 (backlog 166 h): the Story view */
-  #storyPanel { position: fixed; left: max(12px, calc(50% - 360px)); top: 90px; width: min(720px, calc(100vw - 24px)); max-height: 72vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #storyPanel { position: fixed; left: max(12px, calc(50% - 360px)); top: calc(90px + var(--winbar)); width: min(720px, calc(100vw - 24px)); max-height: 72vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #storyHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #storyHead .notepad-btn { padding: 1px 7px; font-size: 11px; } .sv-sum { color: var(--dim); font-size: 12px; }
   .sv-help { font-size: 11px; color: var(--dim); padding: 6px 10px 0; }
@@ -4152,7 +4167,7 @@
   /* 1.6.2, backlog 42: a container's window, its items as tiles */
   /* 1.6.3, a map's places (places.js): Places here, a floating box at the map's right edge; a place pin, the map pin on a round plate in its
      color with the place's name under it; a legend piece, a printed list on a plate of its color, each line a button that finds its place */
-  #placesPanel { position: fixed; right: 14px; top: 112px; width: 280px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #placesPanel { position: fixed; right: 14px; top: calc(112px + var(--winbar)); width: 280px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #placesHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--edge); cursor: move; } #placesHead .notepad-title { color: var(--ink); font-weight: 600; } #placesHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 14px; }
   #placesBody { padding: 6px; overflow-y: auto; } #placesBody .places-empty { padding: 6px 4px; font-size: 12px; line-height: 1.45; }
   #placesBody .places-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -4186,7 +4201,7 @@
   .wb-item.maplegend .lg-line:hover, .wb-item.maplegend .lg-line:focus-visible { background: rgba(127,127,127,0.18); outline: none; } .wb-item.maplegend .lg-n { flex: none; min-width: 1.3em; font-weight: 700; } .wb-item.maplegend .lg-name { flex: 1; min-width: 0; overflow-wrap: anywhere; } .wb-item.maplegend .lg-line.unseen { opacity: .6; }
   body.stream-mode #placesPanel { display: none !important; }
   #sidebar .places-field-line { margin: -2px 0 8px; font-size: 10.5px; line-height: 1.4; }
-  #boxPanel { position: fixed; right: 360px; top: 140px; width: 340px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #boxPanel { position: fixed; right: 360px; top: calc(140px + var(--winbar)); width: 340px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #boxHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--edge); cursor: move; } #boxHead .notepad-title { color: var(--gold); font-weight: 600; } #boxHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 14px; }   /* its close, square and centered (the owner, 2026-11-12) */
   #boxBody { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
   #boxBody .box-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
@@ -4308,7 +4323,7 @@
   #trkStrip.trk-bar .trk-list > .trk-pill, #trkStrip.trk-bar .trk-list > .trk-pill + .trk-pill { min-height: 24px; border: 1px solid var(--edge); border-radius: 13px; padding: 0 6px 0 8px; box-shadow: none; }
   #trkStrip.trk-bar .trk-list > .trk-pill.trk-done { border-color: rgba(224,165,79,0.7); box-shadow: none; }
   .set-trk-hide .combat-row { margin-top: 4px; font-size: 12px; cursor: pointer; }
-  #trkPanel { position: fixed; left: 60px; top: 100px; width: 320px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #trkPanel { position: fixed; left: 60px; top: calc(100px + var(--winbar)); width: 320px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #trkHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #trkHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
   #trkBody { overflow: auto; padding: 10px 12px 12px; font-size: 13px; }
@@ -4386,7 +4401,7 @@
   .snd-now { color: var(--gold); font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .snd-pop-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; cursor: pointer; }
   .snd-pop-row input[type=range] { flex: 1; }
-  #soundGate { position: fixed; left: 50%; top: 62px; transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
+  #soundGate { position: fixed; left: 50%; top: calc(62px + var(--winbar)); transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
   body.stream-mode #soundGate { top: 48px; }
   /* Music (1.5.0): its own pill, panel, transport and gate, separate from Sound */
   /* a feature this player switched off for themselves at this table: its icon stays, struck through, and its menu offers the way back */
@@ -4395,7 +4410,7 @@
   #musicInd .ico circle { fill: currentColor; stroke: none; }   /* filled note-heads read cleanly at 16px; the stems/beam stay stroked */
   #musicInd .ico path { stroke-width: 1.7; }
   #musicInd.playing { color: var(--gold); }   /* playing: gold (idle inherits the same look as the other header icons; mute is shown in the popover, not by dimming). 'playing', not 'on' — 'on' triggers the toolbar's gold active background */
-  #musicGate { position: fixed; left: 50%; top: 62px; transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
+  #musicGate { position: fixed; left: 50%; top: calc(62px + var(--winbar)); transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
   body.stream-mode #musicGate { top: 48px; }
   .music-pillpop { position: fixed; z-index: 100001; width: 230px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; color: var(--ink); display: flex; flex-direction: column; gap: 6px; }
   .music-pillpop-t { color: var(--dim); font-size: 11px; }
@@ -4403,7 +4418,7 @@
   .music-pillpop-vol { display: flex; align-items: center; gap: 6px; }
   .music-pillpop-vol input[type=range] { flex: 1; }
   .music-pillpop-off { font-size: 11px; color: var(--dim); }
-  #musicPanel { position: fixed; right: 18px; top: 200px; width: 340px; max-width: 94vw; max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden auto; }
+  #musicPanel { position: fixed; right: 18px; top: calc(200px + var(--winbar)); width: 340px; max-width: 94vw; max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden auto; }
   .music-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); cursor: move; user-select: none; }
   .music-head b { flex: 1; }
   .music-x { padding: 0 8px; }
@@ -4435,7 +4450,7 @@
   #musicPanel select:focus, .music-pillpop select:focus { outline: none; border-color: var(--gold); }
   #musicPanel input[type=range], .music-pillpop input[type=range] { accent-color: var(--gold); }
   /* Campaign videos (1.5.0, item 21): the GM's Video panel — moved by its head, resized from its corner, the picture full screen from the head */
-  #videoPanel { position: fixed; right: 18px; top: 120px; width: 460px; max-width: calc(100vw - 8px); max-height: calc(100vh - 8px); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #videoPanel { position: fixed; right: 18px; top: calc(120px + var(--winbar)); width: 460px; max-width: calc(100vw - 8px); max-height: calc(100vh - 8px - var(--winbar)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #videoHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; touch-action: none; }
   #videoPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
   #videoStage { flex: 1 1 auto; min-height: 140px; display: flex; flex-direction: column; background: #000; }
@@ -4455,7 +4470,7 @@
   .vid-name:focus { outline: none; border-color: var(--gold); }
   .vid-meta { color: var(--dim); font-size: 10.5px; white-space: nowrap; }
   .vid-foot { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11px; color: var(--dim); }
-  #videoPanel.vid-max { left: 0 !important; top: 0 !important; right: auto; width: 100vw !important; height: 100vh !important; max-width: none; max-height: none; border-radius: 0; z-index: 100001 !important; }   /* over the z sheets.js raisePanel writes on the box when it is pressed */
+  #videoPanel.vid-max { left: 0 !important; top: var(--winbar) !important; right: auto; width: 100vw !important; height: calc(100vh - var(--winbar)) !important; max-width: none; max-height: none; border-radius: 0; z-index: 100001 !important; }   /* over the z sheets.js raisePanel writes on the box when it is pressed */
   #videoPanel.vid-max #videoBody, #videoPanel.vid-max .video-resize, #videoPanel.vid-max .video-caption { display: none; }
   #videoPanel.vid-max #videoHead { cursor: default; }
   /* item 21 V2: the stage's table row (who the video is shown to, live), and a player's side of a showing in the same panel */
@@ -4783,7 +4798,7 @@
   .fb-col { flex: 1; min-width: 0; }
   body.net-client #campaignSidebar .sidebar-section.sb-decks:not([hidden]):not(.rail-off), body.net-client.tour-on #campaignSidebar .sidebar-section.sb-decks:not([hidden]) { display: block !important; }   /* the rail's own mark puts it away like any section, but while the tour's card is up */
   .dk-row { display: flex; justify-content: space-between; gap: 8px; width: 100%; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
-  #deckPanel { position: fixed; left: 60px; top: 100px; width: 420px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; }
+  #deckPanel { position: fixed; left: 60px; top: calc(100px + var(--winbar)); width: 420px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; }
   #deckHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #deckHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
   #deckBody { overflow: auto; padding: 10px 12px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
@@ -5315,7 +5330,7 @@
   .sys-char-row .sys-char-owner { max-width: 200px; }
 
   /* Character sheets (1.5.0): the sheet panel over the play map */
-  #sheetPanel { position: fixed; right: 18px; top: 120px; width: 460px; max-width: 96vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; max-height: 82vh; }
+  #sheetPanel { position: fixed; right: 18px; top: calc(120px + var(--winbar)); width: 460px; max-width: 96vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; max-height: 82vh; }
   #sheetPanel:focus, .hud-panel:focus { outline: none; }   /* 1.5.4: a sheet or a HUD a button opened takes the focus itself (sheets.js focusPanel); its gold edge says where it is */
   #sheetPanel.sheet-has-table { width: min(680px, 96vw); }   /* Stage 4: a rich item table's columns need room — widen the panel, still responsive to the viewport */
   /* The sheet's head is TWO ROWS (the owner, 2026-10-10, by prompt: "Two rows"). Row one is the character: its picture, its name and player, the
@@ -6331,7 +6346,7 @@
   @keyframes fxPulse { 0% { box-shadow: 0 0 0 0 var(--fx-pulse-color, rgba(224,165,79,0.7)); } 70% { box-shadow: 0 0 0 14px rgba(224,165,79,0); } 100% { box-shadow: 0 0 0 0 rgba(224,165,79,0); } }
   #measureLayer g.blast text.blast-boom { fill: var(--gold); cursor: pointer; font: bold 13px sans-serif; }
   /* the ✨ effects panel (the sound panel's shell) */
-  #fxPanel { position: fixed; right: 18px; top: 120px; width: 300px; max-width: 94vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+  #fxPanel { position: fixed; right: 18px; top: calc(120px + var(--winbar)); width: 300px; max-width: 94vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
   #fxHead { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #fxBody { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 7px; flex: 1 1 auto; min-height: 0; overflow: auto; }   /* 1.6.2: held inside the window, the panel scrolls rather than cut off its foot */
   #fxBody .snd-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
@@ -6392,8 +6407,8 @@
   .ts-box .tsr-link { color: var(--blue); }   /* a linked part looks like a link; in the editor it is not followed */
   .ts-bar { position: fixed; z-index: 46; left: 0; top: 0; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 3px 5px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 6px; box-shadow: var(--shadow); }
   .ts-bar[hidden] { display: none; }
-  .dmg-win { position: fixed; inset: 0; z-index: 95200; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); }
-  .dmg-card { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 16px 18px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); }
+  .dmg-win { position: fixed; inset: var(--winbar) 0 0 0; z-index: 95200; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); }
+  .dmg-card { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 32px - var(--winbar)); overflow-y: auto; padding: 16px 18px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); }
   .dmg-title { margin: 0 0 12px; font-size: 16px; }
   .dmg-row { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 2px 10px; margin-bottom: 10px; }
   .dmg-row input, .dmg-row select { min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 5px 7px; font: inherit; font-size: 13px; color-scheme: dark; outline: none; }
@@ -6627,7 +6642,7 @@
   .sys-layout-preview-hud { max-width: 470px; }
   /* HF2a: the HUD window — its own chrome after the reference's HUD (a card-colored head with a square portrait and the name in the primary
      color, compact sections), in the sheet's palette; the twins of the #sheetPanel rules the section renderer relies on */
-  .hud-panel { position: fixed; top: 120px; left: 0; width: 470px; max-width: 96vw; max-height: min(760px, calc(100vh - 140px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  .hud-panel { position: fixed; top: calc(120px + var(--winbar)); left: 0; width: 470px; max-width: 96vw; max-height: min(760px, calc(100vh - 140px - var(--winbar))); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   .hud-panel.sheet-sized { max-height: none; }
   .hud-head { display: flex; align-items: center; gap: 9px; padding: 9px 10px 8px 12px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
   .hud-head .notepad-btn { display: inline-flex; align-items: center; justify-content: center; }
@@ -6690,7 +6705,7 @@
   .sys-explain-pagerow { align-self: flex-start; }
   @media print { .sheet-explain { display: none; } }
   .sheet-dl-pop { position: fixed; z-index: 100003; width: 280px; display: flex; flex-direction: column; gap: 2px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
-  .sheet-hit-pop { max-height: min(460px, calc(100vh - 16px)); overflow-y: auto; }   /* 1.6.0 (B5): a target's locations, a long list scrolling inside */
+  .sheet-hit-pop { max-height: min(460px, calc(100vh - 16px - var(--winbar))); overflow-y: auto; }   /* 1.6.0 (B5): a target's locations, a long list scrolling inside */
   .sheet-dl-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; color: var(--ink); cursor: pointer; font: inherit; }
   .sheet-dl-item:hover, .sheet-dl-item:focus-visible { background: var(--surface); border-color: var(--edge); outline: none; }
   .sheet-dl-wait { padding: 6px 8px; color: var(--dim); font-size: 13px; outline: none; }   /* 1.6.3 (the combat review, finding 30): the line a called shot's menu shows while the GM's table is asked */
@@ -6700,7 +6715,7 @@
   .sheet-dl-s, .sheet-dl-note { font-size: 11px; color: var(--dim); }
   .sheet-dl-gm { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); cursor: pointer; }
   .sheet-dl-note { padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); }
-  .sheet-crew-pop { max-height: min(420px, calc(100vh - 16px)); overflow-y: auto; min-width: 220px; }   /* 1.6.2 (218): + Crew…, who sits where */
+  .sheet-crew-pop { max-height: min(420px, calc(100vh - 16px - var(--winbar))); overflow-y: auto; min-width: 220px; }   /* 1.6.2 (218): + Crew…, who sits where */
   .sheet-crew-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 6px; border-bottom: 1px solid var(--edge); margin-bottom: 4px; }
   .sheet-crew-head .sheet-crew-stn { flex: 1 1 auto; min-width: 0; }
   .sheet-crew-all { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--dim); white-space: nowrap; cursor: pointer; }

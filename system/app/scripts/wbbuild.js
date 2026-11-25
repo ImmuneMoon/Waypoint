@@ -648,7 +648,8 @@ function portalTipAt(tip, cx, cy) {
     tip.style.left = '0px'; tip.style.top = '0px';   // measured at the window's corner, so its width is its own and not what is left beside the pointer
     var x = cx + 18, y = cy + 22, w = tip.offsetWidth || 0, h = tip.offsetHeight || 0, W = window.innerWidth, H = window.innerHeight;
     if (W > 0 && w > 0 && x + w > W - 8) x = Math.max(8, cx - 18 - w);
-    if (H > 0 && h > 0 && y + h > H - 8) y = Math.max(8, cy - 22 - h);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (H > 0 && h > 0 && y + h > H - 8) y = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), cy - 22 - h);
     tip.style.left = x + 'px'; tip.style.top = y + 'px';
 }
 function portalTipShow(on) { var P = _portal; if (P && P.tip) P.tip.style.display = on ? '' : 'none'; }   // put away while the pointer is off the map, or the window has no focus

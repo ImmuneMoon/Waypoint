@@ -284,9 +284,9 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             check('1.6.3 (finding 19): the pause banner and the travel banner stand under the trackers bar: footSet writes the bar\'s bottom in the window as --trkfoot (run for real), only where it differs, and takes it off for a bar with no height or none; place asks it on its two ways out and at its end; each banner\'s top is the lower of its own and 8 px under the bar, a hidden top row\'s too, and the travel banner stands over the map\'s bars (8990) with its look in the style sheet',
                 a === j({ '--trkfoot': '96px' }) && quiet === 1 && b === j({ '--trkfoot': '130px' }) && c === '{}' && d === 3
                 && (plS.match(/footSet\(null\); return;/g) || []).length === 2 && /\n    footSet\(box\);$/.test(plS)
-                && css.includes('#pauseBanner {\n    position: fixed; top: max(60px, calc(var(--trkfoot, 0px) + 8px));')
-                && css.includes('body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: max(calc(var(--rowbar) + 27px), calc(var(--trkfoot, 0px) + 8px)); }')
-                && /#travelLockBanner \{ position: fixed; top: max\(64px, calc\(var\(--trkfoot, 0px\) \+ 8px\)\);[^}]*z-index: 8995;/.test(css)
+                && css.includes('#pauseBanner {\n    position: fixed; top: max(calc(60px + var(--winbar)), calc(var(--trkfoot, 0px) + 8px));') /* 1.6.4: the window bar moved it (moved on purpose) */
+                && css.includes('body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: max(calc(var(--rowbar) + 27px + var(--winbar)), calc(var(--trkfoot, 0px) + 8px)); }')
+                && /#travelLockBanner \{ position: fixed; top: max\(calc\(64px \+ var\(--winbar\)\), calc\(var\(--trkfoot, 0px\) \+ 8px\)\);[^}]*z-index: 8995;/.test(css)
                 && ix.includes('<div id="travelLockBanner" style="display:none;"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>'), j([a, quiet, b, c, d, writes]));
             check('the review of multiplayer window: a trackers bar the layout editor holds at the bottom or in the middle of the map writes no --trkfoot, so the pause and travel banners keep their own top and never leave the window; one held at a top place writes it as before, and a layout that cannot say where it holds the bar counts as not at the top (footSet, run for real)',
                 low === '{}' && high === j({ '--trkfoot': '96px' }) && mid === '{}' && noAsk === '{}' && free === j({ '--trkfoot': '96px' }), j([low, high, mid, noAsk, free]));

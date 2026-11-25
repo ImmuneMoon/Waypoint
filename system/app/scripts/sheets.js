@@ -197,7 +197,8 @@ function openPage(id) {
         var ox = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)), oy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
         if (ox > 0 && oy > 0) {   // any overlap: beside the sheet, left if it fits, else right; where neither fits it stays (it is on top anyway)
             var left = b.left - a.width - 12; if (left < 8) left = (b.right + 12 + a.width <= window.innerWidth - 8) ? b.right + 12 : null;
-            if (left !== null) { dp.style.left = Math.round(left) + 'px'; dp.style.right = 'auto'; dp.style.top = Math.round(Math.max(8, b.top)) + 'px'; }
+            // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+            if (left !== null) { dp.style.left = Math.round(left) + 'px'; dp.style.right = 'auto'; dp.style.top = Math.round(Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), b.top)) + 'px'; }
         }
     }
     raisePanel(dp);   // HF2a: over the HUDs and every other box too
@@ -388,7 +389,8 @@ function explainOpen(anchor, ex, c, more, cap) {
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); });
     document.body.appendChild(pop); _ldPop = pop;
-    var r0 = anchor.getBoundingClientRect(), ph = pop.offsetHeight || 120; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8, r0.bottom + 6 + ph > window.innerHeight ? r0.top - 6 - ph : r0.bottom + 6) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r0 = anchor.getBoundingClientRect(), ph = pop.offsetHeight || 120; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), r0.bottom + 6 + ph > window.innerHeight ? r0.top - 6 - ph : r0.bottom + 6) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var fb = null; Array.prototype.forEach.call(pop.querySelectorAll('button'), function(x) { if (!fb && !x.disabled) fb = x; }); try { (fb || pop).focus(); } catch (er) {}
 }
@@ -1941,7 +1943,8 @@ function openSheet(charId) {
     placeSheet(); raisePanel(p); renderSheet();
 }
 function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; if (typeof qnFlush === 'function') qnFlush(); var pS = ui('sheetPanel'); if (pS) pS.classList.remove('sheet-slim'); if (typeof _asPlayer !== 'undefined') _asPlayer = null; if (typeof keptDrop === 'function') keptDrop(null, 'sheet'); var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (1.6.4: a quick note's title or plain text is stored first, qnFlush) (item 35: what was being typed in it is stored, and the run of typing ends)
-function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} if (window.wpFloats && window.wpFloats.fit) window.wpFloats.fit(p); }   // found by hand: another sheet opened in a box already up came back to a stored place past the window's edge, and the box's own fit runs only as it comes up
+// 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} if (window.wpFloats && window.wpFloats.fit) window.wpFloats.fit(p); }   // found by hand: another sheet opened in a box already up came back to a stored place past the window's edge, and the box's own fit runs only as it comes up
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
 function panelPref() { try { var o = JSON.parse(pref('wp_sheetPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
@@ -2301,7 +2304,8 @@ function makeHud(charId) {
     q('hud-close').addEventListener('click', function() { closeHud(charId); });
     var head = v.head, drag = null;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; });
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; });
     head.addEventListener('pointerup', function() { if (!drag) return; drag = null; var sized = p.classList.contains('sheet-sized'); if (sized) sizePanel(p, p.offsetWidth, p.offsetHeight); saveHudPref(p, sized); });
     var grip = q('hud-resize'), rz = null;
     grip.addEventListener('pointerdown', function(e) { e.preventDefault(); e.stopPropagation(); var r = p.getBoundingClientRect(); p.style.left = r.left + 'px'; p.style.top = r.top + 'px'; rz = { x: e.clientX, y: e.clientY, w: r.width, h: r.height }; grip.setPointerCapture(e.pointerId); });
@@ -2326,7 +2330,8 @@ function placeHud(v) {
     }
     var near = function() { return Object.keys(huds).some(function(id) { var u = huds[id]; if (!u || u === v) return false; var r = u.panel.getBoundingClientRect(); return Math.abs(r.left - x) <= 8 && Math.abs(r.top - y) <= 8; }); };
     for (var k = 0; k < 5 && near(); k++) { x += 24; y += 24; }
-    p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max(0, Math.min(H - 80, y))) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(H - 80, y))) + 'px';
     if (sized) sizePanel(p, o.w, o.h);
     else if (foot !== null && y + h > foot) p.style.height = Math.max(240, Math.round(foot - y)) + 'px';
     if (window.wpFloats && typeof window.wpFloats.fit === 'function') window.wpFloats.fit(p);   // the live test, 2026-10-30: at phone width no place was clear, and the HUD stood over the top row
@@ -3150,7 +3155,8 @@ function glyphPicker(inp, anchor, repaint) {
     pop.addEventListener('click', function(e) { e.stopPropagation(); }); pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     var cur = inp.value.trim(); setMode(!cur || /^icon:/i.test(cur) ? 'icons' : 'emoji');
     host.appendChild(pop);
-    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 340, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - 340, r.bottom + 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 340, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 340, r.bottom + 4)) + 'px';
     document.addEventListener('mousedown', glyphOutside, true);
     try { q.focus(); } catch (er) {}
 }
@@ -3543,7 +3549,8 @@ function openLvlMenu(anchor, lvs, L, lv, go, always) {   // always (1.6.0 R12): 
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
     document.body.appendChild(pop); _ldPop = pop;
-    var r0 = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 36 * n), r0.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r0 = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 36 * n), r0.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var cur = pop.querySelector('.sheet-lvl-item.on') || pop.querySelector('.sheet-dl-item'); try { if (cur) cur.focus(); } catch (er) {}
 }
@@ -3844,7 +3851,8 @@ function sheetMenu(anchor, entry, c, f) {
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
     document.body.appendChild(pop); _ldPop = pop;
-    var r0 = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 36 * Math.min(n, 12)), r0.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r0 = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 36 * Math.min(n, 12)), r0.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var cur = pop.querySelector('.sheet-dl-item.on') || pop.querySelector('.sheet-dl-item'); try { if (cur) cur.focus(); } catch (er) {}
 }
@@ -4577,7 +4585,8 @@ function openLoadMenu(anchor, c, f, entry, sf, spec, sys) {
         e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
     });
     document.body.appendChild(pop); _ldPop = pop;
-    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -4594,7 +4603,8 @@ function rowLibShow(pop, x, y) {
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
     document.body.appendChild(pop); _ldPop = pop;
-    pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, x)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (pop.offsetHeight || 60) - 8, y)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, x)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (pop.offsetHeight || 60) - 8, y)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -4692,7 +4702,8 @@ function openFeedMenu(anchor, c, f, entry, sf, spec, sys, fd, add, turns, room) 
         e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
     });
     document.body.appendChild(pop); _ldPop = pop;
-    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -4764,7 +4775,8 @@ function openChamberMenu(anchor, c, f, entry, sf, spec, sys) {   // on the page,
         e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
     });
     document.body.appendChild(pop); _ldPop = pop;
-    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -5756,7 +5768,8 @@ function closedShow(box) {
 function closedFit(box, line) {
     var win = box.ownerDocument && box.ownerDocument.defaultView; if (!win || typeof win.getComputedStyle !== 'function') return;
     var clip = box.parentNode; while (clip && clip.nodeType === 1) { var cs = win.getComputedStyle(clip); if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') break; clip = clip.parentNode; }
-    var cr = clip && clip.nodeType === 1 ? clip.getBoundingClientRect() : { left: 0, right: win.innerWidth, top: 0, bottom: win.innerHeight }, lr = line.getBoundingClientRect(), br = box.getBoundingClientRect();
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var cr = clip && clip.nodeType === 1 ? clip.getBoundingClientRect() : { left: 0, right: win.innerWidth, top: (win.wpWinBarH ? win.wpWinBarH() : 0), bottom: win.innerHeight }, lr = line.getBoundingClientRect(), br = box.getBoundingClientRect();
     if (lr.right > cr.right - 4) {
         var room = Math.floor(cr.right - cr.left - 8); if (lr.width > room) { line.style.maxWidth = Math.max(120, room) + 'px'; lr = line.getBoundingClientRect(); }   // narrowed only, never widened past its own cap
         line.style.left = Math.round(Math.max(cr.left + 4, cr.right - 4 - lr.width) - br.left) + 'px';
@@ -6127,7 +6140,8 @@ function allyPick(anchor, c, far, go) {
         e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
     });
     document.body.appendChild(pop); _ldPop = pop;
-    var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * nI), r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 52 * nI), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -6172,7 +6186,8 @@ function askThen(ent, c, anchor, opts, swRef, go) {
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); done(); } });
     document.body.appendChild(pop); _ldPop = pop;
     var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, hE = pop.getBoundingClientRect ? pop.getBoundingClientRect().height : 120;
-    pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - hE - 8, r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - hE - 8, r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     try { if (first) first.focus(); } catch (er) {}
 }
@@ -6405,7 +6420,8 @@ function hitPick(anchor, need, go) {
             e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
         });
         document.body.appendChild(pop); _ldPop = pop;
-        var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * Math.min(nI, 8)), r.bottom + 6)) + 'px';
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 52 * Math.min(nI, 8)), r.bottom + 6)) + 'px';
         document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
         var first = pop.querySelector(waiting ? '.sheet-dl-wait' : '.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
     };
@@ -8494,7 +8510,8 @@ function openDownloadMenu(anchor) {
         e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item, .sheet-dl-gm input')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
     });
     document.body.appendChild(pop); _dlPop = pop;
-    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.right - 280)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.right - 280)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', dlOutside, true); document.addEventListener('keydown', dlKey, true);   // Escape here first: the panel's own Escape closes the sheet
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -9240,7 +9257,8 @@ var _sysedTabs = sysedTabs(), autoBox = _sysedTabs.autoBox, clockBox = _sysedTab
     Z_BOXES.forEach(function(id) { raiseWire(ui(id), window.MutationObserver); });   // every floating box comes forward when pressed or shown (1.5.4: with or without a HUD; the page panel is docpanel.js's, not edited here)
     var drag = null;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, .sheet-sub-give')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; });
     head.addEventListener('pointerup', function() {
         if (!drag) return; drag = null;
         var sized = p.classList.contains('sheet-sized'); if (sized) sizePanel(p, p.offsetWidth, p.offsetHeight);   // a sized panel moved down keeps its bottom on screen

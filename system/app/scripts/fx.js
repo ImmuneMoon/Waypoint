@@ -323,7 +323,8 @@ setInterval(function() {
 var panelOpen = false;
 function openPanel() { var p = ui('fxPanel'); if (!p || !canWrite()) return; if (window.wpSound && window.wpSound.closePanel) window.wpSound.closePanel(); p.style.display = 'flex'; panelOpen = true; placePanel(); renderPanel(); }   // Sound and Visual effects share the corner: only one panel at a time
 function closePanel() { var p = ui('fxPanel'); if (p) p.style.display = 'none'; panelOpen = false; }
-function placePanel() { var p = ui('fxPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_fxPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 60, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
+// 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+function placePanel() { var p = ui('fxPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_fxPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 60, pos.x)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 40, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
 function soundEntries() { try { return window.wpSound && window.wpSound.entries ? window.wpSound.entries() : []; } catch (e) { return []; } }
 function playersHere() { var n = net(), id = mapNow(); if (!(n && n.active && n.role === 'host') || !id) return -1; var c = 0; Object.values(n.roster || {}).forEach(function(p) { if (p && p.location === id) c++; }); return c; }
 // [fxcheck:press-start]
@@ -514,7 +515,8 @@ function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && wind
     var head = ui('fxHead'); var drag = null;
     if (head) {
         head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-        head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; });
         head.addEventListener('pointerup', function() { if (!drag) return; drag = null; var r = p.getBoundingClientRect(); setPref('wp_fxPanel', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) })); });
     }
     // the layers follow the wrap and the window

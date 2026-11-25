@@ -178,7 +178,8 @@ function crewAddPick(anchor, sys, k, c, camp) {
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); });
     draw();
     document.body.appendChild(pop); ldPopSet(pop);
-    var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - 320, r.bottom + 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 320, r.bottom + 4)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     try { sel.focus(); } catch (er) {}
 }

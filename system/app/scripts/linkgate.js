@@ -506,7 +506,8 @@ function lmOpen(win, doc, a, pg, e, mn) {
     var px = e && e.button === 2 && typeof e.clientX === 'number' ? e.clientX : null, py = px !== null && typeof e.clientY === 'number' ? e.clientY : null;
     if ((px === null || py === null) && a.getBoundingClientRect) { var r = a.getBoundingClientRect(); px = r.left; py = r.bottom + 2; }   // by the keyboard: under the link itself
     var vw = (win && win.innerWidth) || 0, vh = (win && win.innerHeight) || 0, mw = m.offsetWidth || 0, mh = m.offsetHeight || 0;
-    m.style.left = Math.max(4, Math.min(+px || 0, vw - mw - 4)) + 'px'; m.style.top = Math.max(4, Math.min(+py || 0, vh - mh - 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    m.style.left = Math.max(4, Math.min(+px || 0, vw - mw - 4)) + 'px'; m.style.top = Math.max(4 + (win && win.wpWinBarH ? win.wpWinBarH() : 0), Math.min(+py || 0, vh - mh - 4)) + 'px';
     if (!(e && e.button === 2)) { var first = m.querySelector('.linkmenu-row'); if (first) first.focus(); }   // opened by the keyboard (the menu key, Shift+F10): its first row has the focus
     return true;
 }
@@ -559,7 +560,8 @@ function popShow(win, doc, a) {
     var rs = typeof a.getClientRects === 'function' ? a.getClientRects() : null, r = rs && rs.length ? rs[rs.length - 1] : (a.getBoundingClientRect ? a.getBoundingClientRect() : null);
     var vw = (win && win.innerWidth) || 0, vh = (win && win.innerHeight) || 0;
     el.wpLink = a; el.wpWin = win; el.hidden = false;
-    if (r) { el.style.left = Math.max(2, Math.min(Math.round(r.right - 1), vw - 24)) + 'px'; el.style.top = Math.max(2, Math.min(Math.round(r.top + (r.height - 20) / 2), vh - 24)) + 'px'; }
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (r) { el.style.left = Math.max(2, Math.min(Math.round(r.right - 1), vw - 24)) + 'px'; el.style.top = Math.max(2 + (win && win.wpWinBarH ? win.wpWinBarH() : 0), Math.min(Math.round(r.top + (r.height - 20) / 2), vh - 24)) + 'px'; }
     return true;
 }
 // [sinkcheck:linkpop-end]

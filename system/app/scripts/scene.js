@@ -167,7 +167,8 @@ function readMenuAt(src, x, y) {
     var mm = ui('sceneMenu'); if (!mm) return false;
     mm.dataset.src = src; mm.style.display = 'flex';
     var w = mm.offsetWidth || 200, h = mm.offsetHeight || 40;
-    mm.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px'; mm.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    mm.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px'; mm.style.top = Math.max(4 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(y, window.innerHeight - h - 4)) + 'px';
     return true;
 }
 // [scenecheck:readpic-end]

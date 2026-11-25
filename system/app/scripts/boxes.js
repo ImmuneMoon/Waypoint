@@ -286,7 +286,8 @@ function wire() {
     var c = document.getElementById('boxClose'); if (c) c.addEventListener('click', close);
     var p = P(), head = document.getElementById('boxHead'), drag = null; if (!p || !head) return;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(ev) { head.addEventListener(ev, function() { drag = null; }); });   // a drag ends however the pointer is let go
 }
 // [boxcheck:player-start]

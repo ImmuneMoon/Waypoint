@@ -4646,7 +4646,8 @@ net.notepadInput = function(text) {   // the pad changed under the GM's hand: it
             if (e.target.closest('button')) return;
             var r = p.getBoundingClientRect(); d = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); e.preventDefault();
         });
-        head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; if (window.wpTextBox && typeof window.wpTextBox.place === 'function') window.wpTextBox.place(); });   // (the bar stands by the pad: it goes where the pad goes)
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; if (window.wpTextBox && typeof window.wpTextBox.place === 'function') window.wpTextBox.place(); });   // (the bar stands by the pad: it goes where the pad goes)
         head.addEventListener('pointerup', function() { d = null; });
         head.addEventListener('pointercancel', function() { d = null; });
     }
@@ -12284,7 +12285,8 @@ function sendChat(menFrom) {
         if (e.target.closest('button') || (typeof window !== 'undefined' && window.wpPopout)) return;
         var r = p.getBoundingClientRect(); d = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); e.preventDefault();
     });
-    head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; p.style.bottom = 'auto'; });
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; p.style.bottom = 'auto'; });
     var done = function() { if (!d) return; d = null; try { p.dispatchEvent(new Event('wpfloatmoved')); } catch (e) {} };
     head.addEventListener('pointerup', done); head.addEventListener('pointercancel', done);
 })();

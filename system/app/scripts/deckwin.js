@@ -157,7 +157,8 @@ function redrawNow(moved) {
 function wire() {
     var add = document.getElementById('newDeckBtn'); if (add) add.addEventListener('click', function() { _build = true; open(); });
     var cl = document.getElementById('deckCloseBtn'); if (cl) cl.addEventListener('click', close);
-    var head = document.getElementById('deckHead'), p = document.getElementById('deckPanel'); if (head && p) { var drag = null; head.addEventListener('pointerdown', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { x: e.clientX - r.left, y: e.clientY - r.top }; }); document.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = Math.max(0, e.clientX - drag.x) + 'px'; p.style.top = Math.max(0, e.clientY - drag.y) + 'px'; }); document.addEventListener('pointerup', function() { drag = null; }); }
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var head = document.getElementById('deckHead'), p = document.getElementById('deckPanel'); if (head && p) { var drag = null; head.addEventListener('pointerdown', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { x: e.clientX - r.left, y: e.clientY - r.top }; }); document.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = Math.max(0, e.clientX - drag.x) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), e.clientY - drag.y) + 'px'; }); document.addEventListener('pointerup', function() { drag = null; }); }
     sync();
 }
 if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire(); }

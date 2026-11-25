@@ -28,7 +28,8 @@
         var big = !el.dataset.tipUp && (r.height > 56 || r.width > 420) && px !== null && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
         var x = (big ? px : r.left + r.width / 2) - tw / 2, y = big ? py + 20 : r.bottom + 8;
         if (y + th > vh - 6 || el.dataset.tipUp) y = (big ? py : r.top) - th - 8;              // no room below, or the box below it is the next thing to read (data-tip-up): above
-        if (y < 6) y = 6;
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        var wbT = (window.wpWinBarH ? window.wpWinBarH() : 0); if (y < 6 + wbT) y = 6 + wbT;
         x = Math.max(6, Math.min(x, vw - tw - 6));
         t.style.left = x + 'px'; t.style.top = y + 'px';
         t.classList.add('show');
@@ -79,12 +80,13 @@
 // A menu taller than the window takes a height limit and its own scroll (the class menu-tall keeps its own wheel from closing it).
 // [systemcheck:clampmenu-start]
 window.wpClampMenu = function(menu, x, y) {
-    var W = window.innerWidth, H = window.innerHeight;
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var W = window.innerWidth, H = window.innerHeight, T = (window.wpWinBarH ? window.wpWinBarH() : 0);
     if (menu._wpCapped) { menu._wpCapped = false; menu.style.maxHeight = ''; menu.style.overflowY = ''; menu.classList.remove('menu-tall'); }   // judged afresh each time
     menu.style.left = x + 'px'; menu.style.top = y + 'px';
     var r = menu.getBoundingClientRect();
-    if (r.height > H - 12) { menu._wpCapped = true; menu.style.maxHeight = (H - 12) + 'px'; menu.style.overflowY = 'auto'; menu.classList.add('menu-tall'); r = menu.getBoundingClientRect(); }
-    if (r.bottom > H - 6) menu.style.top = Math.max(6, (y - r.height - 2 >= 6) ? y - r.height - 2 : H - r.height - 6) + 'px';
+    if (r.height > H - 12 - T) { menu._wpCapped = true; menu.style.maxHeight = (H - 12 - T) + 'px'; menu.style.overflowY = 'auto'; menu.classList.add('menu-tall'); r = menu.getBoundingClientRect(); }
+    if (r.bottom > H - 6) menu.style.top = Math.max(6 + T, (y - r.height - 2 >= 6 + T) ? y - r.height - 2 : H - r.height - 6) + 'px';
     if (r.right > W - 6) menu.style.left = Math.max(6, (x - r.width - 2 >= 6) ? x - r.width - 2 : W - r.width - 6) + 'px';
 };
 // [systemcheck:clampmenu-end]

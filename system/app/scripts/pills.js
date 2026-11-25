@@ -34,7 +34,10 @@ function pillsModel(st) {
     if ((hosting || st.solo === true) && r && st.strip !== true) out.roundPill = { text: 'Round ' + r + (who ? ' \u00b7 ' + who : ''), tip: 'A fight is on this map' + (who ? ', and it is the turn of ' + who : '') + '. Opens the turn order.' };
     if (hosting && st.scene && typeof st.scene === 'object') { var sn = pillCut(st.scene.title) || 'a picture', sw = typeof st.scene.who === 'string' && st.scene.who ? st.scene.who : 'the table';   // backlog 181 (scene.js)
         out.scenePill = { text: 'Scene \u00b7 ' + sn, tip: 'Showing ' + sn + ' to ' + sw + (st.scene.hold === true ? '. It stays up until you close it' : '') + '.' + (typeof st.scene.shut === 'string' && st.scene.shut ? ' ' + st.scene.shut : '') + ' Press to show it again or close it for everyone.' }; }
-    if (play && typeof st.preview === 'string' && st.preview !== '' && st.preview !== 'off') {
+    if (play && st.seeAs === true) {   // 1.6.4: See as selected (seeas.js) goes before the fog's preview, which it stands in front of
+        var sa = pillCut(st.seeAsName);
+        out.viewPill = sa ? { text: 'Seeing as ' + sa, tip: 'The map shows what ' + sa + ' sees. Select another character to switch. Press to see your own view again.' } : { text: 'Seeing as\u2026', tip: 'See as selected is on. Select a character token to see through its eyes. Press to see your own view again.' };
+    } else if (play && typeof st.preview === 'string' && st.preview !== '' && st.preview !== 'off') {
         var as = st.preview === 'party' ? 'the party' : (pillCut(st.previewName) || 'a player');
         out.viewPill = { text: 'Viewing as ' + as, tip: 'The fog is drawn as ' + as + ' sees it. Press to end the preview.' };
     }
@@ -66,6 +69,7 @@ function pillsState(w, am, view, fogBtn) {
     var c = !(st.hosting || st.solo === true) || !isMap ? null : typeof w.wpStripFight === 'function' ? w.wpStripFight(am.id) : (typeof net.combatFor === 'function' ? net.combatFor(am.id) : null);   // fold 2 (backlog 152): the fight the strip shows on this map
     if (c && Array.isArray(c.rows)) { var cur = c.rows[c.turn]; st.round = c.round; st.turn = cur && typeof cur.name === 'string' ? cur.name : ''; }
     var stE = w.document && typeof w.document.getElementById === 'function' ? w.document.getElementById('combatStrip') : null; st.strip = !!(stE && stE.style && stE.style.display === 'flex');   // backlog 219: the turn strip says the round on screen, so the Round pill steps aside
+    var sA = w.wpSeeAs || null; st.seeAs = !!(sA && typeof sA.on === 'function' && sA.on() === true); st.seeAsName = st.seeAs && typeof sA.name === 'function' ? sA.name() : '';   // 1.6.4
     st.preview = fog && typeof fog.preview === 'function' ? fog.preview() : 'off';
     if (typeof st.preview === 'string' && st.preview !== 'off' && st.preview !== 'party') Object.keys(ros).forEach(function(k) { if (ros[k] && ros[k].id === st.preview && typeof ros[k].name === 'string') st.previewName = ros[k].name; });
     return st;
@@ -79,6 +83,7 @@ function pillPress(id, doc, w, am) {
     if (id === 'restPill') { if (!w.wpCalendar || typeof w.wpCalendar.open !== 'function') return ''; w.wpCalendar.open(); return 'rest'; }   // backlog 138 (j) fold R2
     if (id === 'scenePill') { if (!w.wpScene || typeof w.wpScene.open !== 'function') return ''; w.wpScene.open(); return 'scene'; }
     if (id === 'trialPill') { if (!w.wpCampSafe || typeof w.wpCampSafe.endTrial !== 'function') return ''; w.wpCampSafe.endTrial(); return 'trial'; }
+    if (id === 'viewPill' && w.wpSeeAs && typeof w.wpSeeAs.on === 'function' && w.wpSeeAs.on() === true) { w.wpSeeAs.set(false); return 'seeas'; }   // 1.6.4: the pill ends See as selected first
     if (id === 'viewPill') { if (!w.wpFog || typeof w.wpFog.setPreview !== 'function') return ''; w.wpFog.setPreview('off'); var sel = doc.getElementById('fogPreview'); if (sel) sel.value = 'off'; return 'preview'; }
     return '';
 }

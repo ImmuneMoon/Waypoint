@@ -697,7 +697,8 @@ function makeOpen(btn) {
     list.forEach(function(p) { var rw = prepBtn('prep-mk-row', '', ''); rw.setAttribute('role', 'menuitem'); rw.dataset.pl = p.id; rw.appendChild(prepEl('span', 'prep-mk-t', p.title)); if (p.why) rw.appendChild(prepEl('small', '', p.why)); mn.appendChild(rw); });
     var left0 = prepPlanners(camp).length - list.length; if (left0 > 0) mn.appendChild(prepEl('div', 'prep-mk-none', left0 + ' more ' + (left0 === 1 ? 'is' : 'are') + ' not listed. Pin a planner to list it near the top.'));
     document.body.appendChild(mn);
-    var rc = btn.getBoundingClientRect(), mw = mn.offsetWidth || 240, mh = mn.offsetHeight || 0, left = Math.max(6, Math.min(rc.left, window.innerWidth - mw - 6)), top = rc.bottom + 4; if (top + mh > window.innerHeight - 6) top = Math.max(6, rc.top - mh - 4);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var rc = btn.getBoundingClientRect(), mw = mn.offsetWidth || 240, mh = mn.offsetHeight || 0, left = Math.max(6, Math.min(rc.left, window.innerWidth - mw - 6)), top = rc.bottom + 4; if (top + mh > window.innerHeight - 6) top = Math.max(6 + (window.wpWinBarH ? window.wpWinBarH() : 0), rc.top - mh - 4);
     mn.style.left = Math.round(left) + 'px'; mn.style.top = Math.round(top) + 'px';
     _mk = { el: mn, btn: btn, d: { t: btn.dataset.t === 'tok' ? 'tok' : 'room', name: btn.dataset.name || '', tok: btn.dataset.tok || '' } };
     btn.setAttribute('aria-expanded', 'true');

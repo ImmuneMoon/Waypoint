@@ -118,6 +118,8 @@
 <script type="module" src="scripts/timeline.js"></script>
 <script type="module" src="scripts/storyview.js"></script>
 <script type="module" src="scripts/prep.js"></script>
+<script type="module" src="scripts/seeas.js"></script>
+<script type="module" src="scripts/winbar.js"></script>
 <script type="module" src="scripts/campquest.js"></script>
 <script type="module" src="scripts/campsafecore.js"></script>
 <script type="module" src="scripts/campsafe.js"></script>
@@ -132,6 +134,7 @@
 </head>
 <body>
 <div class="app">
+  <div id="winBar" aria-hidden="true"></div>
   <header>
     <div class="header-brand" id="headerBrand" title="Back to the welcome screen" style="cursor:pointer;">
       <img src="icon.ico" alt="" class="brand-icon">
@@ -275,7 +278,7 @@
   <button id="rowShowTab" hidden title="Show the top row."><svg class="ico ico-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
 
 
-  <div id="aboutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+  <div id="aboutModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
       <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 440px; max-height:85vh; overflow-y:auto; text-align: center;">
           <h2 style="margin-top:0; margin-bottom:2px; color:var(--gold);">Waypoint VTT&trade;</h2>
           <div id="aboutVersion" style="color:var(--dim); font-size:11px; margin-bottom:10px;">&nbsp;</div>
@@ -316,14 +319,14 @@
       </div>
   </div>
 
-  <div id="legalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+  <div id="legalModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
       <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 620px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column;">
           <h2 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="legalTitle">Terms of Use</span> <button id="legalCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h2>
           <div id="legalBody" style="overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.6; color:var(--ink); text-align:left; padding-right:8px;">Loading&hellip;</div>
       </div>
   </div>
 
-  <div id="helpModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+  <div id="helpModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
       <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 780px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
           <h2 style="margin-top:0; margin-bottom:14px; color:var(--gold); display:flex; justify-content:space-between;">Help & Tutorials <button id="helpCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h2>
           <div style="margin-bottom:12px;"><input id="helpSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Search all help topics…" aria-label="Search help topics"></div>
@@ -414,7 +417,7 @@
                           <li><b>The left panel:</b> a narrow rail of icons stands at the left edge of the window on every view, one icon for each section of the panel.
                               <ul>
                                   <li>Press an icon to show that section alone: the Handbook, the Planners, the Maps, the Characters or the Decks. The other sections are put away, not lost. Press <b>All</b> to show every section, one under another. This computer remembers which you picked.</li>
-                                  <li>The arrow at the foot of the rail hides the panel and shows it again.</li>
+                                  <li>The arrow at the foot of the rail hides the panel and shows it again. Pressing the icon that is already lit hides it too.</li>
                                   <li>On the play map the panel hides by itself, so the map has more room. Press an icon to open it over the map at that section. Press the map, or the same icon again, to hide it.</li>
                                   <li>The pin, on a panel opened over the map, keeps it open beside the map.</li>
                                   <li>The lens opens quick-jump.</li>
@@ -451,7 +454,7 @@
                               <ul>
                                   <li>What waits for you stands on top with a gold dot, such as an approval or time rules due. Its button opens it, and it goes once it is handled. A notice that something failed stands there too, with a red dot.</li>
                                   <li>A fight&rsquo;s turn and round notices fold to one line. Press it to open them, and its &times; deletes them. A notice said again and again stands once, with a count such as &times;12 beside its time. Press the count to see each time.</li>
-                                  <li>&times; takes a notice away. <b>Clear all</b> asks first. A thing that waits still waits in the Review or the Calendar. Time rules that wait only in the bell stay there until you apply or skip them.</li>
+                                  <li>&times; takes a notice away. <b>Clear all</b> clears the list. Confirm needed. A thing that waits still waits in the Review or the Calendar. Time rules that wait only in the bell stay there until you apply or skip them.</li>
                                   <li>Your list stays on this computer through a restart, the newest 200 of each campaign.</li>
                                   <li>Players have the bell too. Theirs holds what their app told them at your table, and goes when they leave.</li>
                               </ul>
@@ -511,7 +514,7 @@
                           <li>The <b>minimap</b> in the top-left corner shows where your content is. Click anywhere on it to fly the camera there. It dims when idle, and the chevron collapses it. On a fogged map a player&rsquo;s minimap and <kbd>Shift</kbd>+<kbd>1</kbd> show only the ground they have seen or remember, and a piece under the fog gives them no card.</li>
                           <li>Drag the thin gutters beside either sidebar to resize the panels.</li>
                           <li>Right-click <b>Maps</b>, <b>Planners</b> or <b>Handbook</b> in the left panel for that list&rsquo;s tools: add one, fold or unfold its tree, and <b>search</b> it.</li>
-                          <li><b>Characters</b> in the left panel lists the campaign&rsquo;s character sheets, under Maps. Your players&rsquo; characters stand first with each player&rsquo;s name, and the NPCs wait under one fold. Click a character to open its sheet. Right-click it for its HUD, to find its token on the map, or to delete the sheet. Press <b>+</b> to make a new sheet. It asks with two buttons whether the sheet is for a player&rsquo;s character or an NPC, then for its name. Press the map button, <b>On this map</b>, to list only the characters with a token on the map on screen. A player sees their own characters there.</li>
+                          <li><b>Characters</b> in the left panel lists the campaign&rsquo;s character sheets, under Maps. Your players&rsquo; characters stand first with each player&rsquo;s name, and the NPCs wait under one fold. Players folds too. Point at a character to see its whole name, who plays it and which map its token is on. Click a character to open its sheet. Right-click it for its HUD, to find its token on the map, or to delete the sheet. Press <b>+</b> to make a new sheet. It asks with two buttons whether the sheet is for a player&rsquo;s character or an NPC, then for its name. Press the map button, <b>On this map</b>, to list only the characters with a token on the map on screen. A player sees their own characters there.</li>
                           <li><b>Find a sheet by name</b> stands over Characters once it lists six sheets or more. Type part of a name and only the sheets it fits stay. <kbd>Enter</kbd> opens the first, and <kbd>Esc</kbd> clears it.</li>
                           <li><b>Place on this map</b>, on a character&rsquo;s right-click menu, puts its token at the middle of your view on the play map. The token is linked to the sheet and wears its picture. Where another token already uses that sheet, Waypoint asks first.</li>
                           <li>Quick jump, <kbd>Ctrl</kbd>+<kbd>K</kbd>, finds a character sheet by its name once you type a word. <kbd>Enter</kbd> opens the sheet and <kbd>Shift</kbd>+<kbd>Enter</kbd> its HUD. A player finds their own sheets there, at the table too.</li>
@@ -1171,7 +1174,7 @@
                                   <li>A character can see through <b>an arc of its own</b>: your system names the field under <b>Sight arc from</b>. Help &#9656; Character sheets tells of it, with the senses. On a map with a facing cone that character&rsquo;s tokens take its value in place of the map&rsquo;s width, wider or narrower. A map set to <b>All around</b> still shows every token all round.</li>
                               </ul>
                           </li>
-                          <li><b>Paint it by hand</b>: three brushes. <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg> Reveal</b> shows cells and <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg> Hide</b> covers them. <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> Clear</b> takes your own marks off, so those cells show what the tokens see again. Right-click paints the other of Reveal and Hide. The row under the brushes sets what one stroke covers. It is <b>1</b>, <b>3</b> or <b>5</b> cells wide, <b>Box</b> for every cell in a rectangle you drag, or <b>Piece</b> for every cell under the picture or shape you click. A map keeps 4,000 revealed and 4,000 hidden cells painted by hand. <b>Reveal all</b> lights the whole scene. <b>Cover all</b> hides everything except what you reveal by hand. Each asks first, and Undo puts the fog back.</li>
+                          <li><b>Paint it by hand</b>: three brushes. <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg> Reveal</b> shows cells and <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg> Hide</b> covers them. <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> Clear</b> takes your own marks off, so those cells show what the tokens see again. Right-click paints the other of Reveal and Hide. The row under the brushes sets what one stroke covers. It is <b>1</b>, <b>3</b> or <b>5</b> cells wide, <b>Box</b> for every cell in a rectangle you drag, or <b>Piece</b> for every cell under the picture or shape you click. A map keeps 4,000 revealed and 4,000 hidden cells painted by hand. <b>Reveal all</b> lights the whole scene. <b>Cover all</b> hides everything except what you reveal by hand. Confirm needed for each, and Undo puts the fog back.</li>
                           <li><b>A fog mark on a picture or a shape</b>: right-click it for <b><i class="wib wi-fog"></i> Under fog</b> or <b><i class="wib wi-eye"></i> Always revealed</b>, or pick one under <b>Fog mark</b> in its Properties. Under fog keeps every cell under the piece hidden from players, whatever their tokens see, and a creature standing there is not on their map. A sense that shows marks, such as hearing, still marks a creature there. Tick that sense under <b>Never shown as a mark by</b> in the creature&rsquo;s Properties to stop it. Always revealed keeps those cells shown, wherever their tokens are.
                               <ul>
                                   <li>The mark moves with the piece. Pick the ticked row again to take it off.</li>
@@ -1191,6 +1194,14 @@
                           <li><b>How dark players&rsquo; fog is</b>, a slider under This campaign&rsquo;s fog settings, sets their fog from 80% up to solid, the default, while your own fog stays see-through.</li>
                           <li><b>Preview a player&rsquo;s view</b>: the <b>Preview a player&rsquo;s view</b> picker drops the fog onto your own screen as one player, or the whole party, would see it. So you can check a reveal before you make it. Set the picker back to <b>Off</b> to see everything again. Players who are not connected but have a token on this map are in the list too, marked as not connected.</li>
                           <li>The <b><i class="wib wi-eye"></i></b> eye on a selected token&rsquo;s toolbar outlines the area that one token sees. Its sight arc, walls, smoke and its sheet&rsquo;s senses are counted, on any map with a grid, fogged or not. The outline stays on for whichever single token you select until you press the eye again. It is drawn for you alone and never dims the map.</li>
+                          <li><b>See as selected</b>, in the View menu at the map&rsquo;s right edge, shows the map through the eyes of one character token, as if you were playing it.
+                              <ul>
+                                  <li>Tick it, then select a character token. Select another and the view switches to it at once.</li>
+                                  <li><b>Solid</b> covers the map as a player&rsquo;s screen is covered, and the creatures it cannot see leave your board. <b>See-through</b> keeps your usual fog, and every creature stays.</li>
+                                  <li><b>Follow</b> keeps the token in the middle as it moves. <b>Once</b> moves the view to it when you select it. <b>Stay</b> leaves the view alone. Pan and zoom as ever in between.</li>
+                                  <li>The <b>Seeing as</b> pill in the top row names the token. Press it to see your own view again. Your players see no change.</li>
+                              </ul>
+                          </li>
                       </ul>
                       <div class="help-tip"><b>What players see:</b> each player&rsquo;s screen is covered by an <b>opaque fog</b> of their own token&rsquo;s vision. Only the cells within sight show, and a creature they cannot see is not drawn at all. Your machine works out each player&rsquo;s vision, and a creature a player cannot see is never sent to them. Fog has no per-player switch: the GM runs it for the whole table.</div>
                   </div>
@@ -1897,7 +1908,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A connected player gets it at once. Anyone offline receives it the next time they join, and the row shows who it is queued for.</li>
                                   <li>You can also attach a handout to a room, in the room's Properties. A player whose token enters that room then sees it.</li>
                                   <li>Everything you show lands in that player's own Journal, on their machine, with their notes.</li>
-                                  <li><b>Delete</b> on a row takes that handout away. <b>Clear all</b> takes every handout of the campaign away, and asks first. Players keep what they were already shown.</li>
+                                  <li><b>Delete</b> on a row takes that handout away. <b>Clear all</b> takes every handout of the campaign away. Confirm needed. Players keep what they were already shown.</li>
                                   <li>A web address in a handout's text or caption is a link wherever it is read. In <b>Preview</b> it opens for you directly. On a player's screen the click asks them first and shows where it leads. A page a player shares with you asks you the same way.</li>
                               </ul>
                           </li>
@@ -1970,7 +1981,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                           <li>Each line says when it happened by your computer&rsquo;s clock and by the game&rsquo;s clock, who it was for and what happened.</li>
                                           <li>It holds every roll, and who joins and leaves with their character. It holds moves, changes to sheets, turns, rounds and time rules. It holds chat and your own changes to the map.</li>
                                           <li>A gold edge marks a line your players never saw, such as a hidden roll or who now sees whom.</li>
-                                          <li>Pick a chip to see one kind, or search for a name. <b>Save as text</b> keeps a copy of a session. <b>Delete session</b> asks first.</li>
+                                          <li>Pick a chip to see one kind, or search for a name. <b>Save as text</b> keeps a copy of a session. <b>Delete session</b> deletes it. Confirm needed.</li>
                                           <li>It is kept on your computer, a file a session in the saves folder, and is never sent to players.</li>
                                       </ul>
                                   </li>
@@ -2048,7 +2059,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li>Optional <b>session password</b>: set one in the Host panel and the code alone isn't enough. If you set it after players joined, a player whose link drops still gets back in without it, since their app proves who they are.</li>
-                          <li><b>Ban</b> in Player History asks first, by name. A banned player is removed now and refused in later sessions until you unban them.</li>
+                          <li><b>Ban</b> in Player History asks by the player&rsquo;s name. Confirm needed. A banned player is removed now and refused in later sessions until you unban them.</li>
                           <li><b>Your name for them</b>: Player History has a box on each player for what you call them. Only you see it. Your roster, party strip, chat and Player History use it, and the players keep seeing the name each gave themselves. Leave it empty to go back to theirs.</li>
                           <li>A player who changes their name, color or picture in <b>Your profile</b> while at your table shows the change at once, on your roster and on everyone&rsquo;s. You get a short note of a new name, and your own name for them stays. A new token face waits for their next join.</li>
                           <li>No two at the table share a name. A player who takes a name already in use is asked to pick another and keeps their old one. You get a short note of who tried which name.</li>
@@ -2227,7 +2238,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>The Journal shows one campaign at a time. It opens on the campaign on screen, or on the table you are at.</li>
                                   <li>The name in its title is a list. Pick another of your journals there, or <b>Personal notes</b>.</li>
                                   <li>One row of tabs sorts it: <b>Everything</b>, <b>My notes</b>, <b>Received</b>, <b>Sent</b> and <b>Personal notes</b>.</li>
-                                  <li><b data-ctl="#journalClearBtn">Clear journal</b> at the window&rsquo;s foot empties the journal shown on this computer. It asks first, and senders keep their copies.</li>
+                                  <li><b data-ctl="#journalClearBtn">Clear journal</b> at the window&rsquo;s foot empties the journal shown on this computer. Confirm needed. Senders keep their copies.</li>
                                   <li><b data-ctl="#journalDownloadBtn">Download</b> in the title saves the journal shown and Personal notes as one page. It opens in any browser, with no app and no connection. Each page also has a save button of its own.</li>
                                   <li>Add notes under each handout, or press <b>+ Note</b> to write a page of your own in the journal shown. It all works with no session running.</li>
                                   <li>A note of your own takes a look. Click into its text and a bar comes up, as in a planner: bold, italic, underline, strike through, a color, a size, a link and a font.</li>
@@ -2419,8 +2430,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>The foot of the editor counts your errors and warnings. Press the count for a list of them, and press one to go to the box it names.</li>
                                   <li><b>Undo</b> and <b>Redo</b> in the editor&rsquo;s foot take back your last 30 changes and bring them back. Ctrl+Z and Ctrl+Y do the same while you are not typing in a box. A run of typing in one box is one change.</li>
                                   <li><b>Used by</b> on a field or a roll lists what reads it: formulas, rolls, list columns, the layout, effects and library entries. Press one to go to it.</li>
-                                  <li>Deleting a field, roll, item or effect that something else uses asks first, and names what uses it. Replacing the whole system, the sheet&rsquo;s sections or the calendar asks first too.</li>
-                                  <li>A field whose kind you change may no longer read what characters hold in it. Its line says how many would lose it, and Save asks first. Pick its old kind again to keep it, with its formula or options as they were.</li>
+                                  <li>Deleting a field, roll, item or effect that something else uses lists what uses it. Confirm needed. Replacing the whole system, the sheet&rsquo;s sections or the calendar needs a confirm too.</li>
+                                  <li>A field whose kind you change may no longer read what characters hold in it. Its line says how many would lose it, and Save needs a confirm. Pick its old kind again to keep it, with its formula or options as they were.</li>
                                   <li>Press <b>Got it</b> beside a tab&rsquo;s long note to fold it away. <b>About this tab</b> brings it back.</li>
                               </ul>
                           </li>
@@ -2587,7 +2598,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A part can read whether it stands past what its host holds, counted in the list&rsquo;s order. So a third arm on a frame with two arm slots can give nothing, through <b>Changes apply where</b>.</li>
                                   <li>Where the parts&rsquo; list has a choice stat, such as Slot, a line can count by it instead. Pick <b>Counts parts by their Slot</b> and the value, such as Arm. That line counts the parts whose Slot reads Arm, whatever their category.</li>
                                   <li><b>Fits where</b> is a formula a part must meet to be fitted to a row, such as a grip or a gauge that must match. It reads the part&rsquo;s own figures, those of the row it goes on, and the character&rsquo;s. A player is refused where it does not hold, in the words under <b>Refused with</b>, and the add list grays that part out. You may fit it all the same, and you are told. It is judged again when a fitted part or its row changes, so a part made too big for its grip later is refused the same way. After an action or a blow the change stands, and you are told which part no longer fits. A formula that reads a GM-only value is left out of your players&rsquo; view, so their parts are not judged by it.</li>
-                                  <li>Parts show as pills under their row, with &minus; and + for how many and &times; to remove one. <b>Take out</b> takes a part out of its row and keeps it on its list as a row of its own. The add list under the row offers what fits, and the library too. Removing a row removes its parts, and asks first. Undo brings them back with it. A figure can read how many parts a row holds, and the total of a stat or a column over them. A character file can bring a row of its own as a part.</li>
+                                  <li>Parts show as pills under their row, with &minus; and + for how many and &times; to remove one. <b>Take out</b> takes a part out of its row and keeps it on its list as a row of its own. The add list under the row offers what fits, and the library too. Removing a row removes its parts. Confirm needed. Undo brings them back with it. A figure can read how many parts a row holds, and the total of a stat or a column over them. A character file can bring a row of its own as a part.</li>
                                   <li>Tick <b>Rows carry a look</b> and each row may have up to four colors, a finish such as matte, and markings, overall and part by part. The colors show as small swatches beside the row&rsquo;s name, on the sheet and the HUD. The finish, the markings and each part are in the row&rsquo;s details, with a <b>Look</b> button that opens a small form. The row&rsquo;s owner and you may change a look at any time, on any list they see. A look never changes a figure: no formula reads it.</li>
                                   <li>A row with no look of its own shows another. <b>Main part</b> names a part category, such as Grip. The row then shows the look it gives that part. <b>Shade by</b> names a stat of the list, such as Material. <b>Shades</b> holds one line for each of its values, such as Steel = #8a8f99. The row then shows its material&rsquo;s shade. Those swatches have a dashed edge. A part fitted to a row has no look of its own. Its look is set on the row it is fitted to.</li>
                                   <li>Tick <b>Rows keep a work log</b> and each row keeps the work done on it. <b>+ Work</b> in its details writes a line: a repair, a fit, a restyle or a build, the owner&rsquo;s own work or hired, with a fee and a note. Where the sheet keeps money, the fee is paid from the character&rsquo;s money when the line is added. Only you take a line off, and that gives no money back. The 50 newest lines are kept.</li>
@@ -2819,7 +2830,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>The rows switched on count in list order. A formula can read a row&rsquo;s place among them, and add up a figure of the rows switched on before it. Something handed out in order, such as two hands, then goes to the first rows, and a later row can tell it got none.</li>
                                   <li><b>Needs to switch on</b> is a formula a row must meet before its switch goes on, such as while the row holds a charge. Its words say why not, and must be filled in. A player&rsquo;s switch is grayed out and refused while it does not hold. You may still switch the row on, and a notice tells you what it needs.</li>
                                   <li><b>When a row is taken off</b> moves up to 40 fields when a row leaves the list for good. Pick a field, how, and a figure read from the row before it goes, such as the row&rsquo;s experience. Each line reads the sheet as the line before left it, so a field may be named twice. A switch-off runs none, the row always comes off, and the removal&rsquo;s Undo takes them back.</li>
-                                  <li><b>Can be bought off</b> lets a row leave the list for a cost. Type the cost, a figure read from the row before it goes, such as its tier times 2. Pick the number field it is charged to, and whether it is taken from that field or added to one that counts what was spent. Each row then has a menu of three dots with <b>Buy off</b> and <b>Remove</b>, which stays free. Buy off asks first with the figure. <b>Refuse</b> stops a player who cannot pay and says why, and <b>Warn</b> lets them through, says how far short they went and tells you. You may always buy a row off, and are told. A player never buys off a row you keep on them as a curse. Pick a list to record a line on, and each buy off adds one there with the row&rsquo;s name, the figure and a short note. Undo brings the row back and takes the charge and the line away.</li>
+                                  <li><b>Can be bought off</b> lets a row leave the list for a cost. Type the cost, a figure read from the row before it goes, such as its tier times 2. Pick the number field it is charged to, and whether it is taken from that field or added to one that counts what was spent. Each row then has a menu of three dots with <b>Buy off</b> and <b>Remove</b>, which stays free. Buy off shows the figure. Confirm needed. <b>Refuse</b> stops a player who cannot pay and says why, and <b>Warn</b> lets them through, says how far short they went and tells you. You may always buy a row off, and are told. A player never buys off a row you keep on them as a curse. Pick a list to record a line on, and each buy off adds one there with the row&rsquo;s name, the figure and a short note. Undo brings the row back and takes the charge and the line away.</li>
                                   <li><b>When a row is switched on</b> and <b>When a row is switched off</b> move fields as a row&rsquo;s switch turns. They run for anyone in play and for a character file. Each line is a field, how, and a figure read from the row, such as the row&rsquo;s power. Nothing runs while a character is being made.</li>
                                   <li><b>Keeps paying</b>, under the switch, is what a row switched on keeps paying, such as 3 MP a turn for a power kept up. Pick the pool it comes off and type what it pays, a figure of the row such as 3, or the row&rsquo;s own upkeep. It pays <b>At its turn&rsquo;s start</b> in a fight, <b>Each round</b> of its fight, or <b>By the clock</b>, every so many minutes, hours, days or of your own time unit. Your machine pays it, as a change that takes from the pool. Tick <b>Switches off when it cannot pay</b> to switch a row off once its pool holds less. Unticked, it pays anyway, as far as the pool goes. The first cost, if any, is the row&rsquo;s own roll or action. Each payment is said in chat to you and the row&rsquo;s player, or to you alone for a row they cannot see.</li>
                                   <li>It may also pay <b>At its turn&rsquo;s end</b>. <b>Every</b> 2 pays every other turn or round, counted from the first after the row comes on. <b>Out of a fight, by the clock</b> gives it a second rate while no fight runs, such as 1 HP a minute.</li>
@@ -3069,7 +3080,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>When a row of the entry is added, its grants are added too, in the same change. They cost nothing: their Paid is 0.</li>
                                   <li>When the row rises to a From level, that grant is added. When it drops below, that grant goes.</li>
                                   <li>A grant can give its row a name of its own, so one entry can be Left Hand and Right Hand. It can set the row&rsquo;s stats, and on a list ticked <b>Rows hang from a row</b> it can say which of the other grants its row hangs from. So one entry can lay a whole body down.</li>
-                                  <li>When the row is removed, everything it granted goes with it. The sheet asks first, and Undo brings it all back.</li>
+                                  <li>When the row is removed, everything it granted goes with it. Confirm needed, and Undo brings it all back.</li>
                                   <li>A granted row is an ordinary row in every other way. A player may remove or sell it unless its entry is <b>Bound</b>, so set Bound on what must stay.</li>
                                   <li>On a list that holds each entry once, an entry already held is not granted twice. The row you hold rises to the grant&rsquo;s level where that is higher, and the sheet says so.</li>
                                   <li>When the row that granted it goes, the held row falls back to the level it had. Another row that grants it takes over first. A level set by hand above the grant stays. If you remove the held row, the grant gives its own row again.</li>
@@ -3546,7 +3557,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>The character&rsquo;s player, you and anyone the sheet is shared with read and write its notes. A teammate does not see them. The notes are kept with the character.</li>
                                   <li><b>Add to my Journal</b> copies a note into your Journal. Then you are asked whether to delete the note from the sheet. The Journal keeps its copy either way, and a later change to the note leaves that copy as it is.</li>
                                   <li><b>Share&hellip;</b> sends a note to one person at the table, several, or everyone. It lands in their Journal as a page you shared.</li>
-                                  <li><b>Delete</b> takes a note off the sheet. It asks first.</li>
+                                  <li><b>Delete</b> takes a note off the sheet. Confirm needed.</li>
                                   <li>A HUD has a <b>Notes</b> button that opens the sheet on that page. A sheet in its own window has the switch at its top, and its notes work there as on the panel.</li>
                                   <li>Tokens that share one sheet share its notes. A copy of a sheet starts with none.</li>
                                   <li>A character file and the readable page of a sheet carry its notes. Uploading the file adds the notes the character does not have yet. A note already there is left as it is.</li>
@@ -4348,7 +4359,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
               <button class="wb-tool-btn" id="wbMoreBtn" title="More"><svg class="ico ico-dots" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg></button>
               <div class="shape-menu menu-list" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">
                   <button class="wb-tool-btn menu-row" id="layersBtn" title="This map's pieces, front to back. A group and a flattened picture hold their pieces under them. Pick, hide, rename and reorder them there."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h4v4h-4Z M3.5 14.5h4v4h-4Z M10.5 7.5h10 M10.5 16.5h10 M12.5 11.5h8 M12.5 20.5h6"/></svg></span><span class="mr-txt">Layers<small>This map's pieces, front to back.</small></span></button>
-                  <button class="wb-tool-btn menu-row menu-row-red" id="clearWbBtn" title="Clear Board"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg></span><span class="mr-txt">Clear board<small>Removes everything on this map. It asks first.</small></span></button>
+                  <button class="wb-tool-btn menu-row menu-row-red" id="clearWbBtn" title="Clear Board"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg></span><span class="mr-txt">Clear board<small>Removes everything on this map. Confirm needed.</small></span></button>
               </div>
           </div>
       </div>
@@ -4368,6 +4379,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <button class="wb-tool-btn view-tick" id="wbViewTurnBtn" role="menuitemcheckbox" aria-checked="false" title="The map turns under the token you control, so it stays upright and its heading points up: its facing, or the way it last moved. Your screen alone."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Turn with my token</button>
                     <button class="wb-tool-btn view-tick gm-only" id="wbShowBlocksBtn" role="menuitemcheckbox" aria-checked="false" title="Light up every wall, barrier and door. Unticked, each shows its edge only under the pointer or while selected, so a building reads as one piece. Your screen alone, on every map."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Show what blocks</button>
                     <button class="wb-tool-btn view-tick on gm-only" id="wbRoomNamesBtn" role="menuitemcheckbox" aria-checked="true" title="The name of each room on its place on the play map, as a small plate at its top left. Your screen alone; players never see them."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Room names</button>
+                    <div class="draw-menu-label view-show-label gm-only">See as</div>
+                    <button class="wb-tool-btn view-tick gm-only" id="wbSeeAsBtn" role="menuitemcheckbox" aria-checked="false" title="See the map through the eyes of the character token you select, as if you were playing it. Select another to switch. Your screen alone."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>See as selected</button>
+                    <div class="view-gm see-as-opts" id="wbSeeAsOpts" hidden>
+                        <div class="see-as-row"><span class="see-as-lab">Shows</span><span class="ui-seg"><button type="button" class="tool" data-see="fog" data-v="solid" title="Only what it sees: solid fog, as a player sees it, and the creatures it cannot see leave your board.">Solid</button><button type="button" class="tool" data-see="fog" data-v="see" title="Its sight under your usual see-through fog. Every creature stays in view.">See-through</button></span></div>
+                        <div class="see-as-row"><span class="see-as-lab">Camera</span><span class="ui-seg"><button type="button" class="tool" data-see="cam" data-v="follow" title="The view keeps the token in the middle each time it moves. Pan and zoom as you like in between.">Follow</button><button type="button" class="tool" data-see="cam" data-v="once" title="Center once: the view moves to the token when you select it, then stays where you put it.">Once</button><button type="button" class="tool" data-see="cam" data-v="stay" title="The view stays where it is.">Stay</button></span></div>
+                    </div>
                     <div class="view-gm" id="wbViewAllPart" hidden>
                         <div class="draw-menu-label">Everyone&rsquo;s map</div>
                         <div class="draw-menu-row"><label class="compass-lab" for="wbViewAll">Turned</label><input type="number" id="wbViewAll" min="-180" max="180" step="15" title="How far this map is turned clockwise on every screen at the table, in degrees. 0 leaves north up." style="width:64px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><span class="compass-unit">degrees</span></div>
@@ -4708,7 +4725,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="customPrompt" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100010; align-items:center; justify-content:center;">
+<div id="customPrompt" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100010; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 300px;">
         <h3 id="customPromptTitle" style="margin-top:0; color:var(--gold);">Prompt</h3>
         <input type="text" id="customPromptInput" style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
@@ -4720,7 +4737,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="customConfirm" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100010; align-items:center; justify-content:center;">
+<div id="customConfirm" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100010; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 300px;">
         <h3 id="customConfirmTitle" style="margin-top:0; margin-bottom:15px; color:var(--gold);">Confirm</h3>
         <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -4730,7 +4747,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="campSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="campSearchModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
         <h3 style="margin-top:0; color:var(--gold);">Search Campaigns</h3>
         <input type="text" id="campSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
@@ -4741,7 +4758,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="plannerSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="plannerSearchModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
         <h3 style="margin-top:0; color:var(--gold);">Search Planners</h3>
         <input type="text" id="plannerSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
@@ -4752,7 +4769,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="docSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="docSearchModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
         <h3 style="margin-top:0; color:var(--gold);">Search Pages</h3>
         <input type="text" id="docSearchInput" class="field" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
@@ -4763,7 +4780,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="mapSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="mapSearchModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
         <h3 style="margin-top:0; color:var(--gold);">Search Maps</h3>
         <input type="text" id="mapSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
@@ -4774,7 +4791,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="netModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="netModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width: 420px; max-width:92vw; max-height:88vh; overflow-y:auto; box-sizing:border-box;">
         <h3 style="margin:-22px -22px 0; padding:22px 22px 8px; position:sticky; top:-22px; z-index:2; background:var(--panel2); color:var(--gold); display:flex; justify-content:space-between;">Multiplayer <button id="netCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <p id="netStatus" style="color:var(--dim); font-size:13px; line-height:1.35; min-height:2.7em; margin:4px 0 14px;">Not in a session.</p>
@@ -4889,7 +4906,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="reconnBar" role="status" aria-live="polite" style="display:none;"><span id="reconnText"></span><button class="tool ghost" id="reconnStop" title="Stop trying to reach the GM and go back to your own campaign. You can rejoin from this bar.">Stop trying</button><button class="tool" id="reconnRejoin" hidden title="Join the GM's table again with the same room code and name">Rejoin</button><button class="tool ghost modal-close" id="reconnClose" hidden title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></div>
 
 <!-- An update that needs the installer: the steps, before anything downloads -->
-<div id="installerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100002; align-items:center; justify-content:center;">
+<div id="installerModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100002; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px 24px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:94vw; max-height:88vh; overflow-y:auto; line-height:1.55;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="installerTitle">This update needs the installer</span> <button id="installerCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <p id="installerIntroNormal" style="margin:0 0 10px;"><b><span id="installerVersion">This update</span></b> changes Waypoint's core, and this copy cannot take that update by itself. It comes as the full installer instead. Nothing has downloaded yet.</p>
@@ -4908,7 +4925,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 <!-- VTT features at a joined table: what the GM has on and off against the player's own defaults (scripts/vtt.js joined / showNotice).
      Above #netModal (open at join) and #handoutModal, below #customConfirm; the id ends in Modal for the click-away guard; the backdrop and Esc mean "Keep mine". -->
-<div id="vttNoticeModal" role="dialog" aria-modal="true" aria-labelledby="vttNoticeTitle" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100003; align-items:center; justify-content:center;">
+<div id="vttNoticeModal" role="dialog" aria-modal="true" aria-labelledby="vttNoticeTitle" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100003; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px 24px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:94vw; max-height:88vh; overflow-y:auto; line-height:1.55;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="vttNoticeTitle">VTT features at this table</span> <button id="vttNoticeCloseBtn" class="tool ghost modal-close" title="Close (keep my settings)" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <p id="vttNoticeIntro" style="margin:0 0 10px; color:var(--dim); font-size:12.5px;"></p>
@@ -4926,7 +4943,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 <!-- Apply the VTT default to existing campaigns: a checkbox list, nothing pre-ticked (scripts/vtt.js openPushPicker) -->
-<div id="vttPushModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="vttPushModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Apply the VTT default to campaigns <button id="vttPushCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Tick the campaigns that should take the default for new campaigns as it is now: VTT integration and every feature. The others keep their own settings. Nothing is ticked to begin with.</div>
@@ -4941,7 +4958,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <button class="tool ghost" id="updateBannerLater" title="Hide this until the next version">Later</button>
 </div>
 <!-- Welcome / entry screen (main.js). A full-screen gate shown on launch per the wp_welcome preference; fronts New / Import / Join and captures the profile. -->
-<div id="welcomeScreen" style="display:none; position:fixed; inset:0; z-index:100000; background:var(--bg); overflow:auto; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px;">
+<div id="welcomeScreen" style="display:none; position:fixed; inset:var(--winbar) 0 0 0; z-index:100000; background:var(--bg); overflow:auto; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px;">
   <div class="wc-inner">
     <div class="wc-brand"><img src="icon.ico" alt="" class="wc-logo"><div><h1>Welcome to Waypoint VTT</h1><p class="wc-tag">Your table, mapped.</p></div></div>
     <!-- MAIN view: pick what to do -->
@@ -5007,7 +5024,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
   </div>
 </div>
-<div id="dicePaintModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100002; align-items:center; justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="dicePaintTitle">
+<div id="dicePaintModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100002; align-items:center; justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="dicePaintTitle">
     <div class="dp-box">
         <h3 id="dicePaintTitle" style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Paint your dice <button id="dicePaintCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div class="set-line" style="margin:-8px 0 12px;">Everyone at the table sees your rolls in this look. It is kept on this computer.</div>
@@ -5034,7 +5051,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="set-line" style="display:flex; justify-content:space-between; gap:8px;"><span id="dicePaintOwn"></span><span>The last die is one a roll dropped, drawn darker.</span></div>
     </div>
 </div>
-<div id="profileModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100001; align-items:center; justify-content:center;">
+<div id="profileModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100001; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Your profile <button id="profileCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div class="set-line" style="margin:-8px 0 14px;">Who you are at every table. It is kept on this computer.</div>
@@ -5110,7 +5127,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
     </div>
 </div>
-<div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="settingsModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div id="setBox" class="set-box">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span class="set-title">Settings</span> <input id="setFind" class="field set-find" type="search" placeholder="Search every setting" aria-label="Search every setting" autocomplete="off" spellcheck="false" title="Shows every setting whose words hold what you type, in every part"> <button id="settingsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <!-- 1.6.2, backlog 171 (the owner, by prompt: "A list beside one part"): the parts down the left, one open; settings.js draws the list from the groups -->
@@ -5500,7 +5517,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="sheetViewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+<div id="sheetViewModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:92vw; max-height:84vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="sheetViewTitle">Character</span> <button id="sheetViewCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="sheetViewBody" style="overflow-y:auto; flex:1; padding-right:6px;"></div>
@@ -5508,7 +5525,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="cmdkModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:100001; align-items:flex-start; justify-content:center; padding-top:12vh; box-sizing:border-box;">
+<div id="cmdkModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.6); z-index:100001; align-items:flex-start; justify-content:center; padding-top:12vh; box-sizing:border-box;">
     <div style="background:var(--bg2); border:1px solid var(--gold); border-radius:10px; width:560px; max-width:92vw; box-shadow:0 12px 40px rgba(0,0,0,0.6); overflow:hidden;">
         <input type="text" id="cmdkInput" placeholder="Jump to a map, a page, a tool or a setting&hellip;  (Esc to close)" autocomplete="off"
                style="width:100%; box-sizing:border-box; padding:14px 16px; background:var(--panel2); border:none; border-bottom:1px solid var(--edge); color:var(--ink); font-size:15px; outline:none;">
@@ -5517,7 +5534,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
-<div id="imgLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="imgLibModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:78vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <span style="flex:1"></span><button type="button" class="tool ghost imglib-howbtn" id="imgLibHowBtn" aria-expanded="false" aria-controls="imgLibHow" title="How the library works, in a few points">How it works</button> <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <ul id="imgLibHow" class="imglib-how" hidden>
@@ -5550,7 +5567,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div id="imgLibPreviewMeta" class="ilp-meta"></div>
                 <span class="ui-seg ui-seg-col"><button class="tool" id="imgLibPreviewAdd">Add to map</button><button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></span>
                 <button class="tool ghost" id="imgLibPreviewCat" title="Give this picture a tag (it can wear several)">Tags&hellip;</button>
-                <button class="tool ghost danger no-back" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (asks first, and says where it is used)">Delete picture</button>
+                <button class="tool ghost danger no-back" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (confirm needed, and says where it is used)">Delete picture</button>
                 <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>
             </div>
         </div>
@@ -5560,7 +5577,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 
 <!-- Handouts (GM) -->
-<div id="handoutsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+<div id="handoutsModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:82vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Handouts <button id="handoutsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:12px; line-height:1.45; margin-bottom:10px;">A handout is a picture or a written page you show your players, such as a place they found, a face, a letter or a recap of the last session. Each player keeps it in their own Journal, where they can add notes and read it again, even with no session running. Attach one to a room in the room's Properties, and a player whose token enters that room sees it on their own.</div>
@@ -5581,7 +5598,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 
 <!-- A handout on screen (fresh reveal, or from the journal) -->
-<div id="handoutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100001; align-items:center; justify-content:center;">
+<div id="handoutModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.85); z-index:100001; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:18px; border:1px solid var(--gold); border-radius:8px; max-width:92vw; max-height:92vh; display:flex; flex-direction:column; gap:10px; align-items:center;">
         <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:12px;"><h3 id="handoutTitle" style="margin:0; color:var(--gold);">Handout</h3><button id="handoutCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></div>
         <img id="handoutImg" alt="" style="max-width:88vw; max-height:70vh; object-fit:contain; border-radius:6px; background:#000;">
@@ -5592,15 +5609,15 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 <!-- Session log (GM) -->
-<div id="calendarModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="calendarModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="cal-box" style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:88vh; display:flex; flex-direction:column; gap:10px; overflow-y:auto;">
         <h3 style="margin:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Calendar <button id="calendarClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="calendarBody" class="cal-body"></div>
     </div>
 </div>
-<div id="sessionLogModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="sessionLogModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="rec-win">
-        <div class="rec-head"><h3>Game Record</h3><button class="tool ghost" id="sessionLogSave" title="Save the session on screen as a text file">Save as text</button><button class="tool ghost danger no-back" id="sessionLogClear" title="Delete the session on screen (asks first)">Delete session</button><button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+        <div class="rec-head"><h3>Game Record</h3><button class="tool ghost" id="sessionLogSave" title="Save the session on screen as a text file">Save as text</button><button class="tool ghost danger no-back" id="sessionLogClear" title="Delete the session on screen (confirm needed)">Delete session</button><button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
         <div class="rec-body">
             <aside id="recSessions" class="rec-side"></aside>
             <div class="rec-main">
@@ -5616,7 +5633,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="notepadPanel" style="display:none;">
     <div id="notepadHead"><span class="notepad-title"><i class="wib wi-note"></i> Table notepad</span><span id="notepadWho" class="notepad-who"></span><button class="tool ghost notepad-btn" id="notepadMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="notepadCloseBtn" title="Put it away for everyone">&times;</button></div>
     <div id="notepadText" class="field"></div>
-    <div class="notepad-foot"><span class="notepad-hint">Gone at the end of the session.</span><span style="display:flex; gap:4px;"><button class="tool ghost danger no-back notepad-btn" id="notepadClearBtn" title="Wipe the text for everyone (asks first); the notepad stays open">Clear</button><button class="tool ghost notepad-btn" id="notepadSaveBtn" title="Copy the text into your Journal as a note of your own">Save to my Journal</button></span></div>
+    <div class="notepad-foot"><span class="notepad-hint">Gone at the end of the session.</span><span style="display:flex; gap:4px;"><button class="tool ghost danger no-back notepad-btn" id="notepadClearBtn" title="Wipe the text for everyone (confirm needed); the notepad stays open">Clear</button><button class="tool ghost notepad-btn" id="notepadSaveBtn" title="Copy the text into your Journal as a note of your own">Save to my Journal</button></span></div>
 </div>
 <!-- Sound (1.5.0): the speaker's popover (everyone), the autoplay gate, the GM's panel and library -->
 <div id="soundPop" style="display:none;">
@@ -5692,7 +5709,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="trkHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5V12l6 6"/></svg> <span id="trkTitle">Tracker</span></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="trkCloseBtn" title="Close without saving">&times;</button></div>
     <div id="trkBody"></div>
 </div>
-<div id="soundLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="soundLibModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="snd-lib-box" style="background:var(--panel2); padding:18px 22px; border:1px solid var(--gold); border-radius:8px;">
         <div class="snd-lib-head"><h3 style="margin:0; color:var(--gold);"><i class="wib wi-music"></i> Sound Library</h3><span style="flex:1;"></span><button class="tool" id="soundLibUpload" title="Add sound files from your computer: MP3, OGG, M4A or WebM, up to 4 MB each; loops up to two minutes, cues cut after thirty seconds">&#8853; Add sounds&hellip;</button><button class="tool ghost" id="soundLibClose" title="Close">&times;</button></div>
         <input type="file" id="soundLibFile" accept=".mp3,.ogg,.oga,.m4a,.webm,.opus,audio/*" multiple style="display:none;">
@@ -5745,7 +5762,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="frame-actions"><button class="tool ghost" id="frameCancel" type="button">Cancel</button><button class="tool" id="frameOk" type="button">OK</button></div>
     </div>
 </div>
-<div id="uploadModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100005; align-items:center; justify-content:center;">
+<div id="uploadModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100005; align-items:center; justify-content:center;">
     <div class="upl-box" role="dialog" aria-label="Sheet update">
         <div class="lib-head"><h3 id="uploadHead"></h3><span style="flex:1;"></span><button class="tool ghost" id="uploadClose" title="Close (the update stays to review)">&times;</button></div>
         <div class="sys-note" id="uploadHint">Ticked changes apply; a value you set yourself, and a row the file no longer has, are left unticked for you to decide.</div>
@@ -5753,7 +5770,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="lib-fbtns"><button class="tool lib-save" id="uploadApply" type="button">Apply</button><button class="tool ghost" id="uploadReject" type="button" title="Take none of it">Keep as it is</button></div>
     </div>
 </div>
-<div id="libraryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100004; align-items:center; justify-content:center;" tabindex="-1">
+<div id="libraryModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100004; align-items:center; justify-content:center;" tabindex="-1">
     <div class="lib-box" role="dialog" aria-label="Library">
         <div class="lib-head"><h3><i class="wib wi-lib"></i> Library of <span id="libCampName" style="color:var(--ink); font-weight:500;"></span></h3><span id="libState" class="sys-note"></span><span style="flex:1;"></span><label class="lib-short" title="Shows each entry&rsquo;s key, the short name a formula reads it by. The same switch as the System editor&rsquo;s."><input type="checkbox" id="libShowKeys"> Short names</label><button class="tool ghost" id="libClose" title="Close (a change still pending is written first)">&times;</button></div>
         <div id="libGuide" class="lib-guide" hidden></div>
@@ -5765,7 +5782,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
     </div>
 </div>
-<div id="charsModal" role="dialog" aria-modal="true" aria-labelledby="charsTitle" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="charsModal" role="dialog" aria-modal="true" aria-labelledby="charsTitle" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="chars-box" style="background:var(--panel2); border:1px solid var(--gold); border-radius:8px;">
         <div class="sys-head"><h3 id="charsTitle" style="margin:0; color:var(--gold); white-space:nowrap;"><i class="wib wi-cog"></i> Characters of <span id="charsCampName" style="color:var(--ink); font-weight:500;"></span></h3><span style="flex:1;"></span><button class="tool ghost modal-close" id="charsClose" type="button" title="Close" aria-label="Close">&times;</button></div>
         <div id="sysChars">
@@ -5774,7 +5791,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
     </div>
 </div>
-<div id="systemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;" tabindex="-1">
+<div id="systemModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;" tabindex="-1">
     <div class="sys-box" style="background:var(--panel2); border:1px solid var(--gold); border-radius:8px;">
         <div class="sys-head"><h3 style="margin:0; color:var(--gold); white-space:nowrap;"><i class="wib wi-cog"></i> System of <span id="sysCampName" style="color:var(--ink); font-weight:500;"></span></h3><input type="text" id="sysName" class="field sys-name" placeholder="The system&rsquo;s name" maxlength="60" title="A name for this system"><span style="flex:1;"></span><select id="sysStartSel" class="tool" title="Replace the fields, rolls and layout with a preset or a blank system"><option value="">Start from&hellip;</option><option value="blank">Blank</option><option value="d20">Basic d20</option></select><button class="tool ghost" id="sysExportBtn" title="Save this system as a file. With library packs or pictures, it asks: the whole system as one .zip, or the system alone as a .wpsystem.json">Export</button><button class="tool ghost" id="sysPreviewBtn" aria-pressed="false" title="Show the sheet beside any tab, as it will look, following your edits">Preview</button><button class="tool ghost" id="sysImportBtn" title="Load a .wpsystem.json, or a whole system&rsquo;s .zip with its packs and pictures, into the editor (Save keeps it)">Import</button><button class="tool ghost" id="sysMergeBtn" title="Bring just some fields, lists, rolls, items, effects or point budgets from another system file into this one, ticked one by one (Save keeps them)">Merge from a file&hellip;</button><button class="tool ghost" id="sysClose" title="Close (unsaved changes are dropped after a confirm)">&times;</button></div>
         <div id="sysCapNote" class="sys-note" style="display:none;" role="status"></div>
@@ -5830,7 +5847,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 <!-- Combat roster (GM) -->
-<div id="combatModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="combatModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span>Combat on <span id="combatMapName" style="color:var(--ink); font-weight:500;"></span></span> <button id="combatCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="combatHelp" style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;" title="Higher goes first, and ties keep their place. Drag a row, or use its arrows, to set the order by hand. The tokens you picked come ticked. With none picked, those who target each other on this map come ticked.">Tick who is in the fight and give each an initiative. Higher goes first.</div>
@@ -5841,7 +5858,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 <!-- Campaign Cast (GM) -->
-<div id="castModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="castModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:84vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Campaign Cast <button id="castCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Characters saved to this campaign. Right-click empty space on any play map to drop copies, one or five at a time, instead of building the same NPC again or importing it.</div>
@@ -5849,24 +5866,24 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 <!-- Journal (everyone) -->
-<div id="journalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+<div id="journalModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:760px; max-width:94vw; height:84vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center; gap:10px;"><span class="journal-of">Journal <small>of</small> <select id="journalPick" class="map-select" aria-label="Which journal is shown" title="The journal shown. It opens on the campaign on screen, or on the table you are at."></select></span> <button id="journalDownloadBtn" class="tool ghost" style="margin-left:auto;" title="Save the journal shown, with Personal notes, as one page to read offline in any browser" aria-label="Download the journal shown as one page"><i class="wib wi-disk"></i> Download</button> <button id="journalCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div class="journal-search-row"><input id="journalSearch" class="field" type="search" placeholder="Search titles, captions, handout text and your notes" autocomplete="off"><label class="journal-all" title="Unticked, a search looks through the journal shown. Ticked, it looks through every journal, and each result names its campaign."><input type="checkbox" id="journalAll"> Every journal</label></div>
         <div id="journalList" style="overflow-y:auto; flex:1;"></div>
-        <div class="journal-foot"><button type="button" id="journalClearBtn" class="tool ghost danger no-back journal-foot-clear" title="Empty the journal shown on this computer. It asks first. Senders keep their copies.">Clear journal</button></div>
+        <div class="journal-foot"><button type="button" id="journalClearBtn" class="tool ghost danger no-back journal-foot-clear" title="Empty the journal shown on this computer. Confirm needed. Senders keep their copies.">Clear journal</button></div>
     </div>
 </div>
-<div id="playersModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+<div id="playersModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Player History &amp; Bans <button id="playersCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="playersList" style="overflow-y:auto; flex:1;"></div>
-        <div style="color:var(--dim); font-size:10.5px; margin-top:10px; line-height:1.5;">History and bans belong to this campaign and are saved with it. Banned players are refused before any approval prompt; Forget (it asks first) makes a player go through first-time approval again. Someone at the table right now plays on.</div>
+        <div style="color:var(--dim); font-size:10.5px; margin-top:10px; line-height:1.5;">History and bans belong to this campaign and are saved with it. Banned players are refused before any approval prompt; Forget (confirm needed) makes a player go through first-time approval again. Someone at the table right now plays on.</div>
     </div>
 </div>
 
 <!-- Import a Markdown file into a planner or a handbook page: the preview before anything is written (docimport.js) -->
-<div id="docImportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="docImportModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:min(640px, 94vw); max-height:88vh; display:flex; flex-direction:column; gap:10px;">
         <h3 style="margin:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Import document <button class="tool ghost" id="docImportGuide" style="font-size:12px;" title="The Markdown the importer understands, in Help">Formatting guide</button></h3>
         <p id="docImportSummary" style="color:var(--ink); font-size:13px; margin:0;"></p>
@@ -5878,7 +5895,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
     </div>
 </div>
-<div id="importChoiceModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="importChoiceModal" style="display:none; position:fixed; top:var(--winbar); left:0; width:100%; height:calc(100% - var(--winbar)); background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 380px;">
         <h3 style="margin-top:0; color:var(--gold);">Import Data</h3>
         <div id="importCard" class="share-card" hidden>
@@ -5942,7 +5959,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Draw in Waypoint (1.6.2, backlog 232): the paint window the pack maker opens from Draw (drawwin.js) -->
 <div id="paintModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="paintTitle">
     <div class="gen-box pw-box" id="paintBox">
-        <div class="pw-head"><h3 id="paintTitle">Draw</h3><span id="paintSize" class="pw-dim"></span><span class="pw-spring"></span><label class="pw-start" title="What the drawing starts from. Changing it after you drew asks first, and Undo brings your drawing back.">Start from <select id="paintStart"></select></label></div>
+        <div class="pw-head"><h3 id="paintTitle">Draw</h3><span id="paintSize" class="pw-dim"></span><span class="pw-spring"></span><label class="pw-start" title="What the drawing starts from. Changing it after you drew needs a confirm, and Undo brings your drawing back.">Start from <select id="paintStart"></select></label></div>
         <div class="pw-tools" id="paintTools" role="toolbar" aria-label="Tools">
             <button type="button" class="tool ghost pw-tool" data-tool="pen" aria-pressed="false" aria-label="Pen" title="Pen (P)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg></button>
             <button type="button" class="tool ghost pw-tool" data-tool="brush" aria-pressed="false" aria-label="Soft brush" title="Soft brush (B)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5l5 5-7.5 7.5-5-5zM8 11c-2.5.3-4 2-4 4.5 0 1.6-.7 3-1.5 4 3.5.5 7.5-.5 8.5-3.5"/></svg></button>

@@ -288,7 +288,7 @@ function showDialog(opts) {
     return new Promise(function(resolve) {
         var old = document.getElementById(opts.id); if (old) old.remove();
         var overlay = document.createElement('div'); overlay.id = opts.id;
-        overlay.style.cssText = 'display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:' + Z_INDEX + '; align-items:center; justify-content:center;';
+        overlay.style.cssText = 'display:flex; position:fixed; top:var(--winbar, 0px); left:0; width:100%; height:calc(100% - var(--winbar, 0px)); background:var(--overlay); z-index:' + Z_INDEX + '; align-items:center; justify-content:center;';
         var box = document.createElement('div');
         box.style.cssText = 'background:var(--panel2); color:var(--ink); padding:22px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:92vw; max-height:88vh; overflow-y:auto; box-sizing:border-box; font-size:13.5px; line-height:1.5; box-shadow:var(--shadow);';
         var h = document.createElement('h3'); h.textContent = opts.title; h.style.cssText = 'margin:0 0 12px; color:var(--gold);';
@@ -317,7 +317,7 @@ function showDialog(opts) {
 function showWorking() {
     if (document.getElementById('cleanupWorkingModal')) return;
     var d = document.createElement('div'); d.id = 'cleanupWorkingModal';
-    d.style.cssText = 'position:fixed; top:56px; left:50%; transform:translateX(-50%); z-index:' + Z_INDEX + '; background:var(--panel2); color:var(--dim); border:1px solid var(--edge); border-radius:8px; padding:8px 14px; font-size:13px;';
+    d.style.cssText = 'position:fixed; top:calc(56px + var(--winbar, 0px)); left:50%; transform:translateX(-50%); z-index:' + Z_INDEX + '; background:var(--panel2); color:var(--dim); border:1px solid var(--edge); border-radius:8px; padding:8px 14px; font-size:13px;';
     d.textContent = 'Checking your save…';
     document.body.appendChild(d);
 }

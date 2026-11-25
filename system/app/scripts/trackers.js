@@ -410,7 +410,8 @@ function openMenu(id, anchor) {
     m.style.display = 'block';
     var r = anchor.getBoundingClientRect(), mw = m.offsetWidth || 200, mh = m.offsetHeight || 220;
     m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - mw - 4)) + 'px';
-    m.style.top = Math.max(4, Math.min(r.bottom + 4, window.innerHeight - mh - 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    m.style.top = Math.max(4 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(r.bottom + 4, window.innerHeight - mh - 4)) + 'px';
     var first = m.querySelector('button'); if (first) first.focus();
 }
 
@@ -427,7 +428,8 @@ function drawWho() {
     m.style.display = 'block';
     _whoAt = document.getElementById('trkWho') || _whoAt;   // the strip drawn again holds a new button
     var r = _whoAt && _whoAt.isConnected ? _whoAt.getBoundingClientRect() : null, mw = m.offsetWidth || 220, mh = m.offsetHeight || 200;
-    if (r) { m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - mw - 4)) + 'px'; m.style.top = Math.max(4, Math.min(r.bottom + 4, window.innerHeight - mh - 4)) + 'px'; }
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (r) { m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - mw - 4)) + 'px'; m.style.top = Math.max(4 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(r.bottom + 4, window.innerHeight - mh - 4)) + 'px'; }
 }
 function openWho(anchor) { if (!gmHand(net(), window) || !featOn()) return; _whoAt = anchor; drawWho(); var first = menuEl() && menuEl().querySelector('button'); if (first) first.focus(); }
 
@@ -450,7 +452,8 @@ function openForm(id) {
     _form = { isNew: !id, d: draftOf(t, camp) };
     p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);
     var s = strip(), r = s ? s.getBoundingClientRect() : null;
-    if (r && !p.dataset.moved) { p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 330)) + 'px'; p.style.top = Math.max(8, r.bottom + 8) + 'px'; }
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (r && !p.dataset.moved) { p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 330)) + 'px'; p.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), r.bottom + 8) + 'px'; }
     drawForm();
     var nm = document.getElementById('trkName'); if (nm) { nm.focus(); nm.select(); }
     log('form', { fresh: _form.isNew });
@@ -584,7 +587,8 @@ function receive(list, at) {
         var head = document.getElementById('trkHead'), drag = null;
         if (head) {
             head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-            head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.dataset.moved = '1'; });
+            // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+            head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.dataset.moved = '1'; });
             head.addEventListener('pointerup', function() { drag = null; });
         }
     }

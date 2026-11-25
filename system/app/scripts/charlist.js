@@ -53,36 +53,72 @@ function charPlaces(model, items, activeId, all) {
 function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the categories folded on this computer, by key
     while (box.firstChild) box.removeChild(box.firstChild);
     var el = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.appendChild(doc.createTextNode(text)); return e; };
-    var rowOf = function(r) {
-        var d = el('div', 'ch-row'); d.dataset.char = r.id; d.setAttribute('role', 'button'); d.setAttribute('tabindex', '0');   // a class of its own: the tree binds its own rows by theirs (sidebar.js)
+    var rowOf = function(r, kind) {
+        // 1.6.4 (Fulllion, 2026-11-24: a hover told nothing and a long name was cut off): its tooltip says its whole name, who plays it, where it stands
+        var d = el('div', 'ch-row'); d.dataset.char = r.id; d.dataset.tip = charTip(r, kind, gm, model.where); d.setAttribute('role', 'button'); d.setAttribute('tabindex', '0');   // a class of its own: the tree binds its own rows by theirs (sidebar.js)
         var tN = el('span', 'si-title', r.name); if (typeof window !== 'undefined' && window.wpPlook) window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id)); d.appendChild(tN); if (r.at) d.appendChild(el('small', 'ch-at', r.at)); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
         return d;
     };
     var cts = Array.isArray(model.cats) ? model.cats : [], tps = gm && Array.isArray(model.templates) ? model.templates : [], n = model.players.length + model.npcs.length + tps.length + cts.reduce(function(a, x) { return a + x.rows.length; }, 0);
     if (!n) { if (model.findQ) box.appendChild(el('div', 'nav-empty', 'No sheet by that name.')); else if (model.onMap && model.anyAll) box.appendChild(el('div', 'nav-empty', 'No characters on this map')); else if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
-    if (gm && model.players.length) box.appendChild(el('div', 'ch-sub', 'Players'));
-    model.players.forEach(function(r) { box.appendChild(rowOf(r)); });
+    // 1.6.4 (Fulllion, 2026-11-24: "a way to toggle closed the players section ... like I can the NPCs"): the GM's Players heading is a fold.
+    // Its rows stay where they stood and are put away one by one, so the tree's keys and the drag find them as before. A player's list has none
+    var plShut = !!(gm && model.plShut);
+    if (gm && model.players.length) { var fp = el('button', 'ch-fold ch-plfold', (plShut ? '\u25b8 ' : '\u25be ') + 'Players, ' + model.players.length); fp.type = 'button'; fp.dataset.pl = '1'; fp.setAttribute('aria-expanded', plShut ? 'false' : 'true'); box.appendChild(fp); }
+    model.players.forEach(function(r) { var rp = rowOf(r); if (plShut) rp.hidden = true; box.appendChild(rp); });
     cts.forEach(function(x) {   // 1.6.2 (218, fold 2): a category's fold, with how many it holds
         var sh = !!(shut && shut[x.key]), f = el('button', 'ch-fold ch-catfold', (sh ? '\u25b8 ' : '\u25be ') + x.label + ', ' + x.rows.length); f.type = 'button'; f.dataset.cat = x.key; f.setAttribute('aria-expanded', sh ? 'false' : 'true');
-        box.appendChild(f); var lc = el('div', 'ch-cat'); lc.hidden = sh; x.rows.forEach(function(r) { lc.appendChild(rowOf(r)); }); box.appendChild(lc);
+        box.appendChild(f); var lc = el('div', 'ch-cat'); lc.hidden = sh; x.rows.forEach(function(r) { lc.appendChild(rowOf(r, 'cat')); }); box.appendChild(lc);
     });
     if (gm && model.npcs.length) {
         var f = el('button', 'ch-fold', (open ? '\u25be ' : '\u25b8 ') + 'NPCs, ' + model.npcs.length); f.type = 'button'; f.setAttribute('aria-expanded', open ? 'true' : 'false');
         box.appendChild(f);
         var list = el('div', 'ch-npcs'); list.hidden = !open;
-        model.npcs.forEach(function(r) { list.appendChild(rowOf(r)); });
+        model.npcs.forEach(function(r) { list.appendChild(rowOf(r, 'npc')); });
         box.appendChild(list);
     }
     if (tps.length) {   // 1.6.2 (backlog 227): the templates' own fold, last
         var ft = el('button', 'ch-fold ch-tplfold', (model.tplOpen ? '\u25be ' : '\u25b8 ') + 'Templates, ' + tps.length); ft.type = 'button'; ft.dataset.tpl = '1'; ft.setAttribute('aria-expanded', model.tplOpen ? 'true' : 'false'); ft.title = 'Sheets to copy. No player plays them, and they travel with every export of this campaign';
         box.appendChild(ft);
         var lt = el('div', 'ch-tpls'); lt.hidden = !model.tplOpen;
-        tps.forEach(function(r) { lt.appendChild(rowOf(r)); });
+        tps.forEach(function(r) { lt.appendChild(rowOf(r, 'tpl')); });
         box.appendChild(lt);
     }
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
+// 1.6.4 (Fulllion, 2026-11-24): what a row's tooltip says, in plain lines. r: a row of charRowsOf; kind: 'npc', 'tpl', 'cat' or none (a
+// player's character); gm: the GM's own list; where: character id -> the title of the map its token stands on (charWhereOf), or none.
+// The tooltip shows as text (tooltips.js sets textContent), so a name from a file is never markup
+function charTip(r, kind, gm, where) {
+    var out = [r && r.name ? r.name : 'Unnamed'], w = where && typeof where === 'object' && r && Object.prototype.hasOwnProperty.call(where, r.id) ? where[r.id] : null;
+    if (kind === 'tpl') out.push('A template: a sheet to copy. No player plays it.');
+    else if (r && r.who) out.push(r.who === 'no player' ? 'No player plays it yet.' : 'Played by ' + r.who + '.');
+    else if (gm && (kind === 'npc' || kind === 'cat')) out.push('An NPC.');
+    if (kind !== 'tpl' && where && typeof where === 'object' && (w !== null || gm)) out.push(w === null ? 'No token of it on a map.' : 'Its token is on ' + (w || 'a map with no name') + '.');   // a player's app holds other maps as stubs, so it says no 'no token'
+    out.push('Press to open the sheet. Right-click for more.');
+    return out.join('\n');
+}
+// 1.6.4: each character's map, by one walk of the campaign's maps (charTokenOf's own rank: the map on screen first, a shown token before a
+// hidden one, hidden ones for the GM alone). Answers character id -> the map's title ('' where it has none)
+var _whereKept = null;   // { items, sig, active, all, out }: charWhereOf's answer while no map changed
+function charWhereOf(items, activeId, all) {
+    var best = Object.create(null), rank = Object.create(null);
+    if (!items || typeof items !== 'object') return best;
+    var sigW = Object.keys(items).map(function(k) { var m = items[k]; return m && m.type === 'map' ? k + ':' + ((m.meta && m.meta.updated) || 0) + ':' + (Array.isArray(m.whiteboard) ? m.whiteboard.length : 0) : ''; }).join('|');
+    if (_whereKept && _whereKept.items === items && _whereKept.sig === sigW && _whereKept.active === activeId && _whereKept.all === !!all) return _whereKept.out;
+    Object.keys(items).forEach(function(mid) {
+        var m = items[mid]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+        var t = m.meta && typeof m.meta.title === 'string' ? charText(m.meta.title, 60) : '';
+        m.whiteboard.forEach(function(w) {
+            if (!w || typeof w !== 'object' || !w.isChar || w.waiting || typeof w.charId !== 'string' || !w.charId || (w.hidden && !all)) return;
+            var r = (m.id === activeId ? 2 : 0) + (w.hidden ? 0 : 1);
+            if (!(w.charId in rank) || r > rank[w.charId]) { rank[w.charId] = r; best[w.charId] = t; }
+        });
+    });
+    _whereKept = { items: items, sig: sigW, active: activeId, all: !!all, out: best };
+    return best;
+}
 function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), (model.templates || []).map(function(r) { return [r.id, r.name]; }), model.tplOpen ? 1 : 0, model.anyAll ? 1 : 0, typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : [], model.onMap || '', model.findQ || '']); }   // 1.6.2, backlog 35: and the looks; and On this map's map; 1.6.3: and the words of Find
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
@@ -179,12 +215,15 @@ function charOnMapTip(on, shown) {
 }
 function charOnMapRead(store) { try { return store.getItem('wp_charOnMap') === '1'; } catch (e) { return false; } }
 function charOnMapKeep(store, on) { try { if (on === true) store.setItem('wp_charOnMap', '1'); else store.removeItem('wp_charOnMap'); return true; } catch (e) { return false; } }
+// 1.6.4: the Players fold, kept on this computer as its one value ('1' while folded)
+function charPlShutRead(store) { try { return store.getItem('wp_charPlShut') === '1'; } catch (e) { return false; } }
+function charPlShutKeep(store, shut) { try { if (shut === true) store.setItem('wp_charPlShut', '1'); else store.removeItem('wp_charPlShut'); return true; } catch (e) { return false; } }
 function charNpcsRead(store) { try { return store.getItem('wp_charNpcs') === '1'; } catch (e) { return false; } }
 function charNpcsKeep(store, open) { try { if (open === true) store.setItem('wp_charNpcs', '1'); else store.removeItem('wp_charNpcs'); return true; } catch (e) { return false; } }
 // [lookcheck:charlist-end]
 
 // [lookcheck:charwire-start]
-var _sig = null, _tplOpen = charTplRead(localStorage), _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage), _onMap = charOnMapRead(localStorage), _find = '';   // _find (1.6.3, finding 30): the words of Find a sheet by name, this screen's alone
+var _sig = null, _plShut = charPlShutRead(localStorage), _tplOpen = charTplRead(localStorage), _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage), _onMap = charOnMapRead(localStorage), _find = '';   // _find (1.6.3, finding 30): the words of Find a sheet by name, this screen's alone
 // The On this map toggle as it stands: lit while on, and its tooltip says whether a play map is on screen to filter by
 function onMapShow(shown) {
     var b = document.getElementById('charOnMapBtn'); if (!b) return;
@@ -212,15 +251,16 @@ function sync() {
     var camp = getActiveCampaign(), S = sheets(), client = foreign(), n = window.wpNet, me = client ? String((n && n.myId) || '\u0000') : '';
     var on = !!camp && !!S && !window.wpStream && (!window.wpVtt || !!window.wpVtt.on('sheets'));
     var catsS = on && camp.system && Array.isArray(camp.system.charCats) ? camp.system.charCats : [], catOfS = catsS.length && S.charCatNow ? function(id) { var cc = S.charById(id, camp); return cc ? S.charCatNow(cc) : ''; } : null;   /* 1.6.2 (218, fold 2) */
-    var model = on ? charRowsOf(camp.chars, namesOf(camp), me, catOfS, catsS) : { players: [], npcs: [], cats: [] }; model.tplOpen = _tplOpen; var count = model.players.length + model.npcs.length + (!client && model.templates ? model.templates.length : 0) + (model.cats || []).reduce(function(a2, x) { return a2 + x.rows.length; }, 0), show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
+    var model = on ? charRowsOf(camp.chars, namesOf(camp), me, catOfS, catsS) : { players: [], npcs: [], cats: [] }; model.tplOpen = _tplOpen; model.plShut = _plShut; var count = model.players.length + model.npcs.length + (!client && model.templates ? model.templates.length : 0) + (model.cats || []).reduce(function(a2, x) { return a2 + x.rows.length; }, 0), show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
     // On this map (1.6.2): the count above is the whole list's, so a player whose characters are all elsewhere keeps the section and its toggle
     var here = show ? charOnMap(camp.items, camp.activeItemId, state && state.viewMode, !client) : null;
     if (on) charPlaces(charOnly(model, _onMap ? here : null, camp.activeItemId), camp.items, camp.activeItemId, !client);
+    if (on) model.where = charWhereOf(camp.items, camp.activeItemId, !client);   // 1.6.4: where each token stands, for the rows' tooltips
     var fr = document.getElementById('charFindRow'); if (fr) fr.hidden = !(show && (count >= CH_FIND_AT || _find));   // 1.6.3 (finding 30): Find a sheet by name, over a long list
-    if (on && _find) { charFind(model, _find); model.tplOpen = true; }   // what Find kept, in folds drawn open
+    if (on && _find) { charFind(model, _find); model.tplOpen = true; model.plShut = false; }   // what Find kept, in folds drawn open
     onMapShow(!!here);
     sec.hidden = !show; if (rb) rb.hidden = !show;
-    var sig = show ? charSig(model, !client, _open, _shut) + (model.noSys ? '|nosys' : '') : '';
+    var sig = show ? charSig(model, !client, _open, _shut) + (model.noSys ? '|nosys' : '') + (model.where ? '|' + JSON.stringify(model.where) : '') + (model.plShut ? '|plshut' : '') : '';
     if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open || !!model.findQ, model.findQ ? {} : _shut); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
     panelJudge(show ? count : 0);   // what a player's panel holds is judged wherever the count is known: a character that arrives reaches only this (render)
     return show ? count : 0;
@@ -345,7 +385,7 @@ function fromTemplate(tid) {
     showPrompt('Name the new sheet', charText(t.name, CHAR_NAME) || 'New character', function(name) {
         if (name === null) return;
         var c = S.newFromTemplate(tid, String(name || '').trim()); if (!c) { toast('That template could not be copied.'); return; }
-        if (c.npc) _open = true;
+        if (c.npc) _open = true; else _plShut = false;   // 1.6.4: a new player's character shows under an open Players fold
         sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
     }, { name: 'person' });
 }
@@ -395,6 +435,7 @@ function wire() {
     box.addEventListener('click', function(e) {
         var f = e.target && e.target.closest ? e.target.closest('.ch-fold') : null;
         if (f && f.dataset.cat) { var kf = f.dataset.cat; _shut[kf] = !_shut[kf]; if (!_shut[kf]) delete _shut[kf]; charCatsShutKeep(localStorage, _shut); sync(); return; }   // 1.6.2 (218, fold 2): a category's fold
+        if (f && f.dataset.pl) { _plShut = !_plShut; charPlShutKeep(localStorage, _plShut); sync(); return; }   // 1.6.4: the Players fold
         if (f && f.dataset.tpl) { _tplOpen = !_tplOpen; charTplKeep(localStorage, _tplOpen); sync(); return; }   // 1.6.2 (backlog 227)
         if (f) { _open = !_open; charNpcsKeep(localStorage, _open); sync(); return; }
         var r = rowAt(e.target); if (r && r.dataset.char) openOf(r.dataset.char);
@@ -415,7 +456,7 @@ function wire() {
         fb.addEventListener('input', function() { _find = String(fb.value || '').slice(0, 80); sync(); });
         fb.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && fb.value) { e.preventDefault(); e.stopPropagation(); fb.value = ''; _find = ''; sync(); return; }   // esckey.js leaves a Find that holds words to empty itself first
-            if (e.key === 'Enter') { e.preventDefault(); var r1 = box.querySelector('.ch-row'); if (r1 && r1.dataset.char) openOf(r1.dataset.char); }   // the first sheet it found
+            if (e.key === 'Enter') { e.preventDefault(); var r1 = Array.prototype.find.call(box.querySelectorAll('.ch-row'), function(x) { return !x.hidden && !(x.closest && x.closest('[hidden]')); }); if (r1 && r1.dataset.char) openOf(r1.dataset.char); }   // the first sheet it found and shows
         });
     }
     var om = document.getElementById('charOnMapBtn');   // 1.6.2: On this map, kept on this computer
@@ -443,7 +484,7 @@ function plusAsk() {
             showPrompt(npc ? 'Name the NPC' : 'Name the character', def, function(name) {
                 if (name === null) return;
                 var c = S.addCharacter(String(name || '').trim() || def, npc); if (!c) return;
-                if (npc) _open = true;
+                if (npc) _open = true; else _plShut = false;
                 sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
             }, { name: 'person' });   // 1.6.2 (backlog 147): with the name button
         }, { yes: 'NPC', alt: 'Player\u2019s character', noEnter: true });

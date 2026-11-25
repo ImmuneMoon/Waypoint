@@ -33,7 +33,7 @@ if (!process.argv[2] || !(base > 1024) || !planFile) { console.error('usage: nod
 const appPath = path.join(root, 'system', 'resources', 'app');
 const mainJs = path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js');
 
-const rec = { order: [], ext: [], menus: [], windows: [], loads: [], cookies: [], popups: [], quit: 0, unknown: [], errors: [] };
+const rec = { order: [], ext: [], menus: [], windows: [], loads: [], cookies: [], popups: [], overlays: [], quit: 0, unknown: [], errors: [] };
 const contents = [];
 function newContents() {
     const wc = new EventEmitter();
@@ -69,6 +69,8 @@ class BrowserWindow extends EventEmitter {   // 1.6.3: an emitter, since main.js
         app.emit('web-contents-created', {}, this.webContents);   // as Electron does, while the window is being made
     }
     loadURL(u) { rec.order.push('loadURL'); rec.loads.push(u); this.webContents.url = u; return Promise.resolve(); }
+    isDestroyed() { return false; }
+    setTitleBarOverlay(o) { rec.overlays.push(o); }   // 1.6.4: the window bar's colors, as POST /api/winbar sets them
 }
 const electron = {
     app: loose('app', app),
@@ -157,5 +159,5 @@ async function play(plan, port) {
     const loaded = rec.loads[0] || '', port = parseInt((/:(\d+)$/.exec(loaded) || [])[1], 10) || 0;
     const steps = port ? await play(plan, port) : [];
     console.error = realError;
-    process.stdout.write(JSON.stringify({ started: !!port, port, held: bound.has(port), bound: Array.from(bound), loaded, order: rec.order, windows: rec.windows, menus: rec.menus, handlers: contents.map(c => ({ open: typeof c.openHandler === 'function', nav: c.listenerCount('will-navigate'), webview: c.listenerCount('will-attach-webview'), keys: c.listenerCount('before-input-event'), tools: c.listenerCount('devtools-opened'), menu: c.listenerCount('context-menu') })), ask: typeof rec.ask === 'function', check: typeof rec.check === 'function', quit: rec.quit, unknown: rec.unknown, errors: rec.errors, steps }) + '\n', () => process.exit(0));
+    process.stdout.write(JSON.stringify({ started: !!port, port, held: bound.has(port), bound: Array.from(bound), loaded, order: rec.order, windows: rec.windows, menus: rec.menus, overlays: rec.overlays, handlers: contents.map(c => ({ open: typeof c.openHandler === 'function', nav: c.listenerCount('will-navigate'), webview: c.listenerCount('will-attach-webview'), keys: c.listenerCount('before-input-event'), tools: c.listenerCount('devtools-opened'), menu: c.listenerCount('context-menu') })), ask: typeof rec.ask === 'function', check: typeof rec.check === 'function', quit: rec.quit, unknown: rec.unknown, errors: rec.errors, steps }) + '\n', () => process.exit(0));
 })();

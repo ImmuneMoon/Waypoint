@@ -172,7 +172,8 @@ function spotKeep(el) {
 // Where a box may stand: the window, under the top row (which, hidden, floats at the window's top)
 function spotArea() {
     var hd = typeof document.querySelector === 'function' ? spotRect(document.querySelector('header')) : null;
-    return { l: 0, t: hd ? Math.max(0, hd.bottom) : 0, r: window.innerWidth, b: window.innerHeight };
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    return { l: 0, t: Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), hd ? hd.bottom : 0), r: window.innerWidth, b: window.innerHeight };
 }
 // For a module that places a box itself (a HUD, a player's page reader): the clear place nearest want, or null
 // The viewing of 2026-11-09: where no place clears what a box leaves clear besides the bars (Table Chat and an open sheet in a narrow window), it stands clear of the

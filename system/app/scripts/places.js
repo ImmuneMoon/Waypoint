@@ -449,7 +449,8 @@ function wire() {
     var body = document.getElementById('placesBody'); if (body) body.addEventListener('click', function(e) { var l = e.target.closest && e.target.closest('.places-line'); if (l) press(String(l.dataset.id || ''), false); });
     var p = P(), head = document.getElementById('placesHead'), drag = null; if (p && head) {   // the box moves by its head, as the container window does
         head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-        head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; p.dataset.placed = '1'; });
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; p.dataset.placed = '1'; });
         ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(ev) { head.addEventListener(ev, function() { drag = null; }); });
     }
     if (!_pl.tick) _pl.tick = setInterval(tick, 1500);

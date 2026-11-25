@@ -644,7 +644,8 @@ function namedOpen(btn, rows, name, over) {
     m.addEventListener('focusout', function(e) { var to = e.relatedTarget; if (_named === st && !(to && (m.contains(to) || namedIs(st, to)))) namedClose(false); });
     document.body.appendChild(m);
     var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;
-    var x = Math.max(6, Math.min(r.left, vw - w - 6)), y = r.bottom + 4; if (y + h > vh - 6) y = Math.max(6, r.top - h - 4);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var x = Math.max(6, Math.min(r.left, vw - w - 6)), y = r.bottom + 4; if (y + h > vh - 6) y = Math.max(6 + (window.wpWinBarH ? window.wpWinBarH() : 0), r.top - h - 4);
     m.style.left = x + 'px'; m.style.top = y + 'px';
     btn.setAttribute('aria-expanded', 'true'); _named = st;
     var first = m.querySelector('.nin-row') || m; if (first.focus) { try { first.focus({ preventScroll: true }); } catch (e) {} }

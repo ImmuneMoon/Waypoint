@@ -356,7 +356,8 @@ function place() {
         var mk = placeMapNow(), mine = mk && PLACE_KEY.test(mk) ? placeMapsRead()[mk] : null;   // 1.6.0: this map's own place first
         var pos = mine || JSON.parse(localStorage.getItem('wp_docPanel') || 'null'); if (!pos || typeof pos !== 'object') return;
         if ((pos.w !== undefined || pos.h !== undefined) && !(pos.w > 0 && pos.h > 0)) return;   // measured while the panel was put away
-        if (isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; }
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        if (isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; }
         if (isFinite(pos.w) && isFinite(pos.h)) { p.style.width = pos.w + 'px'; p.style.height = pos.h + 'px'; }
     } catch (e) {}
 }
@@ -544,7 +545,8 @@ function dockTakes(search) { try { var q = new URLSearchParams(String(search == 
     var drag = null;
     function savePos() { var rec = placeRec(p.getBoundingClientRect()); if (!rec) return; try { localStorage.setItem('wp_docPanel', JSON.stringify(rec)); } catch (e) {} placeKeep(rec); }   // 1.5.4: never a place measured while the panel is put away; 1.6.0: and kept for the map on screen
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; });
     head.addEventListener('pointerup', function() { if (!drag) return; drag = null; savePos(); });
     try { new ResizeObserver(function() { if (p.style.display !== 'none') savePos(); }).observe(p); } catch (e) {}
 

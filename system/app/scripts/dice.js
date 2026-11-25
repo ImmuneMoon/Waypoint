@@ -782,7 +782,8 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
     var pw = pop.offsetWidth, ph = pop.offsetHeight;
     var left = Math.max(8, Math.min(window.innerWidth - pw - 8, rct.left));
-    var top = rct.bottom + 6; if (top + ph > window.innerHeight - 8) top = Math.max(8, rct.top - ph - 6);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var top = rct.bottom + 6; if (top + ph > window.innerHeight - 8) top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), rct.top - ph - 6);
     pop.style.left = left + 'px'; pop.style.top = top + 'px';
     refresh();
     setTimeout(function() { document.addEventListener('pointerdown', onModOutside, true); document.addEventListener('keydown', onModKey, true); var inM = numEl && numEl.input; if (inM && typeof inM.focus === 'function') { inM.focus(); if (typeof inM.select === 'function') inM.select(); } else go.focus(); }, 0);   // 1.6.3 (finding 31): the modifier's own box takes the focus, so a figure is typed at once and Enter rolls

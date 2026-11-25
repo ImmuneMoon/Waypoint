@@ -468,7 +468,8 @@ function openMenu(anchor, done, dice, cur, words) {
     draw();
     var host = o.root.closest('#systemModal') || document.body; host.appendChild(m);
     var r = anchor.getBoundingClientRect(), H = window.innerHeight || 700, W = window.innerWidth || 1000; m.style.left = Math.max(8, Math.min(W - 288, r.left)) + 'px';
-    var mh = Math.min(320, H - 16), top = r.bottom + 4; if (top + mh > H - 8) top = Math.max(8, r.top - mh - 4); m.style.top = top + 'px'; m.style.maxHeight = mh + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var mh = Math.min(320, H - 16), top = r.bottom + 4; if (top + mh > H - 8) top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), r.top - mh - 4); m.style.top = top + 'px'; m.style.maxHeight = mh + 'px';
     menu = { el: m, away: function(e) { if (!m.contains(e.target)) closeMenu(); } };
     document.addEventListener('pointerdown', menu.away, true);
     find.focus();

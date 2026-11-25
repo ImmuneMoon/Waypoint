@@ -418,7 +418,18 @@ function senseViewers(ts, eyesArc) {
 // perspective"): PARTY, the stream window's standpoint — every token that is a player's (it carries a player's id: a character's or a waiting one),
 // each judged as its own player's copy judges it (its own sheet alone, never waived), never an NPC's eyes, never the GM's whole map. A profile id
 // never holds a star, so no player is PARTY. The GM's '*' preview stays what it was: every character token, NPCs included, every sheet read
-var PARTY = '*players', playerTok = function(w) { return typeof w.ownerId === 'string' && w.ownerId !== ''; };
+// 1.6.4 (Fulllion, 2026-11-24: "have the board show exactly what only a chosen npc sees ... to give the impression of piloting the npc"): a third
+// standpoint beside a player's and PARTY, ONE token's eyes alone ('*tok:' and the token's id, TOK_SEE), which the GM's See as selected draws
+// (seeas.js). It begins with a star, so no profile id is ever one; it is never a player's (forPlayers, the host's memory of explored ground);
+// its token's sheet is read as the GM reads it; and it lives on the GM's screen alone, so nothing of it is ever sent. seeTokId: the token's id
+// of such a standpoint, else ''. ownTok: whether token w is one of an owner's own (the token itself for one token's eyes, every player's for
+// PARTY, the owner's id otherwise). gmReads: whether a standpoint reads every sheet as the GM does (no owner, '*', one token's eyes). They
+// stand on this one line because the suites cut it on its own
+var PARTY = '*players', playerTok = function(w) { return typeof w.ownerId === 'string' && w.ownerId !== ''; }, TOK_SEE = '*tok:', seeTokId = function(o) { return typeof o === 'string' && o.indexOf(TOK_SEE) === 0 ? o.slice(TOK_SEE.length) : ''; }, ownTok = function(w, owner) { var t = seeTokId(owner); return t ? w.id === t : owner === PARTY ? playerTok(w) : w.ownerId === owner; }, gmReads = function(owner) { return !owner || owner === '*' || !!seeTokId(owner); };
+// What See as selected asks of this screen, read through seeas.js (window.wpSeeAs): the standpoint to draw ('' while it is off or has no
+// token yet) and whether the fog is solid. The GM's screen alone
+function seeAsOwner() { var S = typeof window !== 'undefined' ? window.wpSeeAs : null, o = S && typeof S.owner === 'function' ? S.owner() : ''; return isGmView() && seeTokId(o) ? o : ''; }
+function seeAsSolid() { var S = typeof window !== 'undefined' ? window.wpSeeAs : null; return !!seeAsOwner() && !!(S && typeof S.solid === 'function' && S.solid()); }
 // A map's vision mode: its explicit map.fog.vision, else the grid-type default (square = all-around, hex = 180° front
 // cone). The arc is DECOUPLED from the grid type — a GM can give a square map a facing cone, or a hex map all-around.
 function gridIsHexMap(map) {
@@ -453,9 +464,9 @@ function viewersFor(map, camp, ownerId, withH) {   // withH (item 19b): each vie
     var out = [];   // each token's eyes by its own arc (eyesArc): facing feature off ⇒ all-around, as a map set All around; else the character's own, else the map's
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);   // Onboarding F1a: a waiting token sees only when the campaign says so
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || w.hidden || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;
-        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the party sees by every player's token
-        var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), arc = eyesArc(map, ts), n0 = out.length;
+        if (!w || (w.hidden && !(seeTokId(ownerId) && w.id === seeTokId(ownerId))) || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;   // 1.6.4: the token See as selected sees through sees even while the GM hides it
+        if (ownerId && ownerId !== '*' && !ownTok(w, ownerId)) return;   // R2 #14: the party sees by every player's token
+        var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, gmReads(ownerId)), arc = eyesArc(map, ts), n0 = out.length;
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
         if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.side) { v.side = s.side; v.tok = w.id; if (typeof s.near === 'number') v.near = s.near; } if (s.veil) v.veil = true; if (s.ow) v.ow = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
         if (withH === true) { var hh = tokHeight(w, map, forPlayers(ownerId)); for (var hi = n0; hi < out.length; hi++) out[hi].h = hh; }   // for a player or the party: from the pieces players hold only
@@ -1567,7 +1578,7 @@ function lightSeen(from, to, map, camp) {
 // pieces players hold only (tokenElevation's third argument, true): a ground piece the GM hid lifts nobody there, so the host rules exactly what
 // the player's own app works out from its copy, which holds no hidden piece. The GM's own overlay ('*', every token) and the light the GM's
 // ruler names (lightSeen) read every piece the map holds, as the GM's chips, ruler and blast tool do
-function forPlayers(ownerId) { return typeof ownerId === 'string' && ownerId !== '' && ownerId !== '*'; }   // a profile id, or the party (PARTY); never the GM's own '*', never no owner at all
+function forPlayers(ownerId) { return typeof ownerId === 'string' && ownerId !== '' && ownerId !== '*' && !seeTokId(ownerId); }   // 1.6.4: one token's eyes (See as selected) read every piece, as the GM's own overlay does   // a profile id, or the party (PARTY); never the GM's own '*', never no owner at all
 function hNum(v) { return typeof v === 'number' && isFinite(v) ? v : 0; }
 function heightSightOf(sys) {   // { mode: 'clears' | '3d', eye (yards), soft } or null: no height in the fog. soft: the see-over pieces count (the system's Cover from blockers is on: with it off a piece set to give cover is no piece at all, here as on the ruler)
     var h = sys && sys.combat && typeof sys.combat === 'object' ? sys.combat.height : null; if (!h || typeof h !== 'object') return null;
@@ -1668,7 +1679,7 @@ function heightJudge(map, camp, ownerId, grid, mask, flat) {
     var C = ctx.C, hide = null, show = null;
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.type === 'light' || !(w.isChar || w.waiting) || typeof w.id !== 'string') return;
-        if (w.ownerId === ownerId || (ownerId === PARTY && playerTok(w))) return;
+        if (ownTok(w, ownerId)) return;
         var cell = C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), key = C.cellKey(cell, grid);
         if (!inMask(mask, key) || ctx.man[key] === 1 || ctx.cut[key] === 1 || (ctx.under && ctx.under(key, cell))) return;
         var tier = heightSees(ctx, cell, key, tokHeight(w, map, ctx.shown)), was = !!flat[key];
@@ -1713,7 +1724,7 @@ function fogDropIds(recipientId, camp, map) {
     var hj = typeof heightJudge === 'function' ? heightJudge(map, camp, recipientId, grid, mask, keys) : null;   // item 19b: the creatures a piece with a height hides, or shows over a low wall (null: none, as before)
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.type === 'light' || !(w.isChar || w.waiting)) return;   // a light source is never a creature; Onboarding F1a: another player's waiting token hides in fog like a character's
-        if (w.ownerId === recipientId || (recipientId === PARTY && playerTok(w))) return;   // your own token is always yours; the party view (R2 #14) keeps every player's
+        if (ownTok(w, recipientId)) return;   // your own token is always yours; the party view (R2 #14) keeps every player's
         var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
         if (!inMask(mask, tk)) return;   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
         var seen = !!keys[tk];
@@ -1812,11 +1823,12 @@ function marksInputs(recipientId, camp, map, drop) {
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);
     var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid, recipientId) : null, hidOf = hr && typeof _dropHid !== 'undefined' && _dropHid ? _dropHid.get(drop) : null;   // item 19b: with heights judged, each viewer and creature carries its height (hh); open: a creature a piece hides in a cell this player sees
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || w.hidden || w.type === 'light') return;
-        if (w.ownerId === recipientId) {
+        var tidM = typeof recipientId === 'string' && recipientId.indexOf('*tok:') === 0 ? recipientId.slice(5) : '';   // 1.6.4: See as selected's one token
+        if (!w || (w.hidden && !(tidM && w.id === tidM)) || w.type === 'light') return;
+        if (w.ownerId === recipientId || (tidM && w.id === tidM)) {
             if (!(w.isChar || (w.waiting && waitSight))) return;
             var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0);
-            var mts = tokenSenses(w, map, camp, false), arc = eyesArc(map, mts);   // a mark sense that is not all round takes its token's eyes' arc
+            var mts = tokenSenses(w, map, camp, !!tidM), arc = eyesArc(map, mts);   // a mark sense that is not all round takes its token's eyes' arc
             (mts.marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: senseArc(m, arc), pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; if (hr) vm.hh = tokHeight(w, map, hr.shown); vs.push(vm); });
             return;
         }
@@ -1944,6 +1956,7 @@ function active() {
 function drawOwner() {
     if (isClientView()) return myId();                             // a player sees only their own tokens' vision
     if (isStreamView()) return PARTY;                              // R2 #14: the stream window, the players' tokens together
+    var sa = typeof seeAsOwner === 'function' ? seeAsOwner() : ''; if (sa) return sa;   // 1.6.4: See as selected, one token's eyes
     return (previewMode === 'off' || previewMode === 'party') ? '*' : previewMode;   // GM: all tokens, or one player
 }
 // Senses S6 (the owner's answer 3a): explored terrain. With "Players remember what they have seen" on (camp.fog.defaults.remember), a player's
@@ -2071,7 +2084,7 @@ function hostMemSoon() { if (!_hmemTimer) _hmemTimer = setTimeout(function() { h
 // cells a wall runs through as their screen draws them (wallEdged on a copy, so the tiers the host judges by are never touched). Asked by
 // revealedCellList with the tiers it worked out, for a real player only (never the party view or the GM's '*')
 function memHostNote(map, camp, pid, tiers) {
-    if (!tiers || !Array.isArray(tiers.list) || typeof pid !== 'string' || !pid || pid === '*' || pid === PARTY || !map || typeof map.id !== 'string' || !hostMemOn(camp)) return;
+    if (!tiers || !Array.isArray(tiers.list) || typeof pid !== 'string' || !pid || pid === '*' || pid === PARTY || pid.indexOf('*tok:') === 0 || !map || typeof map.id !== 'string' || !hostMemOn(camp)) return;
     var C = core(), grid = gridForMap(map); if (!C || !grid) return;
     var st = hostMemStore(camp, map, pid, hostMemKey(map, grid)), changed = false, cut = Object.create(null), th = tiers.through || null;
     (mapFog(map).manual.cuts || []).forEach(function(c) { var k = C.cellKey(c, grid); cut[k] = 1; if (st.cells[k]) { delete st.cells[k]; st.n--; changed = true; } });
@@ -2095,7 +2108,7 @@ function memHostNote(map, camp, pid, tiers) {
 // that token standing there, facing as it faced, and noted as any judgement is. The token is put back exactly as found. Nothing where the host
 // keeps nothing (not hosting this campaign, remembering unticked) or for anyone but a player. Answers how many places were judged
 function memHostPath(map, camp, pid, w, pts) {
-    if (!map || !w || !Array.isArray(pts) || !pts.length || typeof pid !== 'string' || !pid || pid === '*' || pid === PARTY || typeof revealedTiers !== 'function' || !hostMemOn(camp)) return 0;
+    if (!map || !w || !Array.isArray(pts) || !pts.length || typeof pid !== 'string' || !pid || pid === '*' || pid === PARTY || pid.indexOf('*tok:') === 0 || typeof revealedTiers !== 'function' || !hostMemOn(camp)) return 0;
     var keys = ['x', 'y', 'rot', 'front'], was = {}, n = 0, step = Math.max(1, Math.ceil(pts.length / MEM_PATH));
     keys.forEach(function(k) { was[k] = Object.prototype.hasOwnProperty.call(w, k) ? [w[k]] : null; });
     try {
@@ -2441,7 +2454,7 @@ function draw() {
     }
     ctx.globalCompositeOperation = 'source-over';
     var veil = 'rgba(5,6,12,' + (typeof veilAlpha === 'function' ? veilAlpha(camp) : 1) + ')';   // 1.6.3: players' fog, as dark as the campaign says (solid by default)
-    ctx.fillStyle = isClientView() || isStreamView() ? veil : 'rgba(9,11,20,0.62)';   // players and the stream window: opaque; the GM: see-through
+    ctx.fillStyle = isClientView() || isStreamView() || (typeof seeAsSolid === 'function' && seeAsSolid()) ? veil : 'rgba(9,11,20,0.62)';   // 1.6.4: See as selected, solid, draws the fog as a player's screen does   // players and the stream window: opaque; the GM: see-through
     if (turnV) { var dg = Math.hypot(W, H); ctx.fillRect(-dg, -dg, W + 2 * dg, H + 2 * dg); } else   // turned, the fill covers the screen's turned corners too
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
@@ -2466,7 +2479,8 @@ function draw() {
     if (!pp) { ctx.beginPath();
     for (var i = 0; i < tl.length; i++) if (tk[tl[i].key] !== 1) traceCell(tl[i].cell); }
     fillP(pp && pp.clear);                                         // punch every clear or bright cell in one pass
-    if (isClientView() && typeof ownClear === 'function') ownClear(ctx, ownClearList(map, myId()), z, sx, sy, ownTokEl);   // 1.6.3 (finding 18): a player's own tokens stand over their own fog, the ground around them dark
+    if (isClientView() && typeof ownClear === 'function') ownClear(ctx, ownClearList(map, myId()), z, sx, sy, ownTokEl);
+    else if (typeof seeAsSolid === 'function' && seeAsSolid() && typeof ownClear === 'function') ownClear(ctx, ownClearList(map, seeAsOwner()), z, sx, sy, ownTokEl);   // 1.6.4: the token seen through stands over its own fog   // 1.6.3 (finding 18): a player's own tokens stand over their own fog, the ground around them dark
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
     ctx.save(); if (turnV) turnV.turnCtx(ctx);
@@ -2494,7 +2508,7 @@ function ownClearList(map, me) {
     var out = []; if (!map || !Array.isArray(map.whiteboard) || typeof me !== 'string' || !me) return out;
     for (var i = 0; i < map.whiteboard.length && out.length < OWN_CLEAR_MOST; i++) {
         var w = map.whiteboard[i];
-        if (!w || typeof w !== 'object' || w.ownerId !== me || w.hidden || !(w.isChar || w.waiting)) continue;
+        if (!w || typeof w !== 'object' || (me.indexOf('*tok:') === 0 ? w.id !== me.slice(5) : w.ownerId !== me || w.hidden) || !(w.isChar || w.waiting)) continue;   // 1.6.4: the token See as selected sees through stands over its fog even while hidden
         if (!isFinite(Number(w.x)) || !isFinite(Number(w.y)) || !(Number(w.w || 60) > 0) || !(Number(w.h || 52) > 0)) continue;
         out.push(w);
     }
@@ -2645,6 +2659,8 @@ var MARK_WORD = { 1: 'Heard', 2: 'Felt', 3: 'Sensed', 4: 'Heat' }, _markHover = 
 function marksStill() { try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true; } catch (e) {} try { return localStorage.getItem('wp_fxReduced') === '1'; } catch (e) { return false; } }
 function marksToDraw(map, camp) {
     if (isClientView()) return Array.isArray(map.fogMarks) ? map.fogMarks : [];
+    var sa = typeof seeAsOwner === 'function' ? seeAsOwner() : '';   // 1.6.4: See as selected marks what that one token hears or senses, judged quietly
+    if (sa) return seeQuiet(function() { return fogMarksFor(sa, camp, map, fogDropIds(sa, camp, map) || Object.create(null), true) || []; });
     if (previewMode === 'off' || previewMode === 'party') return [];
     return fogMarksFor(previewMode, camp, map, fogDropIds(previewMode, camp, map) || Object.create(null), true) || [];
 }
@@ -2749,8 +2765,8 @@ function blindCaptionsFor(map, camp, ownerId) {
     var out = [], byId = Object.create(null); campSenses(camp).concat(campMarkSenses(camp)).forEach(function(s) { byId[s.id] = s; });   // senses S4: a mark sense still works blind too
     ((map && map.whiteboard) || []).forEach(function(w) {
         if (!w || w.hidden || !w.isChar || typeof w.id !== 'string') return;   // a waiting token is never blind (tokenSenses)
-        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the stream window, every player's token
-        var ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), nulled = (ts.offs || []).filter(function(o) { return o.why === 'null' && byId[o.id]; }).map(function(o) { return String(byId[o.id].name); });   // senses S7a: the senses a null area switches off here
+        if (ownerId && ownerId !== '*' && !ownTok(w, ownerId)) return;   // R2 #14: the stream window, every player's token
+        var ts = tokenSenses(w, map, camp, gmReads(ownerId)), nulled = (ts.offs || []).filter(function(o) { return o.why === 'null' && byId[o.id]; }).map(function(o) { return String(byId[o.id].name); });   // senses S7a: the senses a null area switches off here
         if (!ts.blind && !nulled.length) return;
         var words = [];
         if (ts.blind) { words.push('Blind'); ts.full.concat(ts.marks || []).forEach(function(e) { var s = byId[e.id]; if (s) words.push(String(s.name) + ' ' + e.n + ' ' + (SENSE_CAP_UNIT[s.unit] || 'yd')); }); }
@@ -2815,7 +2831,9 @@ function drawSenseCaptions(ctx, s, caps) {
 // dark veil. Only the GM's own drawing: what the host judges and sends, a player's own fog and the stream window's are untouched. A preview
 // of the party or of a player still draws (that is what a preview is), and so does the veil while the GM paints fog by hand
 function hideMineOn() { try { return typeof localStorage !== 'undefined' && !!localStorage && localStorage.getItem('wp_fogHideMine') === '1'; } catch (e) { return false; } }
-function gmFogHidden() { return isGmView() && previewMode === 'off' && !window.isFogMode && hideMineOn(); }
+function gmFogHidden() { return isGmView() && previewMode === 'off' && !(typeof seeAsOwner === 'function' && seeAsOwner()) && !window.isFogMode && hideMineOn(); }   // 1.6.4: See as selected always draws its fog
+// 1.6.4: a judgement the GM's own screen makes for See as selected rolls no noticing check (notice.js quiet), so looking never changes the game
+function seeQuiet(fn) { var N = typeof window !== 'undefined' ? window.wpNotice : null; return N && typeof N.quiet === 'function' ? N.quiet(fn) : fn(); }
 function setHideMine(on) { try { if (on === true) localStorage.setItem('wp_fogHideMine', '1'); else localStorage.removeItem('wp_fogHideMine'); } catch (e) {} }
 // [fogcheck:gmhide-end]
 // [fogcheck:fogbtn-start]
@@ -3446,6 +3464,7 @@ function pieceSeen(map, w) { var j = seenJudge(map); return j ? j(w) : true; }  
 window.wpFog = {
     // host enforcement (net.js)
     fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, smokeOnLine: smokeOnLine, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    seeTokId: seeTokId, TOK_SEE: TOK_SEE, seeDrop: function(owner, camp, map) { return seeTokId(owner) ? seeQuiet(function() { return fogDropIds(owner, camp, map); }) : null; },   // 1.6.4: See as selected (seeas.js)
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

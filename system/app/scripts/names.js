@@ -35,7 +35,8 @@ function open(anchor, kind, done, doc) {
     rows.forEach(function(r) { var b = doc.createElement('button'); b.type = 'button'; b.className = 'wb-tool-btn party-menu-item'; b.setAttribute('role', 'menuitem'); b.textContent = r.text; b.title = r.style ? 'A name made by Waypoint, ' + STYLES[r.style].label.toLowerCase() + ' sounding' : 'A name from this list'; b._row = r; m.appendChild(b); });
     m.style.display = 'flex';
     var r0 = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 20, bottom: 60 }, w = m.offsetWidth || 200, h = m.offsetHeight || 200, vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
-    var x = Math.max(8, Math.min(r0.left, vw - w - 8)), y = r0.bottom + 4 + h > vh - 8 ? Math.max(8, (r0.top || r0.bottom) - h - 4) : r0.bottom + 4;
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var x = Math.max(8, Math.min(r0.left, vw - w - 8)), y = r0.bottom + 4 + h > vh - 8 ? Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), (r0.top || r0.bottom) - h - 4) : r0.bottom + 4;
     m.style.left = Math.round(x) + 'px'; m.style.top = Math.round(y) + 'px';
     var first = m.querySelector('button'); if (first && first.focus) first.focus();
     return rows.length;

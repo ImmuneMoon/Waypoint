@@ -3573,7 +3573,8 @@ window.wpFitToGrid = fitToGrid;
           e.stopPropagation();
           var key = b.dataset.key, act = b.dataset.act;
           if (act === 'givePic') { _givePic = !_givePic; act = 'give'; }   // Onboarding F1c: the toggle keeps the list open
-          if (act === 'give') { var campG = getActiveCampaign(), glG = giveList(campG, key.slice(2)); if (glG.length && window.wpNet && window.wpNet.isConnected && window.wpNet.isConnected(key.slice(2))) glG.unshift({ act: 'givePic', label: (_givePic ? '\u2611 ' : '\u2610 ') + 'Use their face for a character with no picture' }); fillPartyMenu(glG.concat([{ act: 'none', label: 'The one you give is the one they play; the one they played before stays theirs (kept).', dim: true }]), key); var rG = menu.getBoundingClientRect(); if (rG.bottom > window.innerHeight - 6) menu.style.top = Math.max(6, window.innerHeight - rG.height - 6) + 'px'; if (rG.right > window.innerWidth - 6) menu.style.left = Math.max(6, window.innerWidth - rG.width - 6) + 'px'; return; }   // the list replaces the menu in place, kept inside the window
+          // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+          if (act === 'give') { var campG = getActiveCampaign(), glG = giveList(campG, key.slice(2)); if (glG.length && window.wpNet && window.wpNet.isConnected && window.wpNet.isConnected(key.slice(2))) glG.unshift({ act: 'givePic', label: (_givePic ? '\u2611 ' : '\u2610 ') + 'Use their face for a character with no picture' }); fillPartyMenu(glG.concat([{ act: 'none', label: 'The one you give is the one they play; the one they played before stays theirs (kept).', dim: true }]), key); var rG = menu.getBoundingClientRect(); if (rG.bottom > window.innerHeight - 6) menu.style.top = Math.max(6 + (window.wpWinBarH ? window.wpWinBarH() : 0), window.innerHeight - rG.height - 6) + 'px'; if (rG.right > window.innerWidth - 6) menu.style.left = Math.max(6, window.innerWidth - rG.width - 6) + 'px'; return; }   // the list replaces the menu in place, kept inside the window
           closePartyMenu();
           if (act === 'giveTo') {
               var campT = getActiveCampaign(), pidT = key.slice(2), cidT = b.dataset.cid, chT = campT && campT.chars && Object.prototype.hasOwnProperty.call(campT.chars, cidT) ? campT.chars[cidT] : null;
@@ -4706,7 +4707,8 @@ window.wpFitToGrid = fitToGrid;
       _pin.id = id; _pin.map = mapId; tokCardDrop();
       if (!was) {
           var at = { l: r ? r.left : 80, t: r ? r.top : 120, w: 300, h: r ? Math.max(160, r.height + 34) : 360 }, F = window.wpFloats, s = F && typeof F.spot === 'function' ? F.spot(at, false, p) : null;   // where the card stood, kept clear of the map's bars
-          p.style.left = Math.max(0, Math.round(s ? s.l : at.l)) + 'px'; p.style.top = Math.max(0, Math.round(s ? s.t : at.t)) + 'px'; p.style.right = 'auto';
+          // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+          p.style.left = Math.max(0, Math.round(s ? s.l : at.l)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.round(s ? s.t : at.t)) + 'px'; p.style.right = 'auto';
           p.style.display = 'flex';
       }
       tokPinDraw();
@@ -4717,7 +4719,8 @@ window.wpFitToGrid = fitToGrid;
       var p = tokPinEl(), head = document.getElementById('tokCardHead'), x = document.getElementById('tokCardClose'), drag = null; if (!p || !head) return;
       if (x) x.addEventListener('click', tokPinClose);
       head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-      head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+      // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+      head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; });
       ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(ev) { head.addEventListener(ev, function() { drag = null; }); });   // a drag ends however the pointer is let go
       if (typeof MutationObserver === 'function') new MutationObserver(function() { if (p.style.display === 'none' && _pin.id) { _pin.id = ''; _pin.map = ''; } }).observe(p, { attributes: true, attributeFilter: ['style'] });   // closed by Escape (esckey.js) or anything else: nothing is kept
   })();
@@ -7210,8 +7213,10 @@ function holdAsk(anchor, sys, done) {
     // last button, the one the menu opened under, then to the strip itself, and with neither the box stands in the middle of the window
     var sized = function(e) { var r = e && e.getBoundingClientRect ? e.getBoundingClientRect() : null; return r && (r.width > 0 || r.height > 0) ? r : null; }, stS = document.getElementById('combatStrip');
     var ra = sized(anchor) || sized(stS && stS.querySelector ? stS.querySelector('.combat-strip-morebtn') : null) || sized(stS);
-    if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.max(8, Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6)) + 'px'; }
-    else { box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px'; box.style.top = Math.max(8, Math.round((window.innerHeight - box.offsetHeight) / 2)) + 'px'; }
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6)) + 'px'; }
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    else { box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px'; box.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.round((window.innerHeight - box.offsetHeight) / 2)) + 'px'; }
     inp.focus(); return box;
 }
 function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its words for the GM and its holder, in esc; the GM's Set off
@@ -7545,7 +7550,8 @@ function placeMenu(cMenu, e) {
     // A menu taller than the window (a character token's has twenty rows): compact rows first, and when that is not enough its own height
     // limit and scroll — never rows off screen. Judged afresh each time the menu is placed; called with no event (its rows changed while it
     // was up) it is fitted again where it stands.
-    var room = window.innerHeight - 12;
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var room = window.innerHeight - 12 - (window.wpWinBarH ? window.wpWinBarH() : 0);
     // Where the menu lives. The page puts #contextMenu inside #whiteboardWrap, the play map's box, and the Data Map hides that box (display: none),
     // so on the Data Map a room's right-click menu was built and never seen, and its Properties row (the only way to a room's settings since
     // the edge tab went, the rail merge of 1.6.2) could not be reached. While the box is hidden the menu moves to the page itself; it is
@@ -7568,7 +7574,8 @@ function placeMenu(cMenu, e) {
     // keep it on screen
     var r = cMenu.getBoundingClientRect();
     if (r.right > window.innerWidth - 6) cMenu.style.left = Math.max(6, x - (r.right - window.innerWidth + 6)) + 'px';
-    if (r.bottom > window.innerHeight - 6) cMenu.style.top = Math.max(6, y - (r.bottom - window.innerHeight + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (r.bottom > window.innerHeight - 6) cMenu.style.top = Math.max(6 + (window.wpWinBarH ? window.wpWinBarH() : 0), y - (r.bottom - window.innerHeight + 6)) + 'px';
     if (e) cMenu.scrollTop = 0;   // a menu that comes up starts at its top: the browser hands one element's scroll on from the last menu it held, which put Sheet… above the menu's top
 }
 // [systemcheck:placemenu-end]

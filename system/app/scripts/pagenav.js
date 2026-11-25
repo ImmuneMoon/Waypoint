@@ -659,7 +659,8 @@ function navOpen(btn, root, byKey) {
     m.style.left = '0px'; m.style.top = '0px'; m.style.display = 'block';
     var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;
     var x = Math.max(6, Math.min(r.left, vw - w - 6)), y = r.bottom + 4;
-    if (y + h > vh - 6) y = Math.max(6, vh - h - 6);   // no room under the button: as low as it fits
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    if (y + h > vh - 6) y = Math.max(6 + (window.wpWinBarH ? window.wpWinBarH() : 0), vh - h - 6);   // no room under the button: as low as it fits
     m.style.left = x + 'px'; m.style.top = y + 'px';
     if (byKey) { var first = m.querySelector('.pagenav-row, .pagenav-act'); if (first) first.focus(); }
 }

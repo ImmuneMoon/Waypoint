@@ -230,7 +230,7 @@ function install(P) {
     const cssP = read('style.css');
     check('the review of the rail\'s merge (4): a bar laid down the right edge keeps Properties clear of it (the body says how much further than its own 18 px it stands, so its right edge, its X with it, keeps 8 px left of the bar), and a place of Properties\' own kept on this computer is held clear of it too; a hidden bar, a bar on another side or no layout keeps it where it was',
         propR === '34px' && sbRight <= barLeft - 8 && hidR === '0px' && leftR === '0px' && !goneR
-        && cssP.includes('body:not(.stream-mode) #sidebar { position: fixed; right: calc(18px + var(--lay-propr, 0px)); top: 110px;')
+        && cssP.includes('body:not(.stream-mode) #sidebar { position: fixed; right: calc(18px + var(--lay-propr, 0px)); top: calc(110px + var(--winbar));') /* 1.6.4: the window bar moved it (moved on purpose) */
         && L.propRight({ side: 'right', edge: true }, { getBoundingClientRect: () => ({ left: 957 }) }, { left: 957 }, { w: 1000 }) === 33 && L.propRight({ side: 'top' }, {}, { left: 0 }, { w: 1000 }) === 0 && L.propRight({ side: 'right' }, null, null, { w: 1000 }) === 0
         && placeAt('34px', 1100) === (1280 - 320 - 18 - 34) + 'px' && placeAt('', 1100) === (1280 - 320 - 4) + 'px' /* moved on purpose: the whole panel in the window, its X in reach */ && placeAt('34px', 200) === '200px' && lyS.includes("window.wpPropFit = function() { var a = propAt(); if (a) propPlace(sb, a); };"),
         J([propR, sbRight, hidR, leftR, goneR, placeAt('34px', 1100), placeAt('', 1100)]));
@@ -278,7 +278,7 @@ function install(P) {
         && blkR.includes('body.lay-on .floating-toolbar.lay-right { left: auto; right: 14px; }') && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-right { right: 0; border-width: 0 0 0 1px; }')
         && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-left { left: 0; border-width: 0 1px 0 0; }') && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-top { top: var(--lay-tt, 0px); border-width: 0 0 1px; }')
         && blkR.includes('body.lay-on #main > :is(#rulerTop, #rulerCursorX) { top: var(--lay-rt, 0px); }') && blkR.includes('body.lay-on #main > :is(#rulerLeft, #rulerCursorY) { left: var(--lay-rl, 0px); }')
-        && cssR.includes('  body.row-hidden:not(.tour-on) header { position: fixed; top: var(--rowbar); left: calc(var(--mainleft, 34px) + 42px + var(--lay-rl, 0px)); right: 8px;'));
+        && cssR.includes('  body.row-hidden:not(.tour-on) header { position: fixed; top: calc(var(--rowbar) + var(--winbar)); left: calc(var(--mainleft, 34px) + 42px + var(--lay-rl, 0px)); right: 8px;'));
     const layR = read('scripts/layout.js');
     check('a bar that a press left the focus in goes again: the timer asks for the pointer or a focus the keyboard gave, and the focus leaving lets it go',
         layR.includes("if (el.matches(':hover') || el.querySelector(':focus-visible, .shape-menu.show')) return;") && layR.includes("el.addEventListener('focusout', function(e) { if (el.classList.contains('lay-hide')") && layR.includes("window.addEventListener('keydown', layKeyHold, true);"));

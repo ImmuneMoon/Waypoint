@@ -111,7 +111,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && /if \(p\.classList\.contains\('vid-max'\)\) \{ setMax\(false\); return; \}/.test(vjs) && /if \(p\.classList\.contains\('vid-max'\)\) \{ e\.stopPropagation\(\); setMax\(false\); return; \}/.test(vjs)
         && /function hideVideo\(\) \{\n(?:    [^\n]*\n)*    setMax\(false\);\n\}/.test(vjs) && /function leaveFull\(\) \{\n(?:    [^\n]*\n)*    setMax\(false\);\n\}/.test(vjs)
         && /if \(e\.target\.closest\('button'\) \|\| p\.classList\.contains\('vid-max'\)\) return;/.test(vjs)
-        && /#videoPanel\.vid-max \{ left: 0 !important; top: 0 !important; right: auto; width: 100vw !important; height: 100vh !important;/.test(read('system/app/style.css')) && /#videoPanel\.vid-max #videoBody, #videoPanel\.vid-max \.video-resize, #videoPanel\.vid-max \.video-caption \{ display: none; \}/.test(read('system/app/style.css')));
+        && /#videoPanel\.vid-max \{ left: 0 !important; top: var\(--winbar\) !important; right: auto; width: 100vw !important; height: calc\(100vh - var\(--winbar\)\) !important;/.test(read('system/app/style.css')) /* 1.6.4: the window bar moved it (moved on purpose) */ && /#videoPanel\.vid-max #videoBody, #videoPanel\.vid-max \.video-resize, #videoPanel\.vid-max \.video-caption \{ display: none; \}/.test(read('system/app/style.css')));
 
     /* ---- V2: a video shown live to the table ---- */
     check('V2 what each viewer is sent at most (sendCap): the picture\'s long side down to 1280 (a portrait one too), 30 frames a second, 2.5 Mbit/s, 1 Mbit/s only when it is said to travel through a relay; a size that is no number scales nothing',

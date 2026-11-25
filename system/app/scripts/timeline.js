@@ -157,7 +157,7 @@ function wire() {
     p.addEventListener('keydown', function(e) { if (e.key !== 'Escape') e.stopPropagation(); });
     var head = document.getElementById('timelineHead'); if (head) {
         head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); _tw.drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-        head.addEventListener('pointermove', function(e) { if (!_tw.drag) return; p.style.left = Math.max(0, e.clientX - _tw.drag.dx) + 'px'; p.style.top = Math.max(0, e.clientY - _tw.drag.dy) + 'px'; });
+        head.addEventListener('pointermove', function(e) { if (!_tw.drag) return; p.style.left = Math.max(0, e.clientX - _tw.drag.dx) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), e.clientY - _tw.drag.dy) + 'px'; });   // 1.6.4: the head stops at the window bar, never under it
         head.addEventListener('pointerup', function() { if (_tw.drag) { _tw.drag = null; try { p.dispatchEvent(new Event('wpfloatmoved')); } catch (e) {} } });
     }
 }

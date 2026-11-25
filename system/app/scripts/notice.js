@@ -190,7 +190,7 @@ function make(D) {
         return n;
     }
 
-    return { on: on, pass: pass, stealth: stealth, turnEnd: turnEnd, turnStart: turnStart, tick: tick, forget: forget, keep: keep, restore: restore, state: R };
+    return { quiet: quiet, on: on, pass: pass, stealth: stealth, turnEnd: turnEnd, turnStart: turnStart, tick: tick, forget: forget, keep: keep, restore: restore, state: R };
 }
 
 // [noticecheck:page-start]

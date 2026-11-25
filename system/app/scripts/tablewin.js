@@ -314,7 +314,8 @@ function twMenu(ri, ci, x, y, from) {
     tw.menu._at = { ri: ri, ci: ci, rows: tw.b.rows.length, row: head ? '' : twRowSig(tw.b.rows[ri]), heads: twHeadSig(tw.b) }; tw.menu._back = from || null;
     tw.menu.style.display = 'flex';
     var w = tw.menu.offsetWidth || 180, h = tw.menu.offsetHeight || 160;
-    tw.menu.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tw.menu.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    tw.menu.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tw.menu.style.top = Math.max(4 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
     var first = Array.prototype.filter.call(tw.menu.querySelectorAll('button'), function(b) { return !b.disabled; })[0]; if (first) try { first.focus(); } catch (e) {}
 }
 function twMenuAway() { if (!tw.menu) return; tw.menu.style.display = 'none'; var back = tw.menu._back; tw.menu._back = null; if (back && back.isConnected) try { back.focus(); } catch (e) {} }

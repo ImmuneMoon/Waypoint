@@ -81,10 +81,11 @@ function wantCat() {
 function status() { var t = typeof st.opts.source.status === 'function' ? st.opts.source.status() : ''; st.els.hint.textContent = t || hintText(st.opts); }
 function place() {
     var pop = st.pop, a = st.opts.anchor, r = a && a.getBoundingClientRect ? a.getBoundingClientRect() : { left: 80, right: 80, top: 80, bottom: 80 };
-    var w = Math.min(W, window.innerWidth - 16), h = Math.min(520, window.innerHeight - 16);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var wbT = (window.wpWinBarH ? window.wpWinBarH() : 0), w = Math.min(W, window.innerWidth - 16), h = Math.min(520, window.innerHeight - 16 - wbT);
     pop.style.width = w + 'px'; pop.style.height = h + 'px';
     var left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)), top = r.bottom + 4;
-    if (top + h > window.innerHeight - 8) top = r.top - h - 4 >= 8 ? r.top - h - 4 : Math.max(8, window.innerHeight - h - 8);
+    if (top + h > window.innerHeight - 8) top = r.top - h - 4 >= 8 + wbT ? r.top - h - 4 : Math.max(8 + wbT, window.innerHeight - h - 8);
     pop.style.left = left + 'px'; pop.style.top = top + 'px';
 }
 function chip(parent, text, on, fn) { var b = el('button', 'lib-pick-chip' + (on ? ' on' : ''), text); b.type = 'button'; b.addEventListener('click', fn); parent.appendChild(b); }

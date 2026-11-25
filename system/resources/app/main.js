@@ -44,6 +44,7 @@ const holdFile = path.join(rootDir, 'system', 'userdata', 'instance-hold.json');
 function holdWrite(what) { try { fs.writeFileSync(holdFile, shellguard.holdText(what)); } catch (e) {} }   // a folder not made yet: the new launch starts after its wait, as before
 function holdRead() { try { return shellguard.holdOf(fs.readFileSync(holdFile, 'utf8')); } catch (e) { return null; } }
 let closer = null, stayUntil = 0;
+let mainWin = null;   // 1.6.4: the main window, whose bar's colors POST /api/winbar sets
 app.on('second-instance', function() {
     if (Date.now() < stayUntil) return;
     if (closer && closer.asking()) holdWrite('asking');   // a question already up (the GM pressed close first): the new launch waits for it too
@@ -177,6 +178,17 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/version') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ version: appVersion(), shell: SHELL_VERSION }));
+    }
+    // 1.6.4: the window bar's colors, said by the page whenever its theme or look changes (shellguard.barColor: two six-digit hex colors, or 400)
+    if (url.pathname === '/api/winbar' && req.method === 'POST') {
+        reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // read with a cap (413 past 64 KB), decoded as UTF-8 across chunks
+            let c = null;
+            try { c = shellguard.barColor(JSON.parse(body)); } catch (e) { c = null; }
+            if (!c) { res.writeHead(400); return res.end('{"error":"bad colors"}'); }
+            try { if (mainWin && !mainWin.isDestroyed() && typeof mainWin.setTitleBarOverlay === 'function') mainWin.setTitleBarOverlay({ color: c.color, symbolColor: c.symbolColor, height: shellguard.WINBAR_H }); } catch (e) { /* no bar to set */ }
+            res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
+        });
+        return;
     }
     
 
@@ -436,12 +448,14 @@ waitForInstanceLock(8000, function() {
                 title: "Waypoint VTT",
                 autoHideMenuBar: true,
                 icon: path.join(__dirname, 'icon.ico'),
+                ...shellguard.barStart(path.join(savesDir, 'preferences.json')),   // 1.6.4: no title bar of the system's own, its three buttons on the page's own strip (shellguard.barStart)
                 // The renderer is a web page and nothing more: no Node, isolated context, OS sandbox. These are
                 // Electron's defaults for a window without a preload, stated here so an Electron upgrade can never
                 // quietly change them — content from another table or an imported file runs with web powers only.
                 // A window that is minimized or covered keeps its timers at full pace: it holds a live table, and a GM's window held back loses its players and turns new ones away.
                 webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false, backgroundThrottling: false }
             });
+            mainWin = win;
             closer = shellguard.closeGuard(win, { onAsk: () => holdWrite('asking'), onCancel: () => { stayUntil = Date.now() + 3000; holdWrite('stay'); } });   // 1.6.3: closing while the page hosts a table asks first (the page's own question: shellguard.js closeGuard); a newer launch is told what the GM answered (holdFile)
             win.loadURL(`http://localhost:${port}`);
         });

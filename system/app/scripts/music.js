@@ -418,7 +418,8 @@ function openPill() {
 var selPl = null;   // the selected playlist id in the panel
 var picking = null; // bringing music in from another campaign: { to: this campaign's id, from: campaign id, pl: { playlist id: 1 }, tr: { track id: 1 } } while the picker is open
 function panelOpen() { var p = ui('musicPanel'); return !!(p && p.style.display !== 'none'); }
-function openPanel() { if (!canWrite()) { toast('Only the GM manages music.'); return; } var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); try { var pos = JSON.parse(pref('wp_musicPanel', '')); if (pos && typeof pos.x === 'number') { p.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 60)) + 'px'; p.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 40)) + 'px'; p.style.right = 'auto'; } } catch (e) {} renderPanel(); }
+// 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+function openPanel() { if (!canWrite()) { toast('Only the GM manages music.'); return; } var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); try { var pos = JSON.parse(pref('wp_musicPanel', '')); if (pos && typeof pos.x === 'number') { p.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 60)) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(pos.y, window.innerHeight - 40)) + 'px'; p.style.right = 'auto'; } } catch (e) {} renderPanel(); }
 function closePanel() { var p = ui('musicPanel'); if (p) p.style.display = 'none'; picking = null; }
 // Light update of the transport display without rebuilding the panel (so a slider being dragged is never yanked).
 // [musiccheck:hear-start]
@@ -713,7 +714,8 @@ window.wpMusic = { play: play, stop: stop, next: next, prev: prev, seek: seek, t
     var mp = ui('musicPanel'), drag = null;   // drag the panel by its header (the head is rebuilt each render, so listen on the persistent panel)
     if (mp) {
         mp.addEventListener('pointerdown', function(e) { if (!e.target.closest('.music-head') || e.target.closest('button')) return; var r = mp.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; try { mp.setPointerCapture(e.pointerId); } catch (x) {} });
-        mp.addEventListener('pointermove', function(e) { if (!drag) return; mp.style.left = Math.max(0, Math.min(e.clientX - drag.dx, window.innerWidth - 60)) + 'px'; mp.style.top = Math.max(0, Math.min(e.clientY - drag.dy, window.innerHeight - 40)) + 'px'; mp.style.right = 'auto'; });
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        mp.addEventListener('pointermove', function(e) { if (!drag) return; mp.style.left = Math.max(0, Math.min(e.clientX - drag.dx, window.innerWidth - 60)) + 'px'; mp.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(e.clientY - drag.dy, window.innerHeight - 40)) + 'px'; mp.style.right = 'auto'; });
         mp.addEventListener('pointerup', function() { if (!drag) return; drag = null; var r = mp.getBoundingClientRect(); setPref('wp_musicPanel', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) })); });
     }
     var g = ui('musicGate'); if (g) g.addEventListener('click', tryResume);

@@ -26,7 +26,8 @@ function wire() {
     var c = document.getElementById('layersClose'); if (c) c.addEventListener('click', function() { close(); });
     var p = P(), head = document.getElementById('layersHead'), drag = null; if (!p || !head) return;   // moved by its title bar, as the other floating boxes are
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = Math.max(e.clientY - drag.dy, (window.wpWinBarH && window.wpWinBarH()) || -1e9) + 'px'; p.style.right = 'auto'; });
     head.addEventListener('pointerup', function() { drag = null; });
 }
 // 1.6.2, backlog 217: Properties floats. Moved by its title bar, kept where it was left on this computer (wp_propAt), held inside the window; its close
@@ -37,7 +38,8 @@ function propBarRoom() { try { var v = parseFloat(document.body.style.getPropert
 // The whole panel is held inside the window, 4 px in (or 18 px and the bar's width in, where a bar is laid down the right edge). Before the
 // review of 2026-11-14 only 120 px of it were kept in sight, which was enough while the tab at the map's edge could also close it; with its X
 // now the only close, at the right end of its title, a place kept from a wider window put the X off the screen (found live at 700 px wide)
-function propPlace(sb, at) { if (!sb || !at) return; var w = sb.offsetWidth || 320, pr = propBarRoom(), lim = window.innerWidth - w - (pr ? 18 + pr : 4), x = Math.max(4, Math.min(lim, at.x)), y = Math.max(40, Math.min(window.innerHeight - 60, at.y)); sb.style.left = x + 'px'; sb.style.top = y + 'px'; sb.style.right = 'auto'; }
+// 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+function propPlace(sb, at) { if (!sb || !at) return; var w = sb.offsetWidth || 320, pr = propBarRoom(), lim = window.innerWidth - w - (pr ? 18 + pr : 4), x = Math.max(4, Math.min(lim, at.x)), y = Math.max(40 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 60, at.y)); sb.style.left = x + 'px'; sb.style.top = y + 'px'; sb.style.right = 'auto'; }
 function propWire() {
     var sb = document.getElementById('sidebar'), head = document.getElementById('propHead'), x = document.getElementById('propClose'), drag = null; if (!sb || !head) return;
     if (x) x.addEventListener('click', function() { if (window.wpRightHand) window.wpRightHand(false); });

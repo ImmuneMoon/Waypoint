@@ -167,7 +167,8 @@ function wire() {
     body.addEventListener('dragend', function() { clear(); _sv.drag = null; });
     var head = el('storyHead'), drag = null; if (head) {
         head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
-        head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = Math.max(0, e.clientX - drag.dx) + 'px'; p.style.top = Math.max(0, e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+        // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+        head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = Math.max(0, e.clientX - drag.dx) + 'px'; p.style.top = Math.max((window.wpWinBarH ? window.wpWinBarH() : 0), e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
         head.addEventListener('pointerup', function() { if (drag) { drag = null; try { p.dispatchEvent(new Event('wpfloatmoved')); } catch (e) {} } });
     }
 }

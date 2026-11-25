@@ -129,6 +129,28 @@ function zoomOf(prefsFile) {
     const p = prefsOf(prefsFile), v = p && Object.prototype.hasOwnProperty.call(p, 'wp_textSize') ? p.wp_textSize : null;
     return v === '90' ? 0.9 : v === '110' ? 1.1 : v === '125' ? 1.25 : v === '150' ? 1.5 : 1;
 }
+// 1.6.4 (Fulllion, 2026-11-24: "bring it into waypoint but just have the minimize, fullscreen, and close button on their own on the top, above the
+// app like it is now, just without waypoint vtt on the left, and blended into the app"; by prompt "26 px", and of its color "the color scheme
+// thats currently set for the user, it should change to match"). The main window has no title bar of the system's own: the system draws only its
+// three buttons (minimize, maximize, close) over the window's top right corner, and the page draws the strip they stand on in its own colors
+// (style.css #winBar, as tall as the CSS env titlebar-area-height, so a text size never puts the two out of step). The buttons' own ground and
+// ink are set here: barStart picks them by the theme the settings file names before the page has drawn anything, and the page says its colors
+// (scripts/winbar.js, POST /api/winbar) whenever its theme or look changes, read through barColor. Child windows keep their own title bar.
+const WINBAR_H = 26;
+const WINBAR_DARK = Object.freeze({ color: '#1c1c26', symbolColor: '#e9e9f0' }), WINBAR_LIGHT = Object.freeze({ color: '#e6e2d9', symbolColor: '#1f1d24' });   // the top row's own ground and ink in the two themes
+function barHex(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null; }
+// The colors a page says, as the system's call takes them: { color, symbolColor }, two six-digit hex colors, or null for anything else
+function barColor(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+    const c = barHex(body.color), s = barHex(body.symbol);
+    return c && s ? { color: c, symbolColor: s } : null;
+}
+// The main window's options for its bar, before the page has said anything: the theme the settings file names (wp_theme light, else dark)
+function barStart(prefsFile) {
+    const p = prefsOf(prefsFile), light = !!p && Object.prototype.hasOwnProperty.call(p, 'wp_theme') && p.wp_theme === 'light', c = light ? WINBAR_LIGHT : WINBAR_DARK;
+    return { titleBarStyle: 'hidden', titleBarOverlay: { color: c.color, symbolColor: c.symbolColor, height: WINBAR_H }, backgroundColor: c.color };
+}
+
 // Waypoint's own application menu, in place of the runtime's default one (whose Help entries open the runtime's web pages):
 // a short View menu, so Ctrl+R, Ctrl+0 / + / - and F11 keep working, and Developer tools only while Developer mode is on.
 function menuTemplate(dev, platform) {
@@ -406,4 +428,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };
+    devModeOf, zoomOf, WINBAR_H, barColor, barStart, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };

@@ -185,7 +185,8 @@ function ask(anchor, ev) {
     if (!list.length) pop.appendChild(el('div', 'snd-none', 'No cues yet. Add some in the Sound library first.'));
     document.body.appendChild(pop);
     var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, pw = pop.offsetWidth || 240, ph = pop.offsetHeight || 200, W = window.innerWidth || 800, H = window.innerHeight || 600;
-    pop.style.left = Math.max(8, Math.min(W - pw - 8, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(H - ph - 8, r.bottom + 4)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    pop.style.left = Math.max(8, Math.min(W - pw - 8, r.left)) + 'px'; pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(H - ph - 8, r.bottom + 4)) + 'px';
     _pop = { el: pop, anchor: anchor }; document.addEventListener('pointerdown', popOut, true); document.addEventListener('keydown', popKey, true);
     var fb = pop.querySelector('button.on') || pop.querySelector('button'); if (fb && fb.focus) fb.focus();
     log('asked', { kind: clean.k });

@@ -71,7 +71,8 @@ function open(anchor, current, prof, onPick, opts) {
     document.body.appendChild(pop);
     var r = anchor.getBoundingClientRect();
     pop.style.left = Math.max(8, Math.min(window.innerWidth - 332, r.left)) + 'px';
-    pop.style.top = Math.max(8, Math.min(window.innerHeight - 360, r.bottom + 6)) + 'px';
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    pop.style.top = Math.max(8 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(window.innerHeight - 360, r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', outside, true);
     document.addEventListener('keydown', onKey, true);   // Escape closes it wherever the focus is
     var first = grid.querySelector('.face-opt.sel') || grid.querySelector('.face-opt'); try { (first || tP).focus(); } catch (er) {}   // the keyboard starts inside it

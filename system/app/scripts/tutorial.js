@@ -1138,7 +1138,8 @@ function place() {
         x = (W - cw) / 2; y = (H - ch) / 2;
     }
     if (tour.pos) { x = tour.pos.x; y = tour.pos.y; }   // moved by hand: where it was put, kept on screen
-    x = Math.max(12, Math.min(x, W - cw - 12)); y = Math.max(12, Math.min(y, H - ch - 12));
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    x = Math.max(12, Math.min(x, W - cw - 12)); y = Math.max(12 + (window.wpWinBarH ? window.wpWinBarH() : 0), Math.min(y, H - ch - 12));
     card.style.left = Math.round(x) + 'px'; card.style.top = Math.round(y) + 'px';
 }
 
@@ -1193,11 +1194,11 @@ var CHIP_SEL = '.floating-toolbar, .floating-toolbar .shape-menu.show';
 // answer is null (stay where the style sheet puts it), { bottom } (lifted, as chipLift says), or { left } (the chip's middle, at its own
 // height) where a lift would take it past the top of the window, as over a tall menu: the free spot at its own height nearest where it
 // stood, beside the obstacles that are in its way there, never off the window's sides.
-function chipSpot(c, obs, W, H) {
+function chipSpot(c, obs, W, H, T) {
     obs = Array.isArray(obs) ? obs : [];
     var b = chipLift(c, obs, H); if (b === null) return null;
     var h = c.bottom - c.top, w = c.right - c.left;
-    if (H - b - h >= 8) return { bottom: b };
+    if (H - b - h >= 8 + (T || 0)) return { bottom: b };   // T: the 1.6.4 window bar's height, the strip the chip must not rise into (0 or none in a browser)
     var hits = function(x) { return obs.some(function(o) { return x < o.right && x + w > o.left && c.top < o.bottom && c.bottom > o.top; }); };
     var cand = [12, W - w - 12];
     obs.forEach(function(o) { if (c.top < o.bottom && c.bottom > o.top) cand.push(o.left - 10 - w, o.right + 10); });
@@ -1213,7 +1214,8 @@ function placeChip() {
     chip.style.bottom = ''; chip.style.left = '';
     var c = shownRect(chip); if (!c) return;
     var obs = Array.prototype.map.call(document.querySelectorAll(CHIP_SEL), shownRect).filter(Boolean);
-    var at = chipSpot(c, obs, window.innerWidth, window.innerHeight);
+    // 1.6.4 window bar: kept below the strip the desktop app draws at the window's top (wpWinBarH, 0 in a browser)
+    var at = chipSpot(c, obs, window.innerWidth, window.innerHeight, (window.wpWinBarH ? window.wpWinBarH() : 0));
     if (at && at.bottom !== undefined) chip.style.bottom = at.bottom + 'px';
     if (at && at.left !== undefined) chip.style.left = at.left + 'px';   // its middle: the style sheet centers it on its left
 }

@@ -1588,7 +1588,7 @@ function exportSystem() {
     }).catch(function(e) { console.error(e); toast('The whole system could not be made ready, so the system alone is exported.'); exportAlone(clean); });   // the module cannot be had: the system alone, and why (the review, finding 3)
 }
 // The module that makes and reads a whole system's .zip, loaded the first time it is needed (as main.js loads zip.js)
-function sysZip() { return import('./syszip.js'); }
+function sysZip() { return import('./syszip.js'); }   // index.html loads syszip.js with the page (backlog 246), so this returns that very module and fetches nothing
 // What syszip.js is handed: the campaign on screen, the library, the formula module, the Image Library's tag stores (a picture under a
 // private tag stays home), fetch, and the step log
 function sysZipDeps(cp) {

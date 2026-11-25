@@ -619,6 +619,43 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /\(function askReader\(\) \{\n    if \(\/\[\?&\]stream=1\/\.test\(location\.search\)\) return;\n    var go = function\(\) \{ setTimeout\(function\(\) \{ import\('\/private\/index\.js'\)\.catch\(function\(\) \{\}\); \}, 0\); \};\n    if \(document\.readyState === 'complete'\) go\(\); else window\.addEventListener\('load', go, \{ once: true \}\);\n\}\)\(\);/.test(read('sheets.js')) && fine.every(l => scan(l).length === 0) && j(indirect) === j([['devconsole.js', 2]]) && j(anyEval) === j(['devconsole.js']), [found.slice(0, 6), probe.filter(l => scan(l).length === 0), fine.filter(l => scan(l).length > 0), indirect, anyEval]);
     }
 
+    /* ---- 1.6.4 (backlog 246, the website session, 2026-11-18): no late load of an app module across a release ----
+       On the website a release is pinned by a cookie every tab shares, so a module a tab asks for after the next release is out comes from that
+       release, beside the tab's own older code. A dynamic import() is safe only where it names a module the page already loads statically (it
+       then returns that very module and fetches nothing). The page's static graph is worked out from index.html's module scripts, following
+       every static import and re-export; every import() in the app's scripts must name a module in it. The one exception is the outside sheet
+       reader's '/private/index.js', which only the dev server serves (the website answers it 404). The rule is tried first on texts of its own. */
+    {
+        const J = JSON.stringify;
+        const graphOf = (html, readRel) => {
+            const seen = new Set(), norm = p => { const out = []; p.split('/').forEach(x => { if (x === '..') out.pop(); else if (x && x !== '.') out.push(x); }); return out.join('/'); };
+            const walk = p => { p = norm(p); if (seen.has(p)) return; seen.add(p); const t = readRel(p); if (t === null) return; const dir = p.split('/').slice(0, -1).join('/');
+                for (const m of t.matchAll(/(?:^|[;\s])import\s+(?:[^"'()]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/gm)) walk(dir + '/' + m[1]);
+                for (const m of t.matchAll(/export\s+[^;]*?from\s+["'](\.{1,2}\/[^"']+)["']/g)) walk(dir + '/' + m[1]); };
+            for (const m of html.matchAll(/<script[^>]*type="module"[^>]*src="([^"]+)"/g)) walk(m[1]);
+            return seen;
+        };
+        const lateOf = (html, files, readRel) => {
+            const g = graphOf(html, readRel), late = [];
+            files.forEach(name => { const t = readRel('scripts/' + name) || ''; for (const m of t.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) {
+                if (m[1] === '/private/index.js') continue;
+                const target = m[1].startsWith('/') ? m[1].slice(1) : ('scripts/' + m[1]).replace(/\/\.\//g, '/');
+                if (!g.has(target)) late.push(name + ' -> ' + m[1]); } });
+            return late;
+        };
+        // the rule tried on texts of its own: a module the page loads, one only another module imports, a re-export, and one nothing loads
+        const fake = { 'scripts/a.js': "import { x } from './b.js';\nexport { y } from './c.js';\nfunction go() { return import('./b.js'); }\nfunction lazy() { return import('./d.js'); }",
+            'scripts/b.js': 'export const x = 1;', 'scripts/c.js': 'export const y = 2;', 'scripts/d.js': 'export const z = 3;', 'scripts/e.js': "import('./c.js'); import('/private/index.js');" };
+        const fakeRead = p => (p in fake ? fake[p] : null), fakeHtml = '<script type="module" src="scripts/a.js"></script><script type="module" src="scripts/e.js"></script>';
+        const fakeLate = lateOf(fakeHtml, ['a.js', 'b.js', 'c.js', 'd.js', 'e.js'], fakeRead);
+        const appDir = path.join(__dirname, '..', 'system', 'app');
+        const realRead = p => { try { return require('./srcjoin').raw(path.join(appDir, p), 'latin1'); } catch (e) { return null; } };   // the real bytes of each file, a split part's own imports among them (srcjoin.raw)
+        const html = fs.readFileSync(path.join(appDir, 'index.html'), 'utf8'), names = fs.readdirSync(path.join(appDir, 'scripts')).filter(n => n.endsWith('.js'));
+        const g = graphOf(html, realRead), late = lateOf(html, names, realRead);
+        check('1.6.4 (backlog 246) no late load of an app module across a release: every import() in the app\'s scripts names a module the page already loads statically (index.html\'s module scripts and everything they import), syszip.js among them, so on the website a tab open across a release fetches nothing of the next release; only the outside reader\'s /private/index.js is passed over, which only the dev server serves; the rule tried on texts of its own first',
+            J(fakeLate) === J(['a.js -> ./d.js']) && g.size > 150 && g.has('scripts/syszip.js') && g.has('scripts/dialogs.js') && late.length === 0, J({ fakeLate, late, size: g.size }));
+    }
+
     /* ---- docrender: a page's layout numbers even when it never met cleanDoc ---- */
     let dHtml = '';
     const rawDoc = { type: 'doc', meta: {}, blocks: [

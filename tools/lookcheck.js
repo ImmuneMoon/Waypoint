@@ -5390,5 +5390,12 @@ if (mode === 'samples') {
     check('1.6.4, the controls with a typed glyph or no drawing wear the app\'s own drawings ("Use these drawings"): a room\'s entry card and picture row, a map category\'s delete, a piece\'s commands, the Layers list\'s folds and moves, the music popover and a playlist\'s row, a row\'s remove or Buy off menu, a look\'s Add a color, the sheet head and its More menu (the drawing first on the button, following Edit sheet and Unlock for player as they turn), a page block\'s head tools and a table row\'s menu; the glyphs they wore are gone',
         hA > 0 && !headMiss.length && !wantMiss.length && !goneMiss.length && !named.length, JSON.stringify({ headMiss, wantMiss, goneMiss, named }));
 }
+// 1.6.4 (Fulllion, "Move the inline styles"): the page holds no inline style but display:none, so every look reaches every control. The one
+// exception is Table Chat's place (#chatPanel), which floats.js and the chat's own drag write over; Help's two code samples are text, not attributes.
+{
+    const left = (ix.match(/<[a-zA-Z][^<>]*\sstyle="[^"]*"/g) || []).map(t => t.match(/\sstyle="([^"]*)"/)[1]).filter(v => v !== 'display:none;' && v !== 'display:none; right:20px; bottom:20px; z-index:8999;');
+    const chat = /<div[^>]*id="chatPanel"[^>]*style="display:none; right:20px; bottom:20px; z-index:8999;"/.test(ix);
+    check('1.6.4, index.html holds no inline style but display:none (the looks reach every control; Table Chat keeps its place, which scripts write over)', !left.length && chat, J(left.slice(0, 8)));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

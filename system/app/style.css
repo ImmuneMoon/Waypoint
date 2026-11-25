@@ -7201,6 +7201,7 @@
 #dataCenterMenu .center-menu-row { width: 100%; border-radius: 0; font-size: 12px; height: auto; padding: 8px 0; }
 /* Undo and Redo, dim until there is a step to take. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
 #main .history-btn { opacity: 0.5; pointer-events: none; }
+#main .history-btn.hist-on { opacity: 1; pointer-events: auto; }   /* io.js setHistoryBtn marks a button with a step to take */
 /* The Data Map's toolbar: Link's menu above its button. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
 #linkMenu.link-menu-place { bottom: 100%; top: auto; left: 50%; transform: translateX(-50%); margin-bottom: 10px; }
 /* The Data Map's toolbar: Link's line of help */
@@ -7636,7 +7637,7 @@ select.set-opt-select { width: auto; font-size: 10.5px; padding: 1px 4px; }
 .set-check-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
 .set-btn-line { margin: -4px 0 8px; }
 /* Settings' controls as wide as their part (set-full, and set-full-box with its border inside that width) */
-.set-full { width: 100%; }
+.set-full, .ui-slide input[type="range"].set-full { width: 100%; }   /* a slider's own width rule (.ui-slide-wide) loses to it, as it did to the inline style */
 .set-full-box, select.set-full-box { width: 100%; box-sizing: border-box; }
 /* Settings, This campaign: the gold line that names the campaign, its name in the page's ink, the New campaigns block under a
    rule and its gold heading */

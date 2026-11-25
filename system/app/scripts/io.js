@@ -759,9 +759,8 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       if(!btn) return;
 
-      btn.style.opacity = enabled ? '1' : '0.5';
-
-      btn.style.pointerEvents = enabled ? 'auto' : 'none';
+      // 1.6.4: a class, never an inline style, so the looks reach the button and a joined frame (ui-seg) does not read it as off and fade a second time
+      btn.classList.toggle('hist-on', !!enabled);
 
   }
 

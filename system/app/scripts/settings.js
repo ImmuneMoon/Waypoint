@@ -1866,39 +1866,25 @@ if (_ident) _ident.addEventListener('click', function() {
     }
 })();
 
-// The look (1.6.4; Fulllion, 2026-11-24: Slate the app's own, Lantern and Ink to pick): Settings, On my screen, Look. A press sets html[data-look]
-// at once (style.css, the looks), keeps it on this computer (wp_look, which boottheme.js reads before the page is drawn) and draws the canvases
-// again in its colors, as the theme switch does. Only the three looks' own words are taken.
+// The theme (1.6.4; Fulllion, 2026-11-24: Slate the app's own, Lantern and Ink to pick; 2026-11-25: "maybe the light mode should just be options
+// in the app theme instead of a switch?", then by prompt "One list of six"): Settings, On my screen, Theme lists each look dark and light, and a
+// press sets both at once: html[data-look] (style.css, the looks) and html[data-theme] (light, or none for dark). Both are kept on this computer
+// (wp_look and wp_theme, which boottheme.js reads before the page is drawn), and the canvases are drawn again in the new colors. Only the three
+// looks' own words and the two tones are taken. The sun and moon switch that picked the tone before is gone.
 (function() {
     var row = document.getElementById('setLook'); if (!row) return;
     var LOOKS = ['slate', 'lantern', 'ink'];
     function paint() {
-        var cur = document.documentElement.getAttribute('data-look');
-        row.querySelectorAll('[data-look]').forEach(function(b) { var on = b.getAttribute('data-look') === cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+        var cur = document.documentElement.getAttribute('data-look'), tone = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        row.querySelectorAll('[data-look]').forEach(function(b) { var on = b.getAttribute('data-look') === cur && b.getAttribute('data-tone') === tone; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
     }
     paint();
     row.addEventListener('click', function(e) {
         var b = e.target && e.target.closest ? e.target.closest('[data-look]') : null; if (!b) return;
-        var v = b.getAttribute('data-look'); if (LOOKS.indexOf(v) < 0) return;
+        var v = b.getAttribute('data-look'), light = b.getAttribute('data-tone') === 'light'; if (LOOKS.indexOf(v) < 0) return;
         document.documentElement.setAttribute('data-look', v);
-        try { localStorage.setItem('wp_look', v); } catch (er) {}
-        setTimeout(function() { if (window.wpRenderRulers) window.wpRenderRulers(); if (window.renderMinimap) window.renderMinimap(); }, 30);   // canvases redraw in the new colors
-        paint();
-    });
-})();
-
-// Appearance: a sun / moon switch — dark (default) or light, applied at once and kept for next time
-(function() {
-    var sw = document.getElementById('setThemeBtn'), lbl = document.getElementById('setThemeLabel'); if (!sw) return;
-    function paint() {
-        var light = document.documentElement.getAttribute('data-theme') === 'light';
-        sw.setAttribute('aria-checked', light ? 'false' : 'true');   // knob sits under the moon when dark
-    }
-    paint();
-    sw.addEventListener('click', function() {
-        var light = document.documentElement.getAttribute('data-theme') !== 'light';
         if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
-        try { localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (e) {}
+        try { localStorage.setItem('wp_look', v); localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (er) {}
         setTimeout(function() { if (window.wpRenderRulers) window.wpRenderRulers(); if (window.renderMinimap) window.renderMinimap(); }, 30);   // canvases redraw in the new colors
         paint();
     });

@@ -21,9 +21,9 @@ Three looks (draft for Fulllion)
 - Waypoint has a new look, Slate: cool blue-gray, see-through toolbars
   and round buttons. The top row and the side panel make one frame
   around the map.
-- Prefer something else? Settings, On my screen, Look also has Lantern,
-  warm charcoal with soft corners, and Ink, flat and square. Each one has
-  a dark and a light side.
+- Prefer something else? Settings, On my screen, Theme also has Lantern,
+  warm charcoal with soft corners, and Ink, flat and square. Each look is
+  listed twice, dark and light, so the old light switch is gone.
 
 The window bar (draft for Fulllion)
 - The desktop app's window has no system title bar any more. Its

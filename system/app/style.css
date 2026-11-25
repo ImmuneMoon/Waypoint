@@ -3663,17 +3663,11 @@
 #contextMenu.tall > * { flex-shrink: 0; }
 #contextMenu.tall .cm-sub { position: static; width: auto; }
 
-  /* Appearance switch (Settings): sun on the left, moon on the right, the knob slides between */
-  .theme-switch-row { display: flex; align-items: center; gap: 10px; }
-  .set-look-row + .set-line { margin: 4px 0 10px; }   /* 1.6.4: the Look choice's line, with room before Theme */
-  .theme-switch-icon { font-size: 16px; line-height: 1; }
-  .theme-switch { position: relative; width: 52px; height: 28px; border-radius: 14px; border: 1px solid var(--edge); background: var(--bg2); cursor: pointer; padding: 0; transition: background .2s, border-color .2s; flex: 0 0 auto; }
-  .theme-switch:hover { border-color: var(--gold); }
-  .theme-switch:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(224,165,79,0.35); }
-  .theme-switch { background: var(--gold); border-color: var(--gold); }                       /* light: sun side, orange */
-  .theme-switch[aria-checked="true"] { background: var(--blue); border-color: var(--blue); }   /* dark: moon side, blue */
-  .theme-knob { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35); transition: left .2s; }
-  .theme-switch[aria-checked="true"] .theme-knob { left: 26px; }
+  /* 1.6.4: Settings' Theme, one list of six (Fulllion, 2026-11-25, "One list of six"): each look dark in the first joined row and light in the
+     second, every button the same width */
+  .set-themes { display: flex; flex-direction: column; gap: 6px; }
+  .set-themes .ui-seg > .tool { flex: 1 1 0; justify-content: center; white-space: nowrap; }
+  .set-themes + .set-line { margin: 4px 0 10px; }
 
   /* Settings groups */
   .set-group { border: 1px solid var(--edge); border-radius: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.08); }

@@ -225,12 +225,12 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
                  '<div class="field"><input type="text" aria-label="Character Reference" placeholder="Reference (dossier path or URL)" value="'+esc(c.ref||'')+'" data-idx="'+i+'" class="char-ref" style="font-weight:normal; font-size:11px;"></div>' +
 
-                 '<div class="row"><button class="tool ghost char-portrait-btn" data-idx="'+i+'">'+(c.portrait?'Change Portrait':'Set Portrait')+'</button>' +
+                 '<div class="row"><button class="tool ghost char-portrait-btn" data-idx="'+i+'"><i class="wib wi-pic"></i> '+(c.portrait?'Change Portrait':'Set Portrait')+'</button>' + // 1.6.4: wears its drawing (Fulllion, 2026-11-25: "Use these drawings")
 
-                 (c.portrait ? '<button class="tool ghost char-portrait-clear" title="Remove Portrait" data-idx="'+i+'" style="flex:0 0 auto;">&times;</button>' : '') +
+                 (c.portrait ? '<button class="tool ghost char-portrait-clear" title="Remove Portrait" aria-label="Remove Portrait" data-idx="'+i+'" style="flex:0 0 auto;"><i class="wib wi-close"></i></button>' : '') + // 1.6.4: wears its drawing (Fulllion, 2026-11-25: "Use these drawings")
 
                  '<button class="tool ghost char-cast-btn" title="Save this character to the campaign cast, to drop as a token on any play map" data-idx="'+i+'"><i class="wib wi-starf"></i> Save to Cast</button>' +
-                 '<button class="tool ghost danger del-char" aria-label="Remove Character" data-idx="'+i+'">Remove</button></div>' +
+                 '<button class="tool ghost danger del-char" aria-label="Remove Character" data-idx="'+i+'"><i class="wib wi-close"></i> Remove</button></div>' + // 1.6.4: wears its drawing (Fulllion, 2026-11-25: "Use these drawings")
 
                  '</div>';
 
@@ -281,7 +281,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
              (picRef(r.image) ? '<img class="room-image-preview" src="'+esc(picRef(r.image))+'" alt="Room image">' : ''))+
 
              // 1.6.4: the room's picture button and its Remove stand joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows")
-             '<div class="row" style="margin-bottom:13px;"><span class="ui-seg"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</span></div>'+
+             '<div class="row" style="margin-bottom:13px;"><span class="ui-seg"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn"><i class="wib wi-close"></i> Remove</button>':'')+'</span></div>'+
 
              '<div class="field"><label for="fName">Name</label><input id="fName" value="'+esc(r.name)+'"></div>'+
              (typeof roomPlaceRowHtml === 'function' ? roomPlaceRowHtml(r, activeMap) : '')+
@@ -820,7 +820,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
                      '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '<i class="wib wi-starf"></i>' : '<i class="wib wi-star"></i>') + '</button>' +
 
-                     '<button class="tool ghost danger cat-del" aria-label="Delete Category" data-id="'+esc(k)+'" style="padding:2px 6px;">×</button>' +
+                     '<button class="tool ghost danger cat-del" aria-label="Delete Category" title="Delete Category" data-id="'+esc(k)+'" style="padding:2px 6px;"><i class="wib wi-bin"></i></button>' + // 1.6.4: wears its drawing (Fulllion, 2026-11-25: "Use these drawings")
 
                      '</div>';
 
@@ -1084,11 +1084,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             html += '<div class="insp-cmds">'   // 1.6.2 (the owner: "commands on top"): the piece's commands, a row at the top
               + '<button class="tool ghost" id="wbDup" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'
               + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centered here"><i class="wib wi-target"></i> Map center here</button>'
-              + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to grid cells</button>' : '')
-              + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s">Align its grid</button>' : '')
-              + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbTrimPic" title="Keep only the cells you pick of this picture: click a cell, or drag over cells, then press Esc. The picture file is not changed">Trim to cells</button>' : '')
-              + (w.type === 'image' && w.trim ? '<button class="tool ghost" id="wbTrimReset" title="Take the trim off and show the whole picture again">Whole picture</button>' : '')
-              + '<button class="tool ghost danger" id="wbDel" title="Delete this piece. Undo brings it back">Delete</button>'
+              + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid"><i class="wib wi-fitcells"></i> Fit to grid cells</button>' : '')
+              + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s"><i class="wib wi-aligngrid"></i> Align its grid</button>' : '')
+              + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbTrimPic" title="Keep only the cells you pick of this picture: click a cell, or drag over cells, then press Esc. The picture file is not changed"><i class="wib wi-corners"></i> Trim to cells</button>' : '')
+              + (w.type === 'image' && w.trim ? '<button class="tool ghost" id="wbTrimReset" title="Take the trim off and show the whole picture again"><i class="wib wi-pic"></i> Whole picture</button>' : '')
+              + '<button class="tool ghost danger" id="wbDel" title="Delete this piece. Undo brings it back"><i class="wib wi-bin"></i> Delete</button>'
               + '</div>';
             if (w.groupId) {
                 html += '<button id="ungroupBtn" class="tool ghost danger" style="width:100%; margin-bottom:10px;">Ungroup</button>';
@@ -1822,12 +1822,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           if (item.locked) htmlName = '<i class="wib wi-anchor"></i> ' + htmlName;
           if (visual && item.hidden) htmlName = '<i class="wib wi-unseen"></i> ' + htmlName;
           var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id, sh = !!_lyShut[item.id];
-          var fold = visual && kids[item.id] ? '<button class="tool ghost el-fold" data-g="' + esc(item.id) + '" aria-expanded="' + (!sh) + '" title="Show or hide the pieces drawn into this picture">' + (sh ? '&#9656;' : '&#9662;') + '</button>' : '';
+          var fold = visual && kids[item.id] ? '<button class="tool ghost el-fold" data-g="' + esc(item.id) + '" aria-expanded="' + (!sh) + '" title="Show or hide the pieces drawn into this picture" aria-label="Show or hide the pieces drawn into this picture"><i class="wib wi-' + (sh ? 'chev' : 'chevdown') + '"></i></button>' : ''; // 1.6.4: wears its drawing (Fulllion, 2026-11-25: "Use these drawings"): a fold arrow to the side while folded, down while open
           return '<div class="element-list-item' + (sel ? ' sel' : '') + (deep ? ' el-child el-d' + deep : '') + '" data-id="' + esc(item.id) + '">' + fold +
                   '<div class="el-name" data-id="'+esc(item.id)+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
                   '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'"><i class="wib wi-pen"></i></button>' +
-                  (visual ? '<span class="ui-seg el-moves"><button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
-                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button></span>' : '') +
+                  (visual ? '<span class="ui-seg el-moves"><button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'"><i class="wib wi-arrup"></i></button>' + // 1.6.4: wears its drawing (Fulllion, 2026-11-25: "Use these drawings")
+                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'"><i class="wib wi-arrdown"></i></button></span>' : '') +
                   '<button class="tool ghost danger el-del" aria-label="Delete" title="Delete. A locked piece, a token, a room or a flattened picture asks first" data-id="'+esc(item.id)+'"><i class="wib wi-bin"></i></button>' +   /* 1.6.3 (finding 15): the app's bin, set apart from the order arrows */
                   '</div>';
       };
@@ -1853,7 +1853,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           var g = visual && typeof item.groupId === 'string' && item.groupId && gm[item.groupId] && gm[item.groupId].length > 1 ? item.groupId : '';
           if (g) {   // a group: one row that folds, its members under it
               var mem = gm[g], gs = !!_lyShut['g:' + g];
-              html += '<div class="element-group" data-g="g:' + esc(g) + '"><button class="tool ghost el-fold" data-g="g:' + esc(g) + '" aria-expanded="' + (!gs) + '" title="Show or hide the group\u2019s pieces">' + (gs ? '&#9656;' : '&#9662;') + '</button><span class="el-gname" data-g="' + esc(g) + '" title="Click to select the whole group">Group \u00b7 ' + mem.length + '</span></div>';
+              html += '<div class="element-group" data-g="g:' + esc(g) + '"><button class="tool ghost el-fold" data-g="g:' + esc(g) + '" aria-expanded="' + (!gs) + '" title="Show or hide the group\u2019s pieces" aria-label="Show or hide the group\u2019s pieces"><i class="wib wi-' + (gs ? 'chev' : 'chevdown') + '"></i></button><span class="el-gname" data-g="' + esc(g) + '" title="Click to select the whole group">Group \u00b7 ' + mem.length + '</span></div>';
               mem.forEach(function(m) { if (gs) { done[m.id] = 1; (kids[m.id] || []).forEach(function(k) { done[k.id] = 1; }); } else html += withKids(m, 1); });
               return;
           }

@@ -7723,6 +7723,140 @@ textarea.handout-notes { min-height: 64px; resize: vertical; }
 /* [inline-c-start] */
 /* [inline-c-end] */
 /* [inline-d-start] */
+/* The map's right-click menu (#contextMenu, whiteboard.js). Every rule names the menu and the row's own class, so each weighs as much as the
+   menu's own hover rule (#contextMenu .menu-item:hover) and wins by coming later, as the inline style did: a head, a note and a red row keep
+   their color under the pointer. None of the new class names holds "cm-", which the GM's menu reads a press by (className.includes). */
+/* a menu's head: the token's name, Session, Effects of a token, in small gray capitals */
+#contextMenu .menu-item.wbm-head { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; cursor: default; }
+/* a gray line that does nothing: locked by the GM, no effects in the library, no effect of that name */
+#contextMenu .menu-item.wbm-note { color: var(--dim); cursor: default; }
+/* a row that ends or deletes something: Leave session, End Combat, End session for everyone, Delete */
+#contextMenu .menu-item.wbm-danger { color: var(--danger); }
+/* a row that holds a control (Elevation, Posture, a token's own Light, Opacity): a name, then the control, the menu kept open */
+#contextMenu .menu-item.wbm-row { display: flex; align-items: center; gap: 6px; cursor: default; }
+#contextMenu .wbm-label { flex: 1; }
+/* the ground a token stands on, beside its Elevation, and the length's unit after the box */
+#contextMenu .wbm-small { color: var(--dim); font-size: 11px; }
+#contextMenu .wbm-unit { color: var(--dim); }
+/* the Elevation box, the Posture list and the Light list. The id outweighs the looks' rounding of every box and list (:where(...) :is(.field, select, input and the rest)) */
+#contextMenu .wbm-box { padding: 2px 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+#contextMenu .stance-elev-in.wbm-box { width: 54px; }
+#contextMenu .own-light.wbm-box { max-width: 190px; }
+/* a token's senses, read only, on one gray line that wraps */
+#contextMenu .menu-item.cm-senses { color: var(--dim); cursor: default; white-space: normal; max-width: 280px; font-size: 11px; }
+/* a token's Effects: the row that makes a new effect, and its name box */
+#contextMenu .menu-item.cm-fx-new { gap: 4px; cursor: default; }
+#contextMenu .cm-fx-new .cm-fx-name { width: 110px; }
+/* Campaign Cast and Group roll: a count, the small arrow that opens the flyout, and the flyout's own gray words */
+#contextMenu .wbm-count { color: var(--dim); font-size: 11px; }
+#contextMenu .wbm-chev { margin-left: auto; color: var(--dim); }
+#contextMenu .wbm-say { flex: 1; color: var(--dim); font-size: 11px; }
+/* a Campaign Cast member in the flyout: its face, its name, the button that drops several (the flyout's own !important sizes still win, as before) */
+#contextMenu .menu-item.cm-cast-row { display: flex; align-items: center; gap: 8px; }
+#contextMenu .cm-cast-row .cast-row-face { width: 20px; height: 20px; object-fit: cover; border-radius: 4px; }
+#contextMenu .cm-cast-row .cast-row-name { flex: 1; }
+#contextMenu .tool.cm-cast-five { padding: 1px 7px; font-size: 10.5px; }
+/* Align and Space for several pieces: the buttons in one row, each part named in small gray words */
+#contextMenu .menu-item.cm-align-row { display: flex; align-items: center; gap: 3px; cursor: default; }
+#contextMenu .cm-align-row .align-label { font-size: 11px; color: var(--dim); margin-right: 2px; }
+#contextMenu .cm-align-row .align-label.align-label-space { margin: 0 2px 0 6px; }
+/* Opacity: the slider takes the room the row leaves, its figure in a box of its own on the right */
+#cmOpacitySlider { flex: 1; min-width: 80px; }
+#cmOpacityVal { min-width: 34px; text-align: right; }
+/* The party menu's rows (whiteboard.js fillPartyMenu): square, flat buttons that fill the menu. Over the menu's own row rule (#partyMenu
+   .party-menu-item) and the looks' rounding of a toolbar button (.wb-tool-btn) */
+#partyMenu .party-menu-item.party-menu-row { width: 100%; border-radius: 0; font-size: 12px; height: auto; padding: 8px 10px; text-align: left; }
+/* The hover card of a piece that is no token (#wbTooltip): a trigger zone, a text box, a wall, a way to another map, a room's pin. A card is a
+   room's box laid flat (no margin) that takes no pointer, its left edge in gold, blue for a text box, or a room's category (which stays inline) */
+#wbTooltip .room.tt-card { margin: 0; pointer-events: none; }
+#wbTooltip .room.tt-edge-gold { border-left-color: var(--gold); }
+#wbTooltip .room.tt-edge-blue { border-left-color: var(--blue); }
+/* a card's lines, over a room's own small capitals (.room .rc): a message or a room's notes as written, a plain gray line, a gold hint */
+#wbTooltip .room .tt-message { color: var(--ink); font-size: 11px; white-space: pre-wrap; text-transform: none; letter-spacing: 0; }
+#wbTooltip .room .tt-message.tt-notes { margin-top: 4px; }
+#wbTooltip .room .tt-words { color: var(--dim); font-size: 11px; text-transform: none; letter-spacing: 0; }
+#wbTooltip .room .tt-words.tt-steel { color: var(--steel); }
+#wbTooltip .room .tt-dim { color: var(--dim); font-size: 11px; }
+#wbTooltip .room .tt-hint { color: var(--gold); font-size: 11px; }
+#wbTooltip .room .tt-gold { color: var(--gold); }
+/* a room's picture at the top of its card */
+#wbTooltip .room img.tt-thumb { width: 100%; height: 90px; object-fit: cover; border-radius: 4px; margin-bottom: 6px; display: block; }
+/* A pen line's drawing (whiteboard.js, and datamap.js while it is drawn): its stroke may stand past the box it is drawn in */
+svg.wb-path-svg { overflow: visible; }
+/* The map's own grid (whiteboard.js): its drawing, of either kind, laid over the whole board and taking no pointer */
+svg.grid-own, svg.grid-lines { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+/* The Image Library (whiteboard.js, wbimglib.js): the Groups and Campaign Cast heads in gold, the Pictures head under them, a grid of cells,
+   a cast member with no picture, a map's group of pictures with its count, and the grid's own gray words */
+.img-lib-folder.group-head, .img-lib-folder.cast-head { color: var(--gold); }
+.img-lib-folder.lib-pictures-head { margin-top: 8px; }
+.img-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.cast-cell-noface { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 24px; }
+.img-lib-group-head { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 6px; }
+.img-lib-group-count { color: var(--dim); }
+.img-lib-empty { color: var(--dim); padding: 20px; text-align: center; }
+.img-lib-loading { color: var(--dim); padding: 20px; }
+/* the Image Library's picking bar: how many are picked in gold, a gray line, and the gray hint at the bar's right end */
+#imgLibSelBar .lib-bar-count { color: var(--gold); }
+#imgLibSelBar .lib-bar-say { color: var(--dim); }
+#imgLibSelBar .lib-bar-note { color: var(--dim); font-size: 11px; margin-left: auto; }
+/* the Image Library's preview of a Campaign Cast member */
+#imgLibPreviewMeta .lib-preview-cast { color: var(--gold); }
+#imgLibPreviewMeta .lib-preview-none { color: var(--dim); }
+/* The combat roster (whiteboard.js): a row a player points at, its tag in gold, and the roster's words when it has no row */
+.combat-tag.combat-targeted { color: var(--gold); border-color: var(--gold); }
+.combat-empty { color: var(--dim); padding: 8px; }
+/* The Campaign Cast window: a member's name and its line, the line in smaller words. Over a box's own size (.field input, input.field) */
+.cast-row-fields { flex: 1; min-width: 0; }
+.cast-row-fields .cast-stats { margin-top: 4px; font-size: 12px; }
+/* an empty list's words: the Campaign Cast window and Handouts */
+.list-empty-note { color: var(--dim); padding: 12px; line-height: 1.5; }
+/* The Journal (handouts.js): a row's small buttons over a button's own padding and the looks', the window's gray words, who runs a journal,
+   when a page was sent or shown, a note's title row and a received page's title row */
+.tool.journal-save { padding: 2px 6px; }
+.tool.journal-open, .tool.journal-del { padding: 2px 8px; }
+.journal-loading { color: var(--dim); padding: 14px; }
+.journal-camp .journal-runby { color: var(--dim); font-weight: normal; font-size: 11px; }
+.journal-at { opacity: .7; }
+.journal-note-head { display: flex; gap: 6px; align-items: center; }
+.journal-title.journal-title-row { display: flex; align-items: center; gap: 6px; }
+.journal-title-text { flex: 1; }
+/* Handouts' picture picker: its gray words and the line that shows every campaign's pictures */
+#handoutPickGrid .handout-pick-say { color: var(--dim); padding: 10px; }
+#handoutPickGrid .handout-pick-allrow { display: block; font-size: 11px; color: var(--dim); margin: 0 0 6px; }
+/* The Data Map (datamap.js): a room's icon badge, larger than a count, and a line's menu (#edgeMenu): its head, its rows, the type in use in
+   gold, Remove link in red, and its rule */
+.badge-char.badge-room-icon { background: var(--blue); font-size: 12px; margin-right: 4px; }
+#edgeMenu .menu-item.edge-menu-head { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; cursor: default; padding: 6px 16px 2px; }
+#edgeMenu .menu-item.edge-menu-row { padding: 8px 16px; cursor: pointer; }
+#edgeMenu .menu-item.edge-cur { color: var(--gold); }
+#edgeMenu .menu-item.edge-remove { color: var(--red); }
+#edgeMenu .menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+/* The left panel's tree (sidebar.js): a row stands for its guide lines, and the Lock rows of its menu say how many in small gray words */
+.sidebar-item.tree-item { position: relative; }
+#sidebarContextMenu .ctx-nest-count { color: var(--dim); font-size: 11px; }
+/* The save check's own dialogs (cleanup.js, built with no markup of the page's): the backdrop, the box, its title, its words, its buttons, the
+   one-line note while it works and a tick of a list. Their layer (z-index) stays with the script's Z_INDEX. The title's selector holds a
+   :not() of an id no element wears, so that it outweighs the looks' window title rule ([id$="Modal"] h3), as the inline style did */
+.cu-overlay { display: flex; position: fixed; top: var(--winbar, 0px); left: 0; width: 100%; height: calc(100% - var(--winbar, 0px)); background: var(--overlay); align-items: center; justify-content: center; }
+.cu-box { background: var(--panel2); color: var(--ink); padding: 22px; border: 1px solid var(--gold); border-radius: 8px; width: 480px; max-width: 92vw; max-height: 88vh; overflow-y: auto; box-sizing: border-box; font-size: 13.5px; line-height: 1.5; box-shadow: var(--shadow); }
+.cu-overlay > .cu-box > h3.cu-title:not(#cu-none) { margin: 0 0 12px; color: var(--gold); }
+.cu-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.cu-working { position: fixed; top: calc(56px + var(--winbar, 0px)); left: 50%; transform: translateX(-50%); background: var(--panel2); color: var(--dim); border: 1px solid var(--edge); border-radius: 8px; padding: 8px 14px; font-size: 13px; }
+.cu-pick { display: flex; gap: 8px; align-items: center; padding: 4px 0; cursor: pointer; }
+.cu-body .cu-p { margin: 0 0 10px; }
+.cu-body .cu-p-tight { margin: 0 0 6px; }
+.cu-body .cu-p-last { margin: 0; }
+.cu-body .cu-dim { color: var(--dim); }
+.cu-body .cu-small { font-size: 12px; }
+/* Table Chat (net.js chatEntryNode): a message, and a whisper set off by a violet edge in italics */
+.chat-entry { margin-bottom: 7px; }
+.chat-entry.chat-whisper { border-left: 2px solid var(--violet); padding-left: 7px; font-style: italic; }
+/* Player History (net.js): the dot of a player removed this session or banned and gone from the history */
+.roster-dot.roster-dot-out { background: #555; }
+/* The zoom's scroll sizer (main.js): an invisible box the script sizes to the scaled board, so zoom to the pointer stays anchored */
+.zoom-scroll-sizer { position: absolute; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; visibility: hidden; }
+/* The layer the dice tumble on (dice3d.js): fixed over the page, taking no pointer. The script places, sizes and shows it for each roll */
+#dice3dLayer { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; border-radius: 8px; }
 /* [inline-d-end] */
 
 /* 1.6.4: the looks (Fulllion, 2026-11-24, after the look page's renders: "lets go with slate and keep the other two for options that people can pick

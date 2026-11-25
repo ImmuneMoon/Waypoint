@@ -4843,7 +4843,7 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     check('the review of the rail\'s merge (3): on the Data Map Properties is reached again, for a room from its right-click menu (the GM\'s, as on the play map) and for a link from its own menu; the row is handled on both views, and the panel it opens stays through a re-sync while that room or link is selected and goes when the selection moves on',
         rowHtml(null).includes('menu-item cm-props') && rowHtml({ active: true, role: 'client' }) === '' && rowHtml({ foreign: true }) === ''
         && wbSrc.includes("if (typeof action === 'string' && action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }") && !wbSrc.includes("isWb && action.includes('cm-props')")
-        && dmS.includes("(edgePropsMay() ? '<div class=\"menu-item edge-props\"") && dmS.includes("if (pr) pr.addEventListener('click', function(ce) { ce.stopPropagation(); menu.style.display = 'none'; edgeProps(i); });")
+        && dmS.includes("(edgePropsMay() ? '<div class=\"menu-item edge-props edge-menu-row\"") /* 1.6.4 (Fulllion, "Move them"): the row's inline style moved to the style sheet (edge-menu-row), moved on purpose */ &&dmS.includes("if (pr) pr.addEventListener('click', function(ce) { ce.stopPropagation(); menu.style.display = 'none'; edgeProps(i); });")
         && E3.may() === true && new Function('state', 'render', 'window', sliceOf(dmS, 'edgeprops') + '\nreturn edgePropsMay();')(st, () => {}, { wpNet: { active: true, role: 'client' } }) === false
         && mapPropsThenRoom === false && roomStays === true && movedOn === false && linkOpen, J({ mapPropsThenRoom, roomStays, movedOn, linkOpen, row: rowHtml(null).slice(0, 60) }));
     // 5. the left panel opened from the rail over the toolbar at rest, under every menu of the bars
@@ -5316,8 +5316,9 @@ if (mode === 'samples') {
         [wbSrc, 'data-act="hold" title=', ['pause'], B], [wbSrc, 'data-act="setoff"', ['burst'], B], [wbSrc, 'data-act="pickopen"', ['nextturn'], B], [wbSrc, 'data-act="act" data-row=', ['check', 'play'], B],
         [wbSrc, 'title="End combat"', ['close'], B], [wbSrc, 'combat-strip-morebtn" data-act="more"', ['dots'], B],
         [wbSrc, 'cm-session" data-act="scene" data-id="\' + esc(nextScene.id)', ['play'], D], [wbSrc, 'cm-session" data-act="setups"', ['setups'], D], [wbSrc, 'data-act="scend"', ['stop'], D],
-        [wbSrc, 'data-act="combat-end"', ['close'], D], [wbSrc, 'data-act="end" style="color:var(--danger)"', ['stop'], D], [wbSrc, 'data-act="leave" style="color:var(--danger)"', ['door-open'], D],
-        [wbSrc, 'menu-item cm-del"', ['bin'], D], [wbSrc, 'menu-item cm-group"', ['group'], D], [wbSrc, 'menu-item cm-ungroup"', ['ungroup'], D], [wbSrc, 'menu-item cm-merge"', ['merge'], D],
+        // 1.6.4 (Fulllion, "Move them"): the red rows' inline style moved to the style sheet (wbm-danger), moved on purpose
+        [wbSrc, 'data-act="combat-end"', ['close'], D], [wbSrc, 'wbm-danger" data-act="end"', ['stop'], D], [wbSrc, 'wbm-danger" data-act="leave"', ['door-open'], D],
+        [wbSrc, 'menu-item cm-del wbm-danger"', ['bin'], D], [wbSrc, 'menu-item cm-group"', ['group'], D], [wbSrc, 'menu-item cm-ungroup"', ['ungroup'], D], [wbSrc, 'menu-item cm-merge"', ['merge'], D],
         [wbSrc, 'menu-item cm-grid"', ['arrup', 'arrdown'], D], [wbSrc, 'menu-item cm-order"', ['unflatten', 'chev'], D],
         [wbSrc, 'menu-item cm-front"', ['tofront'], D], [wbSrc, 'menu-item cm-fwd"', ['arrup'], D], [wbSrc, 'menu-item cm-bwd"', ['arrdown'], D], [wbSrc, 'menu-item cm-back"', ['toback'], D],
         [wbSrc, 'menu-item cm-status-dead"', ['dead'], D], [wbSrc, 'menu-item cm-trk-hide"', ['check'], D], [wbSrc, 'menu-item cm-encounter-save"', ['people'], D],
@@ -5389,6 +5390,22 @@ if (mode === 'samples') {
         'endturn', 'pen', 'check', 'up', 'clip', 'note', 'person', 'arrange', 'hide', 'dup', 'scroll'].filter(n => !cssD.includes('  .wi-' + n + ' { --wi: url('));
     check('1.6.4, the controls with a typed glyph or no drawing wear the app\'s own drawings ("Use these drawings"): a room\'s entry card and picture row, a map category\'s delete, a piece\'s commands, the Layers list\'s folds and moves, the music popover and a playlist\'s row, a row\'s remove or Buy off menu, a look\'s Add a color, the sheet head and its More menu (the drawing first on the button, following Edit sheet and Unlock for player as they turn), a page block\'s head tools and a table row\'s menu; the glyphs they wore are gone',
         hA > 0 && !headMiss.length && !wantMiss.length && !goneMiss.length && !named.length, JSON.stringify({ headMiss, wantMiss, goneMiss, named }));
+}
+// 1.6.4 (Fulllion, "Move them"): half d of the scripts' inline styles, moved into style.css's inline-d block so a look reaches them. The board, the
+// Image Library, the Journal and Handouts, the Data Map, the left panel's tree, the save check's dialogs, Table Chat, Player History, the zoom's
+// sizer and the dice layer write no style attribute or cssText of fixed words any more. A style worked out at run time (a word joined in with +)
+// stays, and so do the five that hide something a script shows later, each named here with how many times it stands; any other one fails.
+{
+    const FILES = ['whiteboard.js', 'handouts.js', 'datamap.js', 'sidebar.js', 'cleanup.js', 'net.js', 'main.js', 'dice3d.js'];   // whiteboard.js and net.js read joined, their parts with them
+    const KEPT = { 'whiteboard.js|display:none;': 1, 'whiteboard.js|display:none': 2, 'whiteboard.js|visibility:hidden': 2 };   // the effects list's No effect of that name, a roster row's roll and number under a drawn order, an unticked row's check drawing
+    const seen = {}, left = [];
+    FILES.forEach(function(n) {
+        const t = read('scripts/' + n);
+        [...t.matchAll(/\sstyle="([^"]*)"/g)].forEach(function(m) { if (/'\s*\+|\+\s*'/.test(m[1])) return; const k = n + '|' + m[1]; seen[k] = (seen[k] || 0) + 1; if (!KEPT[k]) left.push(k); });
+        [...t.matchAll(/\.style\.cssText\s*=\s*'([^']*)'\s*([;+?:])/g)].forEach(function(m) { if (m[2] === ';') left.push(n + '|cssText ' + m[1]); });
+    });
+    const counts = Object.keys(KEPT).filter(k => seen[k] !== KEPT[k]);
+    check('1.6.4, half d of the scripts holds no inline style of fixed words but the five that hide something (the looks reach the board\'s menus, hover cards, the Image Library, the Journal, the Data Map, the tree, the save check\'s dialogs, Table Chat and Player History)', !left.length && !counts.length, J({ left: left.slice(0, 8), counts }));
 }
 // 1.6.4 (Fulllion, "Move the inline styles"): the page holds no inline style but display:none, so every look reaches every control. The one
 // exception is Table Chat's place (#chatPanel), which floats.js and the chat's own drag write over; Help's two code samples are text, not attributes.

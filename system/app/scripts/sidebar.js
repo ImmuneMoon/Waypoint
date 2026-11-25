@@ -588,9 +588,9 @@ function treeMenu(row) {
 
           var guides = '';
           for (var g = 1; g <= depth; g++) guides += '<span class="tree-guide" style="left:' + (10 + (g - 1) * 14 + 5) + 'px;"></span>';   // under the parent's caret
-          return '<div class="sidebar-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + esc(item.id) + '" data-depth="' + depth + '" draggable="true" role="treeitem" tabindex="-1" aria-level="' + (depth + 1) + '"' + (hasKids ? ' aria-expanded="' + (collapsed ? 'false' : 'true') + '"' : '') + ' aria-selected="' + (isActive ? 'true' : 'false') + '"' +   // 1.6.3 (finding 4): a row of a tree for the keyboard and a screen reader; treeSync gives one row of the list the tab stop
+          return '<div class="sidebar-item tree-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + esc(item.id) + '" data-depth="' + depth + '" draggable="true" role="treeitem" tabindex="-1" aria-level="' + (depth + 1) + '"' + (hasKids ? ' aria-expanded="' + (collapsed ? 'false' : 'true') + '"' : '') + ' aria-selected="' + (isActive ? 'true' : 'false') + '"' +   // 1.6.3 (finding 4): a row of a tree for the keyboard and a screen reader; treeSync gives one row of the list the tab stop
 
-                 ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
+                 ' style="padding-left:' + (10 + depth * 14) + 'px;">' +
 
                  guides + caret + (item.type === 'planner' && /^(next|played|skipped)$/.test(item.meta.status) ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '<i class="wib wi-check"></i>' : '<i class="wib wi-next"></i>') + '</span>' : '') +
                  (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players. It is closed both ways until you unlock it: no player travels here, and no player who is here leaves through a portal (your summon and Bring still move them). A player who is not here holds only its name, nothing of what is on it"><i class="wib wi-lock"></i></span>' : '') +
@@ -683,8 +683,8 @@ function treeMenu(row) {
                     var hasKids = nestIds.length > 1;
                     lockNest.style.display = hasKids && nLocked < nestIds.length ? 'block' : 'none';
                     unlockNest.style.display = hasKids && nLocked > 0 ? 'block' : 'none';
-                    lockNest.innerHTML = '<i class="wib wi-unlock"></i> Lock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + (nestIds.length - nLocked) + ' still open)</span>' : '');
-                    unlockNest.innerHTML = '<i class="wib wi-lock"></i> Unlock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + nLocked + ' locked)</span>' : '');
+                    lockNest.innerHTML = '<i class="wib wi-unlock"></i> Lock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span class="ctx-nest-count">(' + (nestIds.length - nLocked) + ' still open)</span>' : '');
+                    unlockNest.innerHTML = '<i class="wib wi-lock"></i> Unlock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span class="ctx-nest-count">(' + nLocked + ' locked)</span>' : '');
                 }
                 var childBtn = document.getElementById('ctxNewChildItem');
                 if (childBtn) {

@@ -149,7 +149,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
 
           var em = {'Stairs Up':'stairs-up', 'Stairs Down':'stairs-down', 'Door':'door', 'Gate':'gate', 'Cave':'cave', 'Tower':'tower', 'Camp':'camp'}[r.icon];
 
-          badges.innerHTML += '<div class="badge-char" style="background:var(--blue); font-size:12px; margin-right:4px;" title="'+escA(r.icon)+'">'+(em ? '<i class="wib wi-'+em+'"></i>' : escA(String(r.icon).substring(0,2)))+'</div>';
+          badges.innerHTML += '<div class="badge-char badge-room-icon" title="'+escA(r.icon)+'">'+(em ? '<i class="wib wi-'+em+'"></i>' : escA(String(r.icon).substring(0,2)))+'</div>';
 
       }
 
@@ -366,12 +366,11 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       var menu = document.getElementById('edgeMenu'), am = getActiveMap();
       if (!menu || !am || !am.links[i]) return;
       var cur = LINK_TYPES[am.links[i][2]] ? (am.links[i][2] || '') : '';
-      var item = 'padding:8px 16px; cursor:pointer;';
-      menu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default; padding:6px 16px 2px;">Line type</div>'
-          + Object.keys(LINK_TYPES).map(function(t) { return '<div class="menu-item edge-type" data-type="' + t + '" style="' + item + (t === cur ? ' color:var(--gold);' : '') + '" title="' + LINK_TYPES[t].hint + '">' + (t === cur ? '\u2713 ' : '') + LINK_TYPES[t].glyph + '\u2002' + LINK_TYPES[t].label + '</div>'; }).join('')
-          + '<div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>'
-          + (edgePropsMay() ? '<div class="menu-item edge-props" style="' + item + '" title="Open this link&rsquo;s settings at the right edge of the map">Properties</div>' : '')
-          + '<div class="menu-item danger edge-remove" style="' + item + ' color:var(--red);">Remove link</div>';
+      menu.innerHTML = '<div class="menu-item edge-menu-head">Line type</div>'
+          + Object.keys(LINK_TYPES).map(function(t) { return '<div class="menu-item edge-type edge-menu-row' + (t === cur ? ' edge-cur' : '') + '" data-type="' + t + '" title="' + LINK_TYPES[t].hint + '">' + (t === cur ? '\u2713 ' : '') + LINK_TYPES[t].glyph + '\u2002' + LINK_TYPES[t].label + '</div>'; }).join('')
+          + '<div class="menu-divider"></div>'
+          + (edgePropsMay() ? '<div class="menu-item edge-props edge-menu-row" title="Open this link&rsquo;s settings at the right edge of the map">Properties</div>' : '')
+          + '<div class="menu-item danger edge-remove edge-menu-row">Remove link</div>';
       menu.style.display = 'block';
       window.wpClampMenu(menu, ev.clientX, ev.clientY);
       menu.querySelectorAll('.edge-type').forEach(function(x) {
@@ -1640,7 +1639,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
                   var pathD = 'M ' + normPts.map(function(p){ return p[0] + ' ' + p[1]; }).join(' L ');
                   _inner = '<path fill="none" stroke="' + _dcol + '" stroke-width="' + _dw + '" stroke-linecap="' + (_dtip === 'square' ? 'square' : 'round') + '" stroke-linejoin="' + (_dtip === 'square' ? 'miter' : 'round') + '" d="' + pathD + '" />';
               }
-              currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="overflow:visible;">' + _inner + '</svg>';
+              currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" class="wb-path-svg">' + _inner + '</svg>';
 
               e.preventDefault();
 

@@ -169,8 +169,9 @@ function csFlows(D) {
     // Fills a new campaign from the pick, before it is listed. A pack that cannot be copied leaves it with no system, and says so
     async function fillFrom(into, pick) {
         if (pick && typeof pick.starter === 'string') {   // 1.6.4: a bundled starter, read as Start from reads it; its packs are written once the campaign is open (afterOpen)
-            var got = null; try { got = typeof D.starter === 'function' ? await D.starter(pick.starter) : null; } catch (e) { got = null; }
-            if (!got || !got.system) { log('system-fail', { at: 'starter' }); D.toast('That starter could not be loaded. The campaign has no system yet.'); return false; }
+            // 1.6.4: a starter not read because Waypoint was updated meanwhile says the release check's own words (sysedtabs.js starterStale)
+            var got = null, why = ''; try { got = typeof D.starter === 'function' ? await D.starter(pick.starter) : null; } catch (e) { got = null; why = e && typeof e.say === 'string' ? e.say : ''; }
+            if (!got || !got.system) { log('system-fail', { at: why ? 'starter-stale' : 'starter' }); D.toast(why ? why + ' The campaign has no system yet.' : 'That starter could not be loaded. The campaign has no system yet.'); return false; }
             into.system = got.system; if (Array.isArray(got.texts) && got.texts.length) pick.packs = { name: got.name, texts: got.texts };
             log('system-done', { starter: 1, packs: pick.packs ? pick.packs.texts.length : 0 });
             return true;

@@ -493,6 +493,26 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   }
 
+  // [relcheck:savecss-start]
+  // 1.6.4: Save HTML embeds the style sheet this page already has loaded, never one fetched now. On Waypoint's website a tab left open across a
+  // release would otherwise fetch the newer release's style.css and lay it over this release's markup. The sheet is found by its address
+  // (ending in style.css) and its rules joined as the browser reads them (a rule's cssText is valid CSS; the comments are lost, which is fine).
+  // Only where no such sheet can be read (none found, or its rules not readable) is the file fetched as before. Answers a promise of the text
+  function loadedStyleCss(doc, fetchFn) {
+      try {
+          var sheets = doc && doc.styleSheets ? doc.styleSheets : [];
+          for (var i = 0; i < sheets.length; i++) {
+              var sh = sheets[i], href = sh && typeof sh.href === 'string' ? sh.href.split(/[?#]/)[0] : '';
+              if (!/(^|\/)style\.css$/.test(href)) continue;
+              var rules = sh.cssRules, parts = [];
+              if (!rules) continue;
+              for (var r = 0; r < rules.length; r++) parts.push(rules[r].cssText);
+              return Promise.resolve(parts.join('\n'));
+          }
+      } catch (e) {}
+      return fetchFn('style.css').then(function(r) { return r.text(); });
+  }
+  // [relcheck:savecss-end]
   var _el_exportHtmlBtn = document.getElementById('exportHtmlBtn');
 
 if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
@@ -514,7 +534,7 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
       // the review of pages reveal (finding 3): a page with a block kept back asks first (io.js keptAsk). As players read it saves the drawn
       // page with every kept block left out (io.js keptCut); With what I kept back saves it whole, each kept block marked as on screen
       var KX = window.wpKeptExport, askK = KX && KX.ask ? KX.ask : function(it, a, then) { then(false); };
-      askK(activeMap, showConfirm, function(players) { run(function() { return fetch('style.css').then(r => r.text()).then(function(css) {
+      askK(activeMap, showConfirm, function(players) { run(function() { return loadedStyleCss(document, fetch).then(function(css) {
           var pvX = document.getElementById('plannerPreview'), navX = window.wpPageNav;
           if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)
           var campX = getActiveCampaign(), content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;

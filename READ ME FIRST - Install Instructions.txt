@@ -10,7 +10,8 @@ INSTALLING
 2. Windows may warn that it does not recognize the publisher:
    Waypoint's installer is not code-signed yet. Only run a
    Waypoint_Setup.exe you got from this folder or from Waypoint's own
-   releases page; if it came from anywhere else, do not run it.
+   releases page (github.com/ImmuneMoon/Waypoint/releases). If it came
+   from anywhere else, do not run it.
    (Google Drive may also say it "can't scan this file for viruses" because
    of its size. That's normal for a 110 MB download; choose Download anyway.)
 3. Follow the installer. It puts Waypoint in your user folder, with no admin

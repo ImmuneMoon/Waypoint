@@ -2,7 +2,7 @@
    served from a loopback HTTP server, on scratch installs in the OS temp directory (removed at the end), with key pairs made here.
    A one-click update replaces the app's own files, so the shell takes one only when it is signed by the key whose public half the
    shell carries (updatekey.js): the signed words are the zip's name, its SHA-256 and the version, one per line. Checked: a signed
-   update applies; every unsigned, mis-signed, relabelled or altered one is refused with the install byte for byte as it was; the
+   update applies; every unsigned, mis-signed, relabeled or altered one is refused with the install byte for byte as it was; the
    older guards (the checksum, the paths, the size caps, the swap put back); the way back (rollbackAppUpdate and its route); the
    key tool (tools/signkey.js) and the release build's refusal to build without the key (tools/release.js), each run as a child
    process on a scratch copy of the repository; the Settings buttons, sliced from settings.js and run on a page of plain objects;
@@ -234,7 +234,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const relabelA = await attempt({ tag: '1.5.2', zip: z151, zipName: 'waypoint-app-1.5.1.zip' });
         const relabelB = await attempt({ tag: '1.5.2', zip: z151, sigText: s151 });
         const relabelC = await attempt({ tag: '1.5.2', zip: appZip('1.5.2'), sigText: s151 });
-        check('a signed older zip relabelled as a newer release is refused: under its own name and signature with a newer tag, renamed to the newer tag with its old signature, and an old signature beside a newer zip — the version is part of what is signed, and the zip\'s name must be the release\'s own',
+        check('a signed older zip relabeled as a newer release is refused: under its own name and signature with a newer tag, renamed to the newer tag with its old signature, and an old signature beside a newer zip — the version is part of what is signed, and the zip\'s name must be the release\'s own',
             refused(relabelA) && refused(relabelB) && refused(relabelC), why([relabelA, relabelB, relabelC]));
         const zA = appZip('1.5.1'), otherDigest = await attempt({ tag: '1.5.1', zip: zA, sigText: sign('waypoint-app-1.5.1.zip', sha256(Buffer.from('another file')), '1.5.1') + NL });
         check('a signature over another digest than the published checksum is refused', refused(otherDigest), why(otherDigest));
@@ -545,7 +545,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const gChanged = appZip('1.5.1', [{ name: 'scripts/extra.js', data: 'alert(1)' }]);
             const gAlt = await ghAttempt({ tag: '1.5.1', zip: gz151, served: gChanged }), gAlt2 = await ghAttempt({ tag: '1.5.1', zip: gz151, served: gChanged, shaText: sha256(gChanged) + '  waypoint-app-1.5.1.zip' + NL });
             const gInside = await ghAttempt({ tag: '1.5.1', zip: appZip('1.5.1', null, { says: '99.0.0' }) });
-            check('GitHub: an unsigned release, one signed by another key, a signed older zip relabelled as a newer release (under its own name, or with its old signature), a zip whose bytes changed after it was signed (against the signed checksum, and with the checksum rewritten to match), and a signed zip that is not the release\'s version are each refused with 1.6.3\'s words, the install byte for byte as it was',
+            check('GitHub: an unsigned release, one signed by another key, a signed older zip relabeled as a newer release (under its own name, or with its old signature), a zip whose bytes changed after it was signed (against the signed checksum, and with the checksum rewritten to match), and a signed zip that is not the release\'s version are each refused with 1.6.3\'s words, the install byte for byte as it was',
                 [gNoSig, gKey, gRelA, gRelB, gAlt2].every(r => refused(r, REFUSED)) && refused(gAlt, /^checksum mismatch, update aborted$/) && refused(gInside, /not version 1\.5\.1/), why([gNoSig, gKey, gRelA, gRelB, gAlt, gAlt2, gInside]));
 
             const gNoKey = await ghAttempt({ tag: '1.5.1', checkKey: '' });
@@ -1396,15 +1396,18 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const ghStand = function () {
                         const fs = require('fs'), path = require('path'), crypto = require('crypto');
                         const a = process.argv.slice(2), E = process.env, mode = E.WP_GH_MODE || '', ver = E.WP_GH_VER;
-                        fs.appendFileSync(E.WP_GH_LOG, JSON.stringify({ args: a, env: Object.keys(E).filter(k => /^(GITHUB_TOKEN|WAYPOINT_SIGNING_KEY|WAYPOINT_R2_|WAYPOINT_DISPATCH_TOKEN)/i.test(k)) }) + '\n');
+                        fs.appendFileSync(E.WP_GH_LOG, JSON.stringify({ args: a, env: Object.keys(E).filter(k => /^(GITHUB_TOKEN|WAYPOINT_SIGNING_KEY|WAYPOINT_R2_|WAYPOINT_DISPATCH_TOKEN|GH_HOST|GH_REPO|GH_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)/i.test(k)) }) + '\n');
                         let s = {}; try { s = JSON.parse(fs.readFileSync(E.WP_GH_STATE, 'utf8')); } catch (e) { s = {}; }
                         const save = () => fs.writeFileSync(E.WP_GH_STATE, JSON.stringify(s));
                         const say = x => process.stdout.write(typeof x === 'string' ? x : JSON.stringify(x));
                         const fail = m => { process.stderr.write(m + '\n'); process.exit(1); };
                         if (a[0] === '--version') return say('gh version 0.0.0-waypoint-stand-in\n');
                         if (a[0] === 'auth') return mode === 'signedout' ? fail('You are not logged into any GitHub hosts.') : say('');
-                        if (a[0] === 'api' && /\/git\/matching-refs\/tags\//.test(a[1])) { const t = a[1].split('/tags/')[1]; return say((mode === 'tag' && t === ver) || (mode === 'vtag' && t === 'v' + ver) ? [{ ref: 'refs/tags/' + t }] : [{ ref: 'refs/tags/' + t + '1' }]); }
-                        if (a[0] === 'api' && /\/releases\?per_page=100$/.test(a[1])) {
+                        const ap = a[0] === 'api' && a[1] === '--hostname' && a[2] === 'github.com' ? a[3] : null;   // every api call names github.com, or the stand-in knows it not
+                        if (ap === 'repos/ImmuneMoon/Waypoint') return say({ default_branch: 'main' });
+                        if (ap === 'repos/ImmuneMoon/Waypoint/branches/main') { s.headAsks = (s.headAsks || 0) + 1; save(); return say({ commit: { sha: mode === 'behind' || (mode === 'moved' && s.headAsks === 2) ? 'f'.repeat(40) : E.WP_GH_HEAD } }); }
+                        if (ap && /\/git\/matching-refs\/tags\//.test(ap)) { const t = ap.split('/tags/')[1]; return say((mode === 'tag' && t === ver) || (mode === 'vtag' && t === 'v' + ver) ? [{ ref: 'refs/tags/' + t }] : [{ ref: 'refs/tags/' + t + '1' }]); }
+                        if (ap && /\/releases\?per_page=100$/.test(ap)) {
                             s.relAsks = (s.relAsks || 0) + 1; save();
                             if (mode === 'eat' && s.relAsks === 2) { try { fs.unlinkSync(path.join(E.WP_GH_DIST, 'manifest.json')); } catch (e) {} }   // after the build, before the assets are looked for
                             return say(mode === 'draft' ? [{ tag_name: ver, draft: true }] : [{ tag_name: '1.6.3', draft: false }]);
@@ -1425,13 +1428,22 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     let pre = ''; try { pre = cp.execSync('gh --version', { env: ghEnv(), encoding: 'utf8', timeout: 30000 }); } catch (e) { pre = ''; }
                     const safe = /waypoint-stand-in/.test(pre);
                     const lines = f => { try { return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch (e) { return []; } };
-                    const ghRun = (mode, prep, envEdit) => {
+                    // the scratch copy is a git checkout, committed after its prep, so the release can name its commit; post runs after the commit
+                    const git = (r, args) => cp.execFileSync('git', ['-C', r, '-c', 'user.name=suite', '-c', 'user.email=suite@example.invalid', '-c', 'core.autocrlf=false'].concat(args), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+                    const ghRun = (mode, prep, envEdit, post) => {
                         if (!safe) return null;
-                        const r = scratchRepoWith(pub2), d = path.join(r, 'dist', vNow); if (prep) prep(r);
-                        const env = ghEnv(mode, d); if (envEdit) envEdit(env);
+                        const r = scratchRepoWith(pub2), d = path.join(r, 'dist', vNow);
+                        if (mode !== 'unbuilt') {   // as a plain build leaves them: the release line and version.json (the README's step 3)
+                            fs.writeFileSync(path.join(r, 'README.md'), 'Current release: **Waypoint VTT Alpha ' + vNow + '**' + NL);
+                            fs.writeFileSync(path.join(r, 'system', 'app', 'version.json'), JSON.stringify({ version: vNow, minShell: shellrev.status(r).since }) + '\n');
+                        }
+                        if (prep) prep(r);
+                        let head = ''; try { git(r, ['init', '-q']); git(r, ['add', '-A']); git(r, ['commit', '-q', '-m', 'scratch']); head = git(r, ['rev-parse', 'HEAD']).trim(); } catch (e) { head = ''; }
+                        if (post) post(r);
+                        const env = ghEnv(mode, d); env.WP_GH_HEAD = head; if (envEdit) envEdit(env);
                         const ran = node(path.join(r, 'tools', 'release.js'), ['--github'], env);
                         let st = null; try { st = JSON.parse(fs.readFileSync(env.WP_GH_STATE, 'utf8')); } catch (e) { st = null; }
-                        return { status: ran.status, said: String(ran.stdout) + String(ran.stderr), calls: lines(env.WP_GH_LOG), st, repo: r, dist: d };
+                        return { status: ran.status, said: String(ran.stdout) + String(ran.stderr), calls: lines(env.WP_GH_LOG), st, repo: r, dist: d, head };
                     };
                     const good = ghRun('');
                     const heads = good ? good.calls.map(c => c.args.slice(0, 2).join(' ')) : [];
@@ -1439,19 +1451,19 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const cr = pick('create'), up = pick('upload'), vw = pick('view'), ed = pick('edit');
                     const SIX = ['Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', 'waypoint-app-' + vNow + '.zip', 'waypoint-app-' + vNow + '.zip.sha256', 'waypoint-app-' + vNow + '.zip.sig', 'manifest.json'];
                     const inDist = p => !!good && same(fs.realpathSync(path.dirname(p)), fs.realpathSync(good.dist));
-                    const API3 = ['api repos/' + REPO_GH + '/git/matching-refs/tags/' + vNow, 'api repos/' + REPO_GH + '/git/matching-refs/tags/v' + vNow, 'api repos/' + REPO_GH + '/releases?per_page=100'];
+                    const API3 = ['repos/' + REPO_GH + '/git/matching-refs/tags/' + vNow, 'repos/' + REPO_GH + '/git/matching-refs/tags/v' + vNow, 'repos/' + REPO_GH + '/releases?per_page=100', 'repos/' + REPO_GH, 'repos/' + REPO_GH + '/branches/main'].map(p => 'api --hostname github.com ' + p);
                     check('release.js --github (a scratch copy, the right key, stand-ins for gh, Inno Setup and the archiver): gh is asked first whether it runs and is signed in and whether GitHub holds the tag (' + 'vX.Y.Z too) or a release of it, then the build runs as a plain build does, then GitHub is asked again and the release is made as 1.6.3\'s was: a DRAFT tagged exactly the version, titled "Waypoint VTT Alpha <version>", not a prerelease, its body dist/<version>/RELEASE_NOTES.md; the six assets uploaded byte for byte from dist/<version>/; the draft\'s assets read back; and only then published',
-                        safe && !!good && good.status === 0 && j(heads) === j(['--version', 'auth status'].concat(API3.map(x => x.split(' ').slice(0, 2).join(' '))).concat(API3.map(x => x.split(' ').slice(0, 2).join(' '))).concat(['release create', 'release upload', 'release view', 'release edit']))
-                        && j(good.calls[1].args) === j(['auth', 'status', '--hostname', 'github.com']) && j(good.calls.slice(2, 5).map(c => c.args.join(' '))) === j(API3) && j(good.calls.slice(5, 8).map(c => c.args.join(' '))) === j(API3)
-                        && !!cr && j(cr.args.slice(0, 9)) === j(['release', 'create', vNow, '--repo', REPO_GH, '--draft', '--title', 'Waypoint VTT Alpha ' + vNow, '--notes-file']) && cr.args.length === 10 && path.basename(cr.args[9]) === 'RELEASE_NOTES.md' && inDist(cr.args[9]) && cr.args.indexOf('--prerelease') < 0
-                        && !!up && j(up.args.slice(0, 5)) === j(['release', 'upload', vNow, '--repo', REPO_GH]) && j(up.args.slice(5).map(p => path.basename(p))) === j(SIX) && up.args.slice(5).every(inDist)
+                        safe && !!good && good.status === 0 && /^[0-9a-f]{40}$/.test(good.head) && j(heads) === j(['--version', 'auth status'].concat(API3.map(x => x.split(' ').slice(0, 2).join(' '))).concat(API3.map(x => x.split(' ').slice(0, 2).join(' '))).concat(['release create', 'release upload', 'release view', 'release edit']))
+                        && j(good.calls[1].args) === j(['auth', 'status', '--hostname', 'github.com']) && j(good.calls.slice(2, 7).map(c => c.args.join(' '))) === j(API3) && j(good.calls.slice(7, 12).map(c => c.args.join(' '))) === j(API3)
+                        && !!cr && j(cr.args.slice(0, 11)) === j(['release', 'create', vNow, '--repo', 'github.com/' + REPO_GH, '--target', good.head, '--draft', '--title', 'Waypoint VTT Alpha ' + vNow, '--notes-file']) && cr.args.length === 12 && path.basename(cr.args[11]) === 'RELEASE_NOTES.md' && inDist(cr.args[11]) && cr.args.indexOf('--prerelease') < 0
+                        && !!up && j(up.args.slice(0, 5)) === j(['release', 'upload', vNow, '--repo', 'github.com/' + REPO_GH]) && j(up.args.slice(5).map(p => path.basename(p))) === j(SIX) && up.args.slice(5).every(inDist)
                         && !!good.st && j(good.st.assets.map(x => x.name)) === j(SIX) && good.st.assets.every(x => x.sha === sha256(fs.readFileSync(path.join(good.dist, x.name))))
-                        && !!vw && j(vw.args) === j(['release', 'view', vNow, '--repo', REPO_GH, '--json', 'assets,isDraft']) && !!ed && j(ed.args) === j(['release', 'edit', vNow, '--repo', REPO_GH, '--draft=false', '--prerelease=false'])
+                        && !!vw && j(vw.args) === j(['release', 'view', vNow, '--repo', 'github.com/' + REPO_GH, '--json', 'assets,isDraft']) && !!ed && j(ed.args) === j(['release', 'edit', vNow, '--repo', 'github.com/' + REPO_GH, '--draft=false', '--prerelease=false', '--latest'])
                         && good.st.published === true && good.st.draft === false && /Published on GitHub: https:\/\/github\.com\/ImmuneMoon\/Waypoint\/releases\/tag\//.test(good.said) && /node tools\/ghlive\.js/.test(good.said),
                         j([safe, pre.slice(0, 60), good && good.status, good && good.said.slice(-400), heads]));
                     check('release.js --github never handles a token: gh is handed the environment without GITHUB_TOKEN and the other secrets (CHILD_ENV), though the run was given one, no argument and nothing said holds it; and it touches nothing of the website (no bucket, no dispatch, no word of the download host)',
                         !!good && good.calls.length > 0 && good.calls.every(c => c.env.length === 0 && !c.args.some(x => String(x).indexOf(GT) >= 0)) && good.said.indexOf(GT) < 0 && !/download host|dispatch|bucket|website was told/i.test(good.said)
-                        && read('tools/release.js').indexOf("env: CHILD_ENV, encoding: 'utf8'") > 0 && read('tools/release.js').split('process.env.GITHUB_TOKEN').length === 4 /* three: the --publish --github path's own check (twice on its line) and its API's token, and none in the gh path */, j(good && good.calls.map(c => c.env)));
+                        && read('tools/release.js').indexOf("env: GH_ENV, encoding: 'utf8'") > 0 && /const GH_ENV = \(\(\) => \{\n    const e = Object\.assign\(\{\}, CHILD_ENV\);/.test(read('tools/release.js').replace(/\r\n/g, '\n')) && read('tools/release.js').split('process.env.GITHUB_TOKEN').length === 4 /* three: the --publish --github path's own check (twice on its line) and its API's token, and none in the gh path */, j(good && good.calls.map(c => c.env)));
                     // the refusals: each one plain line, exit 1, nothing published (no release create), and none of them builds (no dist folder)
                     const refuse = (r, re) => !!r && r.status === 1 && re.test(r.said) && !r.calls.some(c => c.args[0] === 'release') && !fs.existsSync(r.dist);
                     const signedOut = ghRun('signedout'), tagged = ghRun('tag'), vTagged = ghRun('vtag'), drafted = ghRun('draft');
@@ -1468,11 +1480,29 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                         && refuse(staleRec, /Not built: the core changed since tools\/shellrev\.json was recorded: run node tools\/shellrev\.js/)
                         && refuse(noKey, /Not built: .*signkey|WAYPOINT_SIGNING_KEY/) && noKey.calls.length === 0,
                         j([noGhRun, signedOut, tagged, vTagged, drafted, siteSrc, staleRec, noKey].map(r => r && [r.status, r.said.slice(0, 200), r.calls.length])));
+                    // the commit (the review of 2026-11-25): the release is tagged at this checkout's HEAD, made only where that is main's head on
+                    // GitHub and the checkout holds no change of a tracked file; main moving during the build stops it before any release is made
+                    const behind = ghRun('behind'), dirty = ghRun('', null, null, r => { fs.appendFileSync(path.join(r, 'README.md'), 'a change not committed' + NL); }), moved = ghRun('moved');
+                    const draftNotes = ghRun('', r => { for (const f of ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt']) { const p = path.join(r, f); fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('- x', '- x [DRAFT]')); } });
+                    // gh held to github.com: GH_HOST, GH_REPO and the enterprise tokens set on this machine reach no gh call, which names github.com itself
+                    const hostSet = ghRun('', null, e => { e.GH_HOST = 'ghe.example.invalid'; e.GH_REPO = 'other/repo'; e.GH_TOKEN = 'z'; e.GH_ENTERPRISE_TOKEN = 'x'; e.GITHUB_ENTERPRISE_TOKEN = 'y'; });
+                    // a file the build stages that the commit lacks, and a build that changes a file the commit holds, each stop the release
+                    const loose = ghRun('', null, null, r => { fs.writeFileSync(path.join(r, 'system', 'app', 'never-added.js'), '// not committed' + NL); });
+                    const unbuilt = ghRun('unbuilt');
+                    check('release.js --github names the commit it releases and holds gh to github.com (the review of 2026-11-25): it refuses, with no release made and nothing built, where main on GitHub is at another commit or the checkout holds a change not committed; it refuses at the release, with none made, where main moved during the build; it refuses notes still marked as a draft; and with GH_HOST, GH_REPO and the enterprise tokens set it still publishes to github.com, none of them handed to gh, every api call naming --hostname github.com and every release call github.com/<repo>',
+                        refuse(behind, /Not built: this checkout is at [0-9a-f]{8}, but main on GitHub is at ffffffff: push this commit to main/) && refuse(dirty, /Not built: the checkout holds changes not committed \(1 file, the first README\.md\)/)
+                        && !!moved && moved.status === 1 && /Not published to GitHub: main on GitHub is no longer at [0-9a-f]{8}, the commit this run built\. Nothing was published/.test(moved.said) && !moved.calls.some(c => c.args[0] === 'release')
+                        && refuse(draftNotes, /Not built: WHATSNEW\.txt's newest section is still marked as a draft \(- x \[DRAFT\]\)/)
+                        && refuse(loose, /Not built: the checkout holds changes not committed \(1 file, the first system\/app\/never-added\.js\)/)
+                        && !!unbuilt && unbuilt.status === 1 && /Not published to GitHub: the build changed (README\.md, system\/app\/version\.json|system\/app\/version\.json, README\.md|README\.md|system\/app\/version\.json), which the commit does not hold/.test(unbuilt.said) && !unbuilt.calls.some(c => c.args[0] === 'release')
+                        && !!hostSet && hostSet.status === 0 && hostSet.calls.length > 0 && hostSet.calls.every(c => c.env.length === 0) && hostSet.calls.filter(c => c.args[0] === 'api').every(c => c.args[1] === '--hostname' && c.args[2] === 'github.com')
+                        && hostSet.calls.filter(c => c.args[0] === 'release').every(c => c.args[3] === '--repo' && c.args[4] === 'github.com/' + REPO_GH) && !!hostSet.st && hostSet.st.published === true,
+                        j([behind, dirty, moved, draftNotes, hostSet, loose, unbuilt].map(r => r && [r.status, r.said.slice(-260), r.calls.length])));
                     const eaten = ghRun('eat');
                     check('release.js --github refuses where any of the six assets is missing from dist/<version>/ when the release is to be made (here manifest.json, taken away after the build): exit 1, the missing file named, no draft made',
                         !!eaten && eaten.status === 1 && /Not published to GitHub: manifest\.json missing from /.test(eaten.said) && !eaten.calls.some(c => c.args[0] === 'release'), j(eaten && [eaten.status, eaten.said.slice(-300)]));
                     check('release.js names the very repository the shell reads (REPO === updater.js UPDATE_REPO), and the plain build\'s closing words name node tools/release.js --github for the release while installs read GitHub',
-                        new RegExp("const REPO = '" + realUpdater.UPDATE_REPO + "';").test(read('tools/release.js')) && /run node tools\/release\.js --github/.test(said), said.slice(-400));
+                        new RegExp("const REPO = '" + realUpdater.UPDATE_REPO + "';").test(read('tools/release.js')) && (m => !!m && m[1] === m[2])(/const STAGE_FILES = (\[[^\]]*\]);[\s\S]*const GH_STAGE_TOP = (\[[^\]]*\]);/.exec(read('tools/release.js'))) && /run node tools\/release\.js --github/.test(said), said.slice(-400));
                 }
                 // and run to its end against stand-ins of the suite's own (WAYPOINT_RELEASE_TEST=1): a bucket speaking Cloudflare R2's S3 API on
                 // loopback (every request's AWS Signature Version 4 checked here, with the token's secret, over what arrived; ETags as R2 gives them,

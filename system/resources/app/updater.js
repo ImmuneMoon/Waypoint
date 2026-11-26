@@ -116,8 +116,9 @@ function sourceOf(opts) {
      https://api.github.com/repos/<repo>/releases/latest, or one of this repository's own release files,
      https://github.com/<repo>/releases/download/... (the repository compared in any letter case, as GitHub reads it). So the
      release's API answer can never point a fetch at another repository's release, or anywhere else on github.com.
-   - A REDIRECT may go to any https host that is github.com, api.github.com (a renamed repository's API answer is a redirect
-     there) or ends in ".githubusercontent.com". That last is a SUFFIX on purpose: GitHub has moved the host its release
+   - A REDIRECT may go to any https host that is github.com, api.github.com (where GitHub may send an API answer on) or ends in
+     ".githubusercontent.com". A renamed repository still strands its installs: its files then name the new owner or name,
+     which the first-address rule refuses, so a rename fails safe and needs a release that names the new repository. That last is a SUFFIX on purpose: GitHub has moved the host its release
      downloads are sent on to twice already (github-releases.githubusercontent.com, then objects.githubusercontent.com,
      then release-assets.githubusercontent.com), and every install of 1.6.4 reads GitHub alone, so a list frozen today
      would strand them all the next time it moves. The suffix keeps the leading dot, so a host that merely contains the
@@ -240,7 +241,7 @@ function fetchBuffer(url, headers, redirects, max, ok) {
                 res.resume();
                 let next; try { next = new URL(res.headers.location, url); } catch (e) { return reject(new Error('a redirect to no address for ' + url)); }
                 if (typeof ok === 'function' && !ok(next, true)) return reject(new Error(NOT_OURS));   // a redirect never leaves the update hosts
-                return resolve(fetchBuffer(next.href, headers, redirects - 1, max, x => ok(x, true)));   // what a redirect fetches next is judged as a redirect
+                return resolve(fetchBuffer(next.href, headers, redirects - 1, max, typeof ok === 'function' ? (x => ok(x, true)) : ok));   // what a redirect fetches next is judged as a redirect
             }
             if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode + ' for ' + url)); }
             const chunks = []; let size = 0;

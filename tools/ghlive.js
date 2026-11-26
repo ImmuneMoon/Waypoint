@@ -9,8 +9,9 @@
                                  the installer's signatures (the two .sig assets) are there. Exit 0 where all of that holds, 1
                                  where any does not. It needs no token and writes nothing.
 
-   It runs the shell's own code (updater.js checkForUpdate with the source 'github'), so it reads the release exactly as an
-   install does, with the key this repository's shell carries. canSelfInstall is asked as a shell that says it can run the
+   It runs this repository's own updater (updater.js checkForUpdate with the source 'github'), so it reads the release as an
+   install reads it with this version's code, which is stricter than 1.6.3's, and the key this repository's shell carries. It
+   checks that the two .sig assets are there, not that they verify: an install checks that itself before it takes anything. canSelfInstall is asked as a shell that says it can run the
    installer (selfInstall true), as an installed copy of 1.6.3 says. Run it after node tools/release.js --github. */
 'use strict';
 const path = require('path');

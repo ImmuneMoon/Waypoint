@@ -1422,7 +1422,7 @@ if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info;
     if (close) close.addEventListener('click', hide);
     if (go) go.addEventListener('click', function() {
         // with no address to open (an older core whose check failed names no page), say where the installer comes from in words, never nothing
-        var target = m.dataset.url; if (!target) { hide(); toast("Download the newest Waypoint_Setup.exe from Waypoint's releases page. Then close Waypoint, run it, and open Waypoint again."); return; }
+        var target = m.dataset.url; if (!target) { hide(); toast("Download the newest Waypoint_Setup.exe from Waypoint's releases page, github.com/ImmuneMoon/Waypoint/releases. Then close Waypoint, run it, and open Waypoint again."); return; }
         fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
             .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run the Waypoint_Setup.exe you just downloaded (never one from anywhere else), and open Waypoint again.'); })
             .catch(function() { hide(); toast('Open this in a browser: ' + target); });

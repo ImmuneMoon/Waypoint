@@ -1,5 +1,6 @@
 /* Build a Waypoint release: app zip + checksum + signature + manifest + installer + its signature + the site's signed list,
-   then (optionally) publish it on Waypoint's own website, and during the changeover on GitHub too.
+   then publish it as a GitHub Release (--github, while installs read GitHub: 1.6.4's updater.js UPDATE_SOURCE is 'github'), or,
+   once installs read Waypoint's own website, on the website with GitHub beside it (--publish --github).
 
    Usage:
      node tools/release.js                    build into dist/<version>/ and print what to publish
@@ -27,8 +28,9 @@
    later, once the source is 'site' and a code-signing certificate exists.
 
    Reads the version from system/resources/app/package.json and the release notes from the top section of WHATSNEW.txt,
-   which must be this version's section (the build is refused otherwise, before it writes anything). From 1.6.4 an install
-   reads its updates from Waypoint's own website (main.js UPDATE_SITE): the build writes dist/<version>/envelope.json, the
+   which must be this version's section (the build is refused otherwise, before it writes anything). An install made for the
+   website (updater.js UPDATE_SOURCE 'site', which 1.6.4 does not ship yet) reads its updates from Waypoint's own website
+   (main.js UPDATE_SITE): the build writes dist/<version>/envelope.json, the
    signed list the site serves (tools/sitepub.js: the manifest of the zip and the installer, each with its address on the
    download host, its size, digest and own signature, the notes as plain text and the page that shows them,
    https://waypointvtt.com/whats-new#<version>, signed with Ed25519 over "waypoint-manifest\n" and its text), reads it back at
@@ -111,6 +113,9 @@ const OPTIONS = ['--publish', '--github', '--notes-only'];
 const PUBLISH = process.argv.includes('--publish');   // 1.6.4: put the files and the signed list on Waypoint's download host, and wake the website
 const GITHUB = process.argv.includes('--github');     // with --publish: the GitHub Release too; alone: the GitHub-only release through gh (GH_ONLY)
 const GH_ONLY = GITHUB && !PUBLISH;                   // while installs read GitHub (updater.js UPDATE_SOURCE 'github'): build, then gh release
+// Notes still marked as a draft for Fulllion (a heading with [DRAFT], or "(draft for ...") are never published (the review of
+// 2026-11-25: --github makes them the GitHub Release's body in one command). A plain build of a candidate may still carry them.
+const DRAFT_MARK = /\[DRAFT\]|\(draft for /i;
 const NOTES_ONLY = process.argv.includes('--notes-only');   // just regenerate RELEASE_NOTES.md
 const SIGNTOOL = process.env.WAYPOINT_SIGNTOOL;
 const sitepub = require('./sitepub.js');
@@ -228,6 +233,8 @@ if (!NOTES_ONLY && !RESUME) {
     let wn = ''; try { wn = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8'); } catch (e) { wn = ''; }
     const top = sitepub.topVersion(wn);
     if (top !== VERSION) { console.error('Not built: WHATSNEW.txt\'s newest section is ' + (top ? 'for ' + top : 'missing') + ', not for this release (' + VERSION + '): write its notes first, under a heading WAYPOINT ' + VERSION + '.'); process.exit(1); }
+    const topText = wn.replace(/\r\n/g, '\n').split(/\n(?=WAYPOINT (?:VTT )?\d)/)[0] || '';
+    if ((GH_ONLY || PUBLISH) && DRAFT_MARK.test(topText)) { console.error('Not built: WHATSNEW.txt\'s newest section is still marked as a draft (' + (topText.split('\n').find(l => DRAFT_MARK.test(l)) || '').trim().slice(0, 120) + '): the notes a release shows are its final words. Take the draft marks out, in system/app/assets/whatsnew.txt too, then run again.'); process.exit(1); }
     let wa = null; try { wa = fs.readFileSync(path.join(SYSTEM, 'app', 'assets', 'whatsnew.txt'), 'utf8'); } catch (e) { wa = null; }
     if (wa === null || sitepub.topSection(wa) !== sitepub.topSection(wn)) {
         const at = wa === null ? null : sitepub.topVersion(wa);
@@ -593,11 +600,22 @@ function ghArg(a) {
     if (/["%!$`^\r\n]/.test(s)) throw new Error('Not published to GitHub: an argument for gh holds a character the shell would read (' + s.slice(0, 80) + ').');
     return '"' + s + '"';
 }
+// gh is held to github.com whatever this machine's environment says (the review of 2026-11-25): GH_HOST would send every gh api
+// call and every --repo with no host to a GitHub Enterprise host, where installs never look, and GH_REPO and the enterprise
+// tokens have no business here, nor GH_TOKEN, which would publish under a token rather than gh's own sign-in. So gh is handed CHILD_ENV less those five, every api call names --hostname github.com and every
+// release call names the repository as github.com/<repo>.
+const GH_ENV = (() => {
+    const e = Object.assign({}, CHILD_ENV);
+    for (const k of Object.keys(e)) if (/^(GH_HOST|GH_REPO|GH_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)$/i.test(k)) delete e[k];   // GH_TOKEN too: gh uses the sign-in it keeps itself (gh auth login), never a token from the environment
+    return e;
+})();
+const GH_REPO_ARG = 'github.com/' + REPO;
+const ghApi = p => ['api', '--hostname', 'github.com', p];
 // Run gh with these arguments. Answers { ok, out }: ok false where gh could not be run or answered with an error. Nothing gh says
 // is printed here (gh auth status names the account and a masked token); a caller says what it means in its own words.
 function gh(args) {
     const cmd = 'gh ' + args.map(ghArg).join(' ');   // a refusal of an argument is thrown here, never read as gh failing
-    try { return { ok: true, out: execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], env: CHILD_ENV, encoding: 'utf8', timeout: 120000 }) }; }
+    try { return { ok: true, out: execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], env: GH_ENV, encoding: 'utf8', timeout: 120000 }) }; }
     catch (e) { return { ok: false, out: String((e && e.stdout) || '') }; }
 }
 function ghJson(args, what) {
@@ -609,46 +627,103 @@ function ghJson(args, what) {
 // it holds neither, else one plain line. matching-refs answers every tag that begins with the name, so the exact ref is looked for.
 function ghTaken() {
     for (const t of [VERSION, 'v' + VERSION]) {
-        const r = ghJson(['api', 'repos/' + REPO + '/git/matching-refs/tags/' + t], 'about its tags');
+        const r = ghJson(ghApi('repos/' + REPO + '/git/matching-refs/tags/' + t), 'about its tags');
         if (r.why) return r.why;
         if (!Array.isArray(r.json)) return 'GitHub\'s answer about its tags could not be read';
         if (r.json.some(x => x && x.ref === 'refs/tags/' + t)) return 'the tag ' + t + ' is already on GitHub (' + REPO + '): a published version is never made again. Build the next version.';
     }
-    const rels = ghJson(['api', 'repos/' + REPO + '/releases?per_page=100'], 'about its releases');
+    const rels = ghJson(ghApi('repos/' + REPO + '/releases?per_page=100'), 'about its releases');
     if (rels.why) return rels.why;
     if (!Array.isArray(rels.json)) return 'GitHub\'s answer about its releases could not be read';
     const old = rels.json.find(x => x && (x.tag_name === VERSION || x.tag_name === 'v' + VERSION));
-    if (old) return old.draft ? 'a draft release of ' + VERSION + ' is on GitHub already (an earlier run stopped part way). Delete it on GitHub, or with gh release delete ' + VERSION + ' --repo ' + REPO + ', and run again.'
-        : 'a release of ' + VERSION + ' is on GitHub already (' + REPO + '). Build the next version.';
+    if (old) return old.draft ? 'a draft release of ' + VERSION + ' is on GitHub already (an earlier run stopped part way). Delete it on GitHub, or with gh release delete ' + VERSION + ' --repo ' + GH_REPO_ARG + ', and run again.'
+        : 'a release of ' + VERSION + ' is on GitHub already (' + REPO + '). Build the next version.';   // the hints name github.com/<repo>, so following one acts on github.com whatever GH_HOST says
     return null;
 }
-// Before anything is built: gh is there, signed in, and GitHub holds nothing of this version. Each refusal is one plain line, exit 1.
+/* The commit a release is tagged at (the review of 2026-11-25): gh release create with no --target tags the default branch's head
+   on GitHub, which may be a commit that is not what this run builds. So the release names its commit, this checkout's HEAD, and
+   is made only where that very commit is the head of the repository's default branch on GitHub (pushed, nothing newer there)
+   and the checkout holds no change of a tracked file, so the tag, the "Source code" archives and the six assets are one source.
+   Answers { sha } or { why }. git is asked here, read only; gh asks GitHub. */
+function ghHead() {
+    let sha = '', dirty = '';
+    try { sha = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: GH_ENV }).trim(); } catch (e) { sha = ''; }
+    if (!/^[0-9a-f]{40}$/.test(sha)) return { why: 'this folder is no git checkout whose commit can be read (git rev-parse HEAD), so the release could not name the commit it is made from' };
+    dirty = ghDirty();
+    if (dirty === null) return { why: 'git could not say whether the checkout holds changes (git status)' };
+    if (dirty) return { why: 'the checkout holds changes not committed (' + dirty.split('\n').length + ' file' + (dirty.split('\n').length === 1 ? '' : 's') + ', the first ' + dirty.split('\n')[0].slice(3, 80) + '): commit them and push main, so the release is made from the commit GitHub holds' };
+    const repo = ghJson(ghApi('repos/' + REPO), 'about the repository');
+    if (repo.why) return { why: repo.why };
+    const branch = repo.json && typeof repo.json.default_branch === 'string' && /^[A-Za-z0-9._\/-]{1,100}$/.test(repo.json.default_branch) ? repo.json.default_branch : '';
+    if (!branch) return { why: 'GitHub\'s answer about the repository named no default branch' };
+    const head = ghJson(ghApi('repos/' + REPO + '/branches/' + branch), 'about its ' + branch + ' branch');
+    if (head.why) return { why: head.why };
+    const at = head.json && head.json.commit && typeof head.json.commit.sha === 'string' ? head.json.commit.sha : '';
+    if (at !== sha) return { why: 'this checkout is at ' + sha.slice(0, 8) + ', but ' + branch + ' on GitHub is at ' + (at ? at.slice(0, 8) : 'an unknown commit') + ': push this commit to ' + branch + ' (and pull anything newer first), so the release is tagged at what this run builds' };
+    return { sha: sha };
+}
+/* What the checkout holds that its commit does not, as git status's short lines, '' for nothing, null where git could not say: every
+   tracked file, and the untracked files of what the build stages (GH_STAGE_TOP and system/; a git-ignored path such as
+   system/userdata or system/app/private is not listed), since a file staged but never committed would ship in the zip and the
+   installer while the tag and its source archives lack it (the review of 2026-11-25). */
+// The files the stage takes from the top, as STAGE_FILES (inside the run, not yet set when ghBefore asks) names them; updatercheck
+// holds the two lists to each other
+const GH_STAGE_TOP = ['Waypoint.exe', 'license.txt', 'README.md', 'WHATSNEW.txt', 'installer.iss'];
+function ghDirty() {
+    const run = args => execFileSync('git', ['-C', ROOT].concat(args), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: GH_ENV }).replace(/\s+$/, '');
+    try {
+        const tracked = run(['status', '--porcelain', '--untracked-files=no']);
+        const loose = run(['status', '--porcelain', '--untracked-files=all', '--'].concat(GH_STAGE_TOP, ['system'])).split('\n').filter(l => /^\?\? /.test(l)).join('\n');
+        return [tracked, loose].filter(Boolean).join('\n');
+    } catch (e) { return null; }
+}
+let GH_SHA = null;   // the commit ghBefore found, which ghPublish tags the release at once GitHub still names it
+// Before anything is built: gh is there, signed in, GitHub holds nothing of this version, and this checkout is the commit main
+// holds on GitHub. Each refusal is one plain line, exit 1.
 function ghBefore() {
     const refuse = why => { console.error('Not built: ' + why); process.exit(1); };
     if (!gh(['--version']).ok) refuse('--github publishes through the GitHub command line tool (gh), which could not be run here. Install it (https://cli.github.com) and sign in with gh auth login.');
     if (!gh(['auth', 'status', '--hostname', 'github.com']).ok) refuse('gh is not signed in to github.com. Sign in with gh auth login, then run again.');
     const taken = ghTaken();
     if (taken) refuse(taken);
+    const hd = ghHead();
+    if (hd.why) refuse(hd.why + '.');
+    GH_SHA = hd.sha;
 }
 // After the build: the GitHub Release, draft first, then the six assets, then published. A step that fails says where it stopped.
 function ghPublish(dist, assets) {
     const taken = ghTaken();   // asked again, first: the build took a while
     if (taken) throw new Error('Not published to GitHub: ' + taken);
+    if (!GH_SHA) throw new Error('Not published to GitHub: the commit to tag was never found.');
+    {   // what the build wrote (version.json, the README's release line) must already be what the commit holds, or the tag would carry
+        // other words than the zip: the build changed it, so it is committed and pushed first (run a plain build, commit, push)
+        const now = ghDirty();
+        if (now === null) throw new Error('Not published to GitHub: git could not say whether the build changed the checkout (git status).');
+        if (now) throw new Error('Not published to GitHub: the build changed ' + now.split('\n').map(l => l.slice(3)).slice(0, 3).join(', ') + ', which the commit does not hold. Commit it, push main, and run again. Nothing was published.');
+    }
+    {   // the default branch asked again: something pushed during the build would leave the tag behind it
+        const repo = ghJson(ghApi('repos/' + REPO), 'about the repository'), b = repo.json && repo.json.default_branch;
+        const head = repo.why || typeof b !== 'string' ? null : ghJson(ghApi('repos/' + REPO + '/branches/' + b), 'about its ' + b + ' branch');
+        const why = repo.why || (typeof b !== 'string' ? 'GitHub\'s answer about the repository named no default branch' : head && head.why);
+        if (why) throw new Error('Not published to GitHub: ' + why + '. Nothing was published: run again.');
+        const at = head && head.json && head.json.commit ? head.json.commit.sha : '';
+        if (at !== GH_SHA) throw new Error('Not published to GitHub: ' + (typeof b === 'string' ? b : 'the default branch') + ' on GitHub is no longer at ' + GH_SHA.slice(0, 8) + ', the commit this run built. Nothing was published: run again.');
+    }
     const missing = assets.filter(f => !fs.existsSync(path.join(dist, f)));
     if (missing.length) throw new Error('Not published to GitHub: ' + missing.join(', ') + ' missing from ' + dist + '.');   // never a release without its signatures: no install would take it
     const notesFile = path.join(dist, 'RELEASE_NOTES.md');
     if (!fs.existsSync(notesFile)) throw new Error('Not published to GitHub: RELEASE_NOTES.md is missing from ' + dist + '.');
     const title = 'Waypoint VTT Alpha ' + VERSION;
-    console.log('\nCreating release ' + VERSION + ' on ' + REPO + ' (a draft until its assets are up)');
-    if (!gh(['release', 'create', VERSION, '--repo', REPO, '--draft', '--title', title, '--notes-file', notesFile]).ok) throw new Error('Not published to GitHub: gh could not make the draft release of ' + VERSION + '. Nothing was published.');
-    const leftDraft = ' The draft is left on GitHub, unseen by installs: delete it (gh release delete ' + VERSION + ' --repo ' + REPO + ') and run again.';
+    console.log('\nCreating release ' + VERSION + ' on ' + REPO + ' at ' + GH_SHA.slice(0, 8) + ' (a draft until its assets are up)');
+    if (!gh(['release', 'create', VERSION, '--repo', GH_REPO_ARG, '--target', GH_SHA, '--draft', '--title', title, '--notes-file', notesFile]).ok) throw new Error('Not published to GitHub: gh could not make the draft release of ' + VERSION + '. Nothing was published.');
+    const leftDraft = ' The draft is left on GitHub, unseen by installs: delete it (gh release delete ' + VERSION + ' --repo ' + GH_REPO_ARG + ') and run again.';
     console.log('Uploading the six assets: ' + assets.join(', '));
-    if (!gh(['release', 'upload', VERSION, '--repo', REPO].concat(assets.map(f => path.join(dist, f)))).ok) throw new Error('Not published to GitHub: gh could not upload the assets.' + leftDraft);
-    const seen = ghJson(['release', 'view', VERSION, '--repo', REPO, '--json', 'assets,isDraft'], 'about the draft');
+    if (!gh(['release', 'upload', VERSION, '--repo', GH_REPO_ARG].concat(assets.map(f => path.join(dist, f)))).ok) throw new Error('Not published to GitHub: gh could not upload the assets.' + leftDraft);
+    const seen = ghJson(['release', 'view', VERSION, '--repo', GH_REPO_ARG, '--json', 'assets,isDraft'], 'about the draft');
     const names = (seen.json && Array.isArray(seen.json.assets) ? seen.json.assets : []).map(a => a && a.name);
     const lack = assets.filter(f => names.indexOf(f) < 0);
     if (seen.why || lack.length) throw new Error('Not published to GitHub: the draft does not hold ' + (lack.length ? lack.join(', ') : 'what was uploaded') + '.' + leftDraft);
-    if (!gh(['release', 'edit', VERSION, '--repo', REPO, '--draft=false', '--prerelease=false']).ok) throw new Error('Not published to GitHub: gh could not publish the draft, which holds its six assets.' + ' Publish it on GitHub by hand, or run gh release edit ' + VERSION + ' --repo ' + REPO + ' --draft=false.');
+    if (!gh(['release', 'edit', VERSION, '--repo', GH_REPO_ARG, '--draft=false', '--prerelease=false', '--latest']).ok) throw new Error('Not published to GitHub: gh could not publish the draft, which holds its six assets.' + ' Publish it on GitHub by hand, or run gh release edit ' + VERSION + ' --repo ' + GH_REPO_ARG + ' --draft=false --latest.');
     console.log('Published on GitHub: https://github.com/' + REPO + '/releases/tag/' + VERSION);
     console.log('Now check it as an install reads it: node tools/ghlive.js');
 }

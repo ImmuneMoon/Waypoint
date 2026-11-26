@@ -1,9 +1,9 @@
 const { app, BrowserWindow, shell } = require('electron');
 
 // ---- self-update ----
-// Releases come from Waypoint's own website (1.6.4; the owner, 2026-11-16: "Private, updates from
-// waypointvtt.com"): the signed list at <site>/api/updates/latest, the files on the download host beside
-// it (updater.js reads both, and fetches from no other address). The app checks on launch and from Settings;
+// Releases are read from GitHub while updater.js UPDATE_SOURCE is 'github', as 1.6.4 ships, and from Waypoint's own website
+// once it is 'site' (the owner, 2026-11-16: "Private, updates from waypointvtt.com"): there the signed list at
+// <site>/api/updates/latest and the files on the download host beside it (updater.js reads both, and fetches from no other address). The app checks on launch and from Settings;
 // updates of the front end apply in place, and an update that needs a newer shell is fetched, checked and
 // run by the shell itself where this copy was put there by the installer, with the walk-through in the
 // browser as the fallback. Until 1.6.3 the releases were read from a public GitHub repository, and 1.6.4 still reads

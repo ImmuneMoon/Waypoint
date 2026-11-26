@@ -5308,6 +5308,7 @@ if (mode === 'samples') {
     const b1 = mkBar(), made1 = titleRun(true, 'Waypoint VTT: Stream', b1), made2 = titleRun(true, 'Waypoint VTT: Stream', b1), b3 = mkBar(), made3 = titleRun(false, 'Waypoint VTT', b3);
     const b4 = mkBar(); titleRun(true, 'A', b4); titleRun(true, 'B', b4);
     const sOf = (sel, prop) => declOf(sel, prop);
+    const trkFallback = v => { const m = /^var\(--streamtrk-top, (.*)\)$/.exec(String(v || '').trim()); return m ? m[1] : null; };   // the stream window's trackers: the style sheet's own place behind the measured one
     check('1.6.4, the stream window has the window bar too, the app\'s icon and its title in the strip: barTitle makes the icon (icon.ico, 16 px) and a span of the title\'s words once, by name, and sets the words only when they change, only in the stream window; the strip\'s title is drawn on one line clear of the system\'s buttons, takes no press so the strip still drags the window, and the stream bar, the trackers strip, a video shown and a scene stand under the strip, with nothing moved at --winbar 0',
         made1.length === 3 && b1.kids.length === 1 && b1.kids[0].className === 'winbar-title' && b1.kids[0].kids.length === 2
         && b1.kids[0].kids[0].tag === 'img' && b1.kids[0].kids[0].className === 'winbar-icon' && b1.kids[0].kids[0].src === 'icon.ico' && b1.kids[0].kids[0].alt === ''
@@ -5316,7 +5317,7 @@ if (mode === 'samples') {
         && /#winBar \.winbar-icon \{[^}]*width: 16px; height: 16px;/.test(cssW) && /#winBar \.winbar-words \{[^}]*text-overflow: ellipsis;/.test(cssW)
         && /#winBar \.winbar-title \{[^}]*pointer-events: none;[^}]*\}/.test(cssW) && /#winBar \.winbar-title \{[^}]*padding: 0 150px 0 calc\(env\(titlebar-area-x, 0px\) \+ 9px\);[^}]*white-space: nowrap;/.test(cssW)
         && wb.includes('    var bar = barEl(); if (!bar) return;\n    barTitle(bar);')
-        && pxAt(sOf('body.stream-mode #trkStrip', 'top'), 0) === 10 && pxAt(sOf('body.stream-mode #trkStrip', 'top'), 26) === 36
+        && pxAt(trkFallback(sOf('body.stream-mode #trkStrip', 'top')), 0) === 10 && pxAt(trkFallback(sOf('body.stream-mode #trkStrip', 'top')), 26) === 36   /* 1.6.4 (the hand test of 2026-11-25), moved on purpose: stream.js trkPlace measures the trackers' place under the stream bar, and this is the place until it has (videocheck runs trkPlace) */
         && JSON.stringify(pxAt(sOf('#streamVideo', 'inset'), 0)) === '[0,0,0,0]' && JSON.stringify(pxAt(sOf('#streamVideo', 'inset'), 26)) === '[26,0,0,0]'
         && JSON.stringify(pxAt(sOf('#streamScene', 'inset'), 26)) === '[26,0,0,0]' && /#streamBar \{\n\s*position: fixed; top: calc\(8px \+ var\(--winbar\)\);/.test(cssW),
         JSON.stringify([made1.length, made2.length, made3.length, b4.kids.map(k => k.kids.map(x => x.textContent)), sOf('body.stream-mode #trkStrip', 'top'), sOf('#streamVideo', 'inset')]));

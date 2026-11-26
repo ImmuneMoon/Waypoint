@@ -1354,8 +1354,11 @@
   #streamSceneCap { color: var(--ink); font-size: 15px; max-width: 80vw; text-align: center; white-space: pre-wrap; text-shadow: 0 1px 3px #000; }
   #streamVideoCap { position: absolute; left: 12px; bottom: 10px; font-size: 13px; color: rgba(233,233,240,0.75); text-shadow: 0 1px 3px #000; pointer-events: none; }
   #streamBar .stream-grp { display: flex; align-items: center; gap: 7px; min-width: 0; }
-  #streamBar label { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
-  #streamBar .stream-fight { color: var(--gold); font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; padding: 3px 10px; border: 1px solid var(--gold); border-radius: 12px; background: rgba(224,165,79,0.08); }   /* 1.6.2 (the owner: "Round, turn and names") */
+  /* 1.6.4 (the hand test of 2026-11-25: the bar's captions near-invisible in Ink light, pale on white): a caption reads halfway between the look's
+     ink and its dim, so it stays quieter than a list's own words and still reads at 9:1 or more on the bar's ground in every look, dark and light
+     (videocheck holds each caption, each list's words, the fight's pill and the fold arrow to a contrast against the bar) */
+  #streamBar label { color: color-mix(in srgb, var(--ink) 50%, var(--dim)); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  #streamBar .stream-fight { color: color-mix(in srgb, var(--gold) 75%, var(--ink)); font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; padding: 3px 10px; border: 1px solid var(--gold); border-radius: 12px; background: rgba(224,165,79,0.08); }   /* 1.6.2 (the owner: "Round, turn and names"); 1.6.4 (the hand test of 2026-11-25): its words a quarter of the way from the gold to the look's ink, so they read at 4.5:1 or more on the light looks' white too, the edge still the gold */
   #streamBar .stream-fight[hidden] { display: none; }
   #streamNames { position: absolute; inset: 0; pointer-events: none; z-index: 15985; }
   #streamNames .stream-name { position: absolute; transform: translateX(-50%); font-size: 12px; line-height: 1.2; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.65); color: #fff; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
@@ -1368,8 +1371,7 @@
   #streamBar select:focus-visible { box-shadow: 0 0 0 2px rgba(224,165,79,0.25); }
   #streamBar { flex-wrap: wrap; max-width: calc(100vw - 16px); box-sizing: border-box; }   /* 1.6.2: the idle follow's two lists: the bar wraps in a narrow window */
   #streamBar #streamIdle { max-width: 220px; } #streamBar #streamIdleSecs { max-width: 150px; }
-  #streamBar select:disabled { opacity: 0.45; cursor: default; }
-  #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
+  #streamBar select:disabled { color: var(--dim); border-style: dashed; cursor: default; }   /* 1.6.4 (the hand test of 2026-11-25, "after 30 seconds" near-invisible in Ink light): a list that is off says so by its dimmer words and a dashed edge, never by an opacity that took its words under a readable contrast */  #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
   #streamBar .stream-dot { flex: none; }
   #streamBar .tool { flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 11px; color: var(--dim); }
   #streamBar .tool:hover, #streamBar .tool:focus-visible { color: var(--ink); background: var(--panel2); outline: none; }
@@ -4358,7 +4360,7 @@
   .chat-trun-open { padding: 1px 8px; font-size: 12px; }
   /* 1.6.0, backlog 29: the table trackers' strip, a tracker's menu and its form (trackers.js) */
   #trkStrip { position: absolute; top: 26px; left: var(--trkleft, 232px); z-index: 8990; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: min(620px, var(--trkwide, calc(100% - 330px))); pointer-events: auto; }   /* trackers.js place: beside the minimap or in its place, clear of the zoom box */
-  body.stream-mode #trkStrip { top: calc(10px + var(--winbar)); left: 84px; }   /* clear of the stream bar folded to its dot and arrow (the bar opened lies over it, as before) */
+  body.stream-mode #trkStrip { top: var(--streamtrk-top, calc(10px + var(--winbar))); left: var(--streamtrk-left, 84px); }   /* 1.6.4 (the hand test of 2026-11-25): under the stream bar opened and beside it folded, where stream.js trkPlace measures them; the old place clear of the folded bar until it has */
   body.row-hidden:not(.tour-on):not(.stream-mode) #trkStrip { top: calc(var(--rowbar) + 32px); }
   body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: max(calc(var(--rowbar) + 74px), calc(var(--trkbot, 0px) + 6px)); }   /* the viewing of 2026-11-09: below the trackers bar */
   #trkStrip .trk-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; box-sizing: border-box; padding: 2px 6px 2px 7px; border: 1px solid var(--edge); border-radius: 13px; background: var(--panel2); color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.35); font: inherit; font-size: 12px; white-space: nowrap; }

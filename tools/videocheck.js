@@ -512,6 +512,94 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 && /if \(e\.data && e\.data\.type === 'save-done'\) saveSeen\+\+;/.test(sj25) && /if \(res\.ok && typeof saveTold === 'function'\) saveTold\(\);/.test(read('system/app/scripts/io.js')), j(steps));
         })().catch(e => check('1.6.3 (finding 25) the stream reading checks ran', false, String(e && e.stack || e)));
     }
+    // 1.6.4 (the hand test of 2026-11-25: in the stream window the trackers "sit UNDER the stream bar; only their bottom edge shows below it"):
+    // stream.js trkSpot, trkPlace and trkWire, sliced by the streamtrk markers and run for real on rectangles and on a page of plain objects
+    {
+        const sjK = read('system/app/scripts/stream.js'), cssK = read('system/app/style.css');
+        const mkStyle = () => { const p = {}, log = []; return { p, log, getPropertyValue: k => p[k] || '', setProperty: (k, v) => { log.push('set ' + k); p[k] = String(v); }, removeProperty: k => { log.push('rm ' + k); delete p[k]; } }; };
+        const rectOf = (l, t, w, h) => ({ left: l, top: t, right: l + w, bottom: t + h, width: w, height: h });
+        const page = { bar: rectOf(8, 34, 841, 76), host: rectOf(0, 26, 857, 930), folded: false };
+        const bar = { classList: { contains: c => c === 'folded' && page.folded }, getBoundingClientRect: () => page.bar };
+        const tk = { style: mkStyle(), offsetParent: null, parentElement: { getBoundingClientRect: () => page.host } };
+        const doc = { getElementById: id => id === 'streamBar' ? bar : id === 'trkStrip' ? tk : null };
+        const frames = [], observed = [], heard = {};
+        const raf = f => { frames.push(f); return frames.length; };
+        const win = { ResizeObserver: function(cb) { this.observe = el => observed.push({ el, cb }); }, addEventListener: (t, f) => { heard[t] = f; }, navigator: { windowControlsOverlay: { addEventListener: (t, f) => { heard[t] = f; } } } };
+        const api = new Function('bar', 'window', 'document', 'requestAnimationFrame', sliceOf(sjK, 'streamtrk') + '\nreturn { trkSpot, trkPlace, trkWire, TRK_GAP };')(bar, win, doc, raf);
+        // the trackers' box, the size the bar draws two of them at, and whether it lies under the stream bar anywhere
+        const over = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        const trkAt = (sp, host, w, h) => rectOf(host.left + sp.left, host.top + sp.top, w, h);
+        let clear = true; const seen = [];
+        [[1280, 38], [857, 76], [520, 114], [300, 152]].forEach(([w, h]) => {   // a wider window keeps the bar on one row, a narrower one wraps it onto two, three and four
+            [false, true].forEach(f => {
+                const b = f ? rectOf(8, 34, 58, 38) : rectOf(8, 34, w - 16, h), sp = api.trkSpot(b, page.host, f), box = trkAt(sp, page.host, f ? 300 : Math.min(620, w - 24), 26);
+                seen.push([w, f, sp.top, sp.left]);
+                if (over(box, b)) clear = false;
+                if (!f && box.top !== b.bottom + api.TRK_GAP) clear = false;   // under the bar's last row, by the gap
+                if (f && (box.top !== b.top || box.left !== b.right + api.TRK_GAP)) clear = false;   // beside the dot and the arrow, on their row
+            });
+        });
+        const none = [api.trkSpot(rectOf(0, 0, 0, 0), page.host, false), api.trkSpot(null, page.host, false), api.trkSpot(page.bar, null, false), api.trkSpot({ left: NaN, top: 1, right: 2, bottom: 3 }, page.host, false)];
+        // trkPlace writes the place as the two properties, only where they differ, and takes them off where the bar has no size
+        const r1 = api.trkPlace(doc), p1 = Object.assign({}, tk.style.p), n1 = tk.style.log.length;
+        api.trkPlace(doc); const n2 = tk.style.log.length;
+        page.folded = true; page.bar = rectOf(8, 34, 58, 38); api.trkPlace(doc); const p3 = Object.assign({}, tk.style.p);
+        page.bar = rectOf(0, 0, 0, 0); api.trkPlace(doc); const p4 = Object.assign({}, tk.style.p);
+        // trkWire: the observer, the window's resize and the window bar each ask for a place the next frame, never on the spot, and once however often
+        page.folded = false; page.bar = rectOf(8, 34, 841, 76);
+        api.trkWire(win); const f0 = frames.length;
+        const cb = observed[0] && observed[0].cb; if (cb) { cb(); cb(); } if (heard.resize) heard.resize(); if (heard.geometrychange) heard.geometrychange();
+        const pBefore = Object.assign({}, tk.style.p), fAfter = frames.length;
+        frames.splice(0).forEach(f => f()); const pAfter = Object.assign({}, tk.style.p);
+        const ruleK = /\n  body\.stream-mode #trkStrip \{([^}]*)\}/.exec(cssK);
+        check('1.6.4 (the hand test of 2026-11-25) the stream window\'s trackers stand below the stream bar opened, at its left edge and clear of every row it wraps onto, and beside it folded, level with its dot and arrow, never under it at any width (stream.js trkSpot, trkPlace and trkWire, run for real): the place is written as --streamtrk-top and --streamtrk-left in the trackers\' own box, only where it differs, and taken off where the bar has no size; the observer, the window\'s resize and the window bar each ask for it the next frame, once, never on the spot; the style sheet reads the two with its old place behind them, and only the stream window wires it',
+            clear && none.every(x => x === null) && j(r1) === j({ top: 90, left: 8 }) && p1['--streamtrk-top'] === '90px' && p1['--streamtrk-left'] === '8px' && n2 === n1
+            && p3['--streamtrk-top'] === '8px' && p3['--streamtrk-left'] === '72px' && !('--streamtrk-top' in p4) && !('--streamtrk-left' in p4)
+            && observed.length === 1 && observed[0].el === bar && typeof heard.resize === 'function' && typeof heard.geometrychange === 'function' && f0 === 1 && fAfter === 1
+            && !('--streamtrk-top' in pBefore) && pAfter['--streamtrk-top'] === '90px' && pAfter['--streamtrk-left'] === '8px'
+            && !!ruleK && /top: var\(--streamtrk-top, calc\(10px \+ var\(--winbar\)\)\);/.test(ruleK[1]) && /left: var\(--streamtrk-left, 84px\);/.test(ruleK[1])
+            && sjK.indexOf('\n    trkWire();\n') > sjK.indexOf("document.body.classList.add('stream-mode', 'net-client');") && sjK.indexOf("document.body.classList.add('stream-mode', 'net-client');") > 0
+            && (sjK.match(/trkWire\(\);/g) || []).length === 1,
+            j({ clear, seen, none, r1, p1, n1, n2, p3, p4, f0, fAfter, pBefore, pAfter, rule: ruleK && ruleK[1] }));
+    }
+    // 1.6.4 (the same report: the stream bar's captions "near-invisible, pale on white" in Ink light, and "after 30 seconds" with them): every
+    // part of the bar is read in every look and theme, by the style sheet's own colors (each look's tokens over the app's own and the light
+    // theme's, the bar's rules as written, a color-mix and an opacity worked out as a browser paints them), against the bar's ground. Words are
+    // held to WCAG's 4.5:1 for small text; the captions, 10.5 px capitals, to 7:1, since the tester found 5.4:1 there near-invisible; the fold
+    // arrow, a drawing, to 3:1
+    {
+        const css = read('system/app/style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+        const blockAt = re => { const m = re.exec(css); return m ? m[1] : ''; };
+        const tokensOf = body => { const o = {}; body.replace(/(--[\w-]+)\s*:\s*([^;]+);/g, (_, k, v) => { o[k] = v.trim(); return ''; }); return o; };
+        const root = tokensOf(blockAt(/\n  :root\{([^}]*)\}/)), lightT = tokensOf(blockAt(/\n  html\[data-theme="light"\] \{([^}]*)\}/));
+        const lookT = (look, light) => tokensOf(blockAt(new RegExp('\\nhtml\\[data-look="' + look + '"\\]' + (light ? '\\[data-theme="light"\\]' : ':not\\(\\[data-theme="light"\\]\\)') + ' \\{([^}]*)\\}')));
+        // a rule's declaration as written, the last one of the bar's rules of exactly that selector (as the cascade takes it among equals)
+        const declOf = (sel, prop) => { let v = null; const re = new RegExp('\\n  ' + sel.replace(/[.*+?^${}()|[\]\\#:]/g, '\\$&') + ' \\{([^}]*)\\}', 'g'); let m; while ((m = re.exec(css))) { const d = new RegExp('(?:^|[;\\s])' + prop + '\\s*:\\s*([^;]+)').exec(m[1]); if (d) v = d[1].trim(); } return v; };
+        const parseC = s => { s = String(s).trim(); let m = /^#([0-9a-f]{6})$/i.exec(s); if (m) return [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16)).concat(1); m = /^rgba?\(([^)]*)\)$/.exec(s); if (m) { const p = m[1].split(',').map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; } return null; };
+        const res = (v, T) => { let s = String(v).trim(), n = 0; while (/var\(--[\w-]+\)/.test(s) && n++ < 9) s = s.replace(/var\((--[\w-]+)\)/g, (_, k) => T[k] || 'MISSING'); return s; };
+        const colorOf = (v, T) => { const s = res(v, T), m = /^color-mix\(in srgb, (.+) (\d+)%, (.+)\)$/.exec(s); if (m) { const a = parseC(m[1]), b = parseC(m[3]), p = +m[2] / 100; return a && b ? a.map((x, i) => i < 3 ? x * p + b[i] * (1 - p) : 1) : null; } return parseC(s); };
+        const overC = (top, under) => { const a = top[3]; return [0, 1, 2].map(i => top[i] * a + under[i] * (1 - a)).concat(1); };
+        const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+        const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+        const rows = [], bad = [];
+        ['slate', 'lantern', 'ink'].forEach(look => [false, true].forEach(light => {
+            const T = Object.assign({}, root, light ? lightT : {}, lookT(look, light)), name = look + (light ? ' light' : ' dark');
+            const ground = colorOf(declOf('#streamBar', 'background'), T);
+            const panel = colorOf(declOf('#streamBar select', 'background-color'), T);
+            const parts = [];
+            parts.push(['a caption', colorOf(declOf('#streamBar label', 'color'), T), ground, 7]);
+            parts.push(['a list\'s words', colorOf(declOf('#streamBar select', 'color'), T), panel, 4.5]);
+            const offOp = declOf('#streamBar select:disabled', 'opacity'), offC = colorOf(declOf('#streamBar select:disabled', 'color') || declOf('#streamBar select', 'color'), T);   // a list that is off, as it is painted: its words faded by any opacity over its own ground
+            parts.push(['a list that is off', offC && offOp ? overC(offC.slice(0, 3).concat(+offOp), panel) : offC, panel, 4.5]);
+            const pillBg = colorOf(declOf('#streamBar .stream-fight', 'background'), T);
+            parts.push(['the fight\'s pill', colorOf(declOf('#streamBar .stream-fight', 'color'), T), pillBg && ground ? overC(pillBg, ground) : null, 4.5]);
+            parts.push(['the fold arrow', colorOf(declOf('#streamBar .tool', 'color'), T), ground, 3]);
+            parts.forEach(([what, fg, bg, need]) => { const r = fg && bg ? ratio(fg, bg) : 0; rows.push(name + ': ' + what + ' ' + r.toFixed(2)); if (!(r >= need)) bad.push(name + ': ' + what + ' ' + r.toFixed(2) + ' < ' + need); });
+        }));
+        check('1.6.4 (the hand test of 2026-11-25) every part of the stream bar reads in every look and theme (Slate, Lantern and Ink, each dark and light), worked out from the style sheet\'s own colors: each caption at 7:1 or more on the bar\'s ground, a list\'s words and a list that is off at 4.5:1 or more on its own ground, the fight\'s pill at 4.5:1 on its tint over the bar, the fold arrow at 3:1; the captions take a color halfway between the look\'s ink and its dim, and a list that is off is dimmed by its words and a dashed edge, never by an opacity',
+            rows.length === 30 && bad.length === 0 && /^color-mix\(in srgb, var\(--ink\) 50%, var\(--dim\)\)$/.test(declOf('#streamBar label', 'color') || '') && declOf('#streamBar select:disabled', 'opacity') === null,
+            j(bad.length ? bad : rows));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

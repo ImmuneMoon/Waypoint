@@ -90,6 +90,7 @@ const electron = {
         defaultSession: loose('session', {
             setPermissionRequestHandler: fn => { rec.order.push('permission requests'); rec.ask = fn; },
             setPermissionCheckHandler: fn => { rec.order.push('permission checks'); rec.check = fn; },
+            on: (name, fn) => { rec.order.push('session.on:' + name); (rec.sessionOn = rec.sessionOn || {})[name] = fn; },   // 1.6.4: the session's events (file-system-access-restricted)
             webRequest: loose('webRequest', { onBeforeSendHeaders: (...a) => { rec.order.push('launch header'); rec.hook = a[a.length - 1]; } }),   // the launch secret: what the shell adds to its own windows' requests (reqguard.sendLaunch)
             cookies: loose('cookies', { set: c => { rec.cookies.push(c); return Promise.resolve(); } })
         })
@@ -158,6 +159,7 @@ async function play(plan, port) {
             else if (step.do === 'menu') { const p0 = rec.popups.length; wc.emit('context-menu', ev(), step.params); r = { popups: rec.popups.slice(p0).map(p => p.template), listeners: wc.listenerCount('context-menu') }; }
             else if (step.do === 'devtools') { wc.devOpen = true; wc.emit('devtools-opened'); r = { open: wc.devOpen }; }
             else if (step.do === 'ask') { let granted = 'no handler'; if (rec.ask) rec.ask(step.wc === null ? null : wc, step.perm, g => { granted = g; }, step.noDetails ? undefined : { requestingUrl: step.url, isMainFrame: true }); r = { granted }; }
+            else if (step.do === 'restricted') { const h = rec.sessionOn && rec.sessionOn['file-system-access-restricted']; let answer = 'no handler'; if (h) h({}, { origin: step.origin, path: step.path, isDirectory: false }, v => { answer = v; }); r = { answer };  }   // 1.6.4: a save aimed at a guarded folder
             else if (step.do === 'check') { r = { granted: rec.check ? rec.check(step.wc === null ? null : wc, step.perm, step.origin, {}) : 'no handler' }; }
             else if (step.do === 'http') { r = await request(step, port); r.ext = ext(); }
             else if (step.do === 'state') { r = { menus: rec.menus.length, menu: rec.menus[rec.menus.length - 1], devOpen: contents.map(c => c.devOpen), closed: contents.map(c => c.closed), zoom: contents.map(c => c.zoom) }; }

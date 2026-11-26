@@ -117,6 +117,11 @@ function micOnly(details) {
     return !!t && t.length === 1 && t[0] === 'audio';
 }
 
+// 1.6.4: what a save into a guarded folder is answered (the session's file-system-access-restricted event): 'tryAgain', the save dialog opened
+// again so the person picks another folder. Never 'allow' (the guarded folders hold the app itself and the system's own files), and never
+// 'deny', which the page reads as the person's own Cancel and so says nothing
+function restrictedAnswer(details) { return 'tryAgain'; }
+
 /* ---------- Developer mode ---------- */
 
 // On only when the mirrored settings file says exactly wp_devconsole: 'on' (the page's own switch, Settings > Advanced).
@@ -363,6 +368,12 @@ function install(electron, opts) {
         let from = ''; try { from = origin || (details && details.requestingUrl) || (wc ? wc.getURL() : ''); } catch (e) { from = ''; }
         return permOk(own, perm, from, true);
     });
+    // 1.6.4: a save the page's save dialog (scripts/savefile.js, showSaveFilePicker) aims at a folder the File System Access API guards (the
+    // app's own folders, AppData, Program Files). Electron asks the session what to do and, with nobody listening, never answers, so the page's
+    // save waited for good with nothing said. Answered here, at once: the dialog opens again, so the person picks another folder (restrictedAnswer)
+    if (typeof session.defaultSession.on === 'function') {
+        session.defaultSession.on('file-system-access-restricted', (e, details, cb) => { try { cb(restrictedAnswer(details)); } catch (er) { /* the request is gone */ } });
+    }
 
     setMenu();
     return {
@@ -480,5 +491,5 @@ function scratchSystemDir(ownSystem, named) {
     return path.relative(real(ownSystem), real(chosen)) === '' ? null : chosen;
 }
 
-module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
+module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk, restrictedAnswer,
     devModeOf, zoomOf, WINBAR_H, barColor, barStart, barPageOf, barTarget, menuTemplate, devToolsKey, zoomInKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };

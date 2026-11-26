@@ -13,7 +13,10 @@
    "{PORT}" for its port:
      { do: 'wc', url }                          a new window's contents (showing url), announced as Electron announces one
      { do: 'url', wc, url }                     the page a window shows is now url
-     { do: 'open', wc, url }                    a page there asks for a new window          -> { action, width, height, ext }
+     { do: 'open', wc, url }                    a page there asks for a new window          -> { action, width, height, ext, titleBarStyle, titleBarOverlay }
+     { do: 'child', wc, url }                   the same, and where it is allowed the window is made from the options handed back, shows url,
+                                                and its opener is told (did-create-window), as Electron does -> { action, win, wc } (1.6.4)
+     { do: 'closewin', win }                    a window made by a 'child' step (or the main one, 0) is closed  -> { closed } (1.6.4)
      { do: 'nav', wc, url, old }                a page there starts to navigate (old: the address as the second argument only) -> { prevented, ext }
      { do: 'webview', wc }                      a page there attaches a webview             -> { prevented }
      { do: 'key', wc, input }                   a key goes down there                       -> { prevented }
@@ -33,7 +36,7 @@ if (!process.argv[2] || !(base > 1024) || !planFile) { console.error('usage: nod
 const appPath = path.join(root, 'system', 'resources', 'app');
 const mainJs = path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js');
 
-const rec = { order: [], ext: [], menus: [], windows: [], loads: [], cookies: [], popups: [], overlays: [], quit: 0, unknown: [], errors: [] };
+const rec = { order: [], ext: [], menus: [], windows: [], loads: [], cookies: [], popups: [], overlays: [], barSets: [], quit: 0, unknown: [], errors: [] };
 const contents = [];
 function newContents() {
     const wc = new EventEmitter();
@@ -66,13 +69,15 @@ class BrowserWindow extends EventEmitter {   // 1.6.3: an emitter, since main.js
     constructor(opts) {
         super();
         rec.order.push('new BrowserWindow'); rec.windows.push(opts);
+        this.n = wins.length; wins.push(this); this.gone = false;   // 1.6.4: its place among the windows made (0 the main window), and whether it was closed
         this.webContents = newContents();
         app.emit('web-contents-created', {}, this.webContents);   // as Electron does, while the window is being made
     }
     loadURL(u) { rec.order.push('loadURL'); rec.loads.push(u); this.webContents.url = u; return Promise.resolve(); }
-    isDestroyed() { return false; }
-    setTitleBarOverlay(o) { rec.overlays.push(o); }   // 1.6.4: the window bar's colors, as POST /api/winbar sets them
+    isDestroyed() { return this.gone; }
+    setTitleBarOverlay(o) { rec.overlays.push(o); rec.barSets.push({ win: this.n, color: o && o.color, symbolColor: o && o.symbolColor }); }   // 1.6.4: the window bar's colors, as POST /api/winbar sets them, and on which window
 }
+const wins = [];   // 1.6.4: every BrowserWindow made, in order
 const electron = {
     app: loose('app', app),
     BrowserWindow,
@@ -136,7 +141,17 @@ async function play(plan, port) {
         try {
             if (step.do === 'url') { wc.url = step.url || ''; r = { url: wc.url }; }
             else if (step.do === 'wc') { const w = newContents(); w.url = step.url || ''; app.emit('web-contents-created', {}, w); r = { wc: contents.length - 1 }; }
-            else if (step.do === 'open') { const a = wc.openHandler ? wc.openHandler({ url: step.url, frameName: '', features: '', disposition: 'new-window' }) : { action: 'no handler' }; const o = (a && a.overrideBrowserWindowOptions) || {}; r = { action: a && a.action, width: o.width, height: o.height, webPreferences: o.webPreferences, ext: ext() }; }
+            else if (step.do === 'open') { const a = wc.openHandler ? wc.openHandler({ url: step.url, frameName: '', features: '', disposition: 'new-window' }) : { action: 'no handler' }; const o = (a && a.overrideBrowserWindowOptions) || {}; r = { action: a && a.action, width: o.width, height: o.height, webPreferences: o.webPreferences, ext: ext(), titleBarStyle: o.titleBarStyle, titleBarOverlay: o.titleBarOverlay }; }
+            else if (step.do === 'child') {   // 1.6.4: as Electron makes an allowed window: from the options handed back, then the opener told
+                const a = wc.openHandler ? wc.openHandler({ url: step.url, frameName: '', features: '', disposition: 'new-window' }) : { action: 'no handler' };
+                if (a && a.action === 'allow') {
+                    const o = a.overrideBrowserWindowOptions || {}, win = new BrowserWindow(o);
+                    win.webContents.url = step.url || '';
+                    wc.emit('did-create-window', win, { url: step.url, frameName: '', options: o, disposition: 'new-window' });
+                    r = { action: 'allow', win: win.n, wc: contents.indexOf(win.webContents) };
+                } else r = { action: a && a.action };
+            }
+            else if (step.do === 'closewin') { const w = wins[step.win]; if (w) { w.gone = true; w.emit('closed'); } r = { closed: !!w }; }
             else if (step.do === 'nav') { const e = ev(); if (!step.old) e.url = step.url; wc.emit('will-navigate', e, step.url); r = { prevented: e.prevented, listeners: wc.listenerCount('will-navigate'), ext: ext() }; }
             else if (step.do === 'webview') { const e = ev(); wc.emit('will-attach-webview', e, {}, {}); r = { prevented: e.prevented, listeners: wc.listenerCount('will-attach-webview') }; }
             else if (step.do === 'key') { const e = ev(); wc.emit('before-input-event', e, step.input); r = { prevented: e.prevented }; }
@@ -160,5 +175,5 @@ async function play(plan, port) {
     const loaded = rec.loads[0] || '', port = parseInt((/:(\d+)$/.exec(loaded) || [])[1], 10) || 0;
     const steps = port ? await play(plan, port) : [];
     console.error = realError;
-    process.stdout.write(JSON.stringify({ started: !!port, port, held: bound.has(port), bound: Array.from(bound), loaded, order: rec.order, windows: rec.windows, menus: rec.menus, overlays: rec.overlays, handlers: contents.map(c => ({ open: typeof c.openHandler === 'function', nav: c.listenerCount('will-navigate'), webview: c.listenerCount('will-attach-webview'), keys: c.listenerCount('before-input-event'), tools: c.listenerCount('devtools-opened'), menu: c.listenerCount('context-menu') })), ask: typeof rec.ask === 'function', check: typeof rec.check === 'function', quit: rec.quit, unknown: rec.unknown, errors: rec.errors, steps }) + '\n', () => process.exit(0));
+    process.stdout.write(JSON.stringify({ started: !!port, port, held: bound.has(port), bound: Array.from(bound), loaded, order: rec.order, windows: rec.windows, menus: rec.menus, overlays: rec.overlays, barSets: rec.barSets, handlers: contents.map(c => ({ open: typeof c.openHandler === 'function', nav: c.listenerCount('will-navigate'), webview: c.listenerCount('will-attach-webview'), keys: c.listenerCount('before-input-event'), tools: c.listenerCount('devtools-opened'), menu: c.listenerCount('context-menu') })), ask: typeof rec.ask === 'function', check: typeof rec.check === 'function', quit: rec.quit, unknown: rec.unknown, errors: rec.errors, steps }) + '\n', () => process.exit(0));
 })();

@@ -44,9 +44,16 @@ const PART_QUERY = /^\?popout=doc:[^&#]*\/part:[A-Za-z0-9_-]{1,64}$/;
 // 1.6.2: a big table edited in a window of its own (/table:<block id> after the item, docpanel.js popOut) is a big box, 1280 by 860, so a
 // table of many columns has room. Only the size: the address is childWindowOk's to judge, as every pop-out's is
 const TABLE_QUERY = /^\?popout=doc:[^&#]*\/table:[A-Za-z0-9_-]{1,64}$/;
-function childWindowOptions(url, icon) {
+// 1.6.4 (Fulllion, 2026-11-25: "the external waypoint windows dont have the integrated window bar the main app has"): a pop-out (a page, a
+// part, a big table, a sheet, Table Chat) has the main window's kind of bar, no title bar of the system's own and its three buttons over the
+// top right corner, on the colors the settings file's theme names (barStart, prefsFile), until its page says its own (POST /api/winbar).
+// The stream window keeps the system's own title bar: streaming software captures it, and the three buttons would show in the capture.
+// prefsFile is the settings file install() is handed; with none the bar starts on the dark theme, as barStart reads a missing file
+function childWindowOptions(url, icon, prefsFile) {
     const u = parseUrl(url), portrait = !!u && /^\?popout=/.test(u.search), part = portrait && PART_QUERY.test(u.search), table = portrait && TABLE_QUERY.test(u.search);
-    return { autoHideMenuBar: true, icon: icon, width: table ? 1280 : part ? 640 : portrait ? 840 : 1280, height: table ? 860 : part ? 760 : portrait ? 1000 : 720, backgroundColor: '#15151c' };
+    const o = { autoHideMenuBar: true, icon: icon, width: table ? 1280 : part ? 640 : portrait ? 840 : 1280, height: table ? 860 : part ? 760 : portrait ? 1000 : 720, backgroundColor: '#15151c' };
+    if (portrait) { const b = barStart(prefsFile); o.titleBarStyle = b.titleBarStyle; o.titleBarOverlay = b.titleBarOverlay; }
+    return o;
 }
 
 // A link that may go to the system browser: a web page or a mail address, never a file, a program or a custom protocol —
@@ -135,7 +142,9 @@ function zoomOf(prefsFile) {
 // three buttons (minimize, maximize, close) over the window's top right corner, and the page draws the strip they stand on in its own colors
 // (style.css #winBar, as tall as the CSS env titlebar-area-height, so a text size never puts the two out of step). The buttons' own ground and
 // ink are set here: barStart picks them by the theme the settings file names before the page has drawn anything, and the page says its colors
-// (scripts/winbar.js, POST /api/winbar) whenever its theme or look changes, read through barColor. Child windows keep their own title bar.
+// (scripts/winbar.js, POST /api/winbar) whenever its theme or look changes, read through barColor. Since 1.6.4's later fold a pop-out has the
+// same kind of bar (childWindowOptions), and its page says its own colors with its own address, so each window's buttons follow its own page
+// (barTarget); the stream window keeps the system's own title bar.
 const WINBAR_H = 26;
 const WINBAR_DARK = Object.freeze({ color: '#1c1c26', symbolColor: '#e9e9f0' }), WINBAR_LIGHT = Object.freeze({ color: '#e6e2d9', symbolColor: '#1f1d24' });   // the top row's own ground and ink in the two themes
 function barHex(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null; }
@@ -149,6 +158,24 @@ function barColor(body) {
 function barStart(prefsFile) {
     const p = prefsOf(prefsFile), light = !!p && Object.prototype.hasOwnProperty.call(p, 'wp_theme') && p.wp_theme === 'light', c = light ? WINBAR_LIGHT : WINBAR_DARK;
     return { titleBarStyle: 'hidden', titleBarOverlay: { color: c.color, symbolColor: c.symbolColor, height: WINBAR_H }, backgroundColor: c.color };
+}
+// 1.6.4: the address a page says with its bar's colors (its own location.href), read only to pick which window's buttons to color. A page of the
+// app's own, exactly (isOwn's rule: its scheme, its name, its port, no user name), handed back as the URL parser writes it so it compares with a
+// window's own address written the same way; anything else (another address, no string, an odd one) is null
+function barPageOf(own, at) { return isOwn(own, at) ? parseUrl(at).href : null; }
+// 1.6.4: which window's buttons a page's colors set, so a pop-out never changes the main window's and the other way round. wins: the windows
+// that have the app's bar, the main window first; main: the main window. An address that is no page of the app's own (or none: a page from
+// before this fold) answers the main window, as every color went to it before. Otherwise the first window there, alive, whose own page is
+// exactly that address, or null where none is (the colors are then set nowhere). The address only picks among these windows, never more
+function barTarget(own, at, wins, main) {
+    const href = barPageOf(own, at);
+    if (!href) return main || null;
+    for (const w of (wins || [])) {
+        let u = '';
+        try { if (!w || w.isDestroyed()) continue; u = String(w.webContents.getURL() || ''); } catch (e) { continue; }
+        if (barPageOf(own, u) === href) return w;
+    }
+    return null;
 }
 
 // Waypoint's own application menu, in place of the runtime's default one (whose Help entries open the runtime's web pages):
@@ -262,11 +289,13 @@ function savesType(mime) {
 // Wire the rules above into Electron. electron: the module (app, session, shell, Menu). opts: { port, prefsFile, icon }.
 // Call it once the app is ready and BEFORE the first window is made, so the main window is covered as every later one is.
 // Returns { own, devMode(), refresh() }: refresh() reads Developer mode again (after the settings file was written),
-// rebuilds the menu when it changed, and closes any open developer tools when it is off.
+// rebuilds the menu when it changed, and closes any open developer tools when it is off. barWindow(at, main) (1.6.4) is the window whose
+// buttons a page's colors set: barTarget over the main window and the pop-outs made with the app's bar.
 function install(electron, opts) {
     const app = electron.app, session = electron.session, shell = electron.shell, Menu = electron.Menu;
     const port = opts.port, own = ownOrigin(port), icon = opts.icon;
     const all = new Set();
+    const bars = new Set();   // 1.6.4: the pop-outs that have the app's bar, while they are open
     let dev = devModeOf(opts.prefsFile), zoom = zoomOf(opts.prefsFile);
     const setZoom = (wc) => { try { let at = String(wc.getURL() || ''); if (at.indexOf('devtools://') !== 0 && !wc.isDestroyed()) wc.setZoomFactor(zoom); } catch (e) { /* gone meanwhile */ } };   // 1.6.2: the text size, on every window of the app's own
 
@@ -282,9 +311,18 @@ function install(electron, opts) {
         // a new window: one of the app's own, or nothing — a web link goes to the system browser instead
         wc.setWindowOpenHandler((details) => {
             const url = urlOf(details);
-            if (childWindowOk(own, url)) return { action: 'allow', overrideBrowserWindowOptions: childWindowOptions(url, icon) };
+            if (childWindowOk(own, url)) return { action: 'allow', overrideBrowserWindowOptions: childWindowOptions(url, icon, opts.prefsFile) };
             if (!isOwn(own, url)) openWebLink(url);
             return { action: 'deny' };
+        });
+        // 1.6.4: a window made from those options with the app's bar (a pop-out, never the stream window) is noted, so its page's colors can
+        // reach its own buttons (barWindow); it is let go of when it closes
+        wc.on('did-create-window', (win, details) => {
+            const o = details && details.options, at = details && typeof details.url === 'string' ? details.url : '';
+            const barred = !!(o && o.titleBarOverlay) || (childWindowOk(own, at) && !!childWindowOptions(at, icon).titleBarOverlay);   // by the options it was made with, else by its address as childWindowOptions judges it
+            if (!win || !barred) return;
+            bars.add(win);
+            try { win.on('closed', () => { bars.delete(win); }); } catch (e) { /* no close to hear */ }
         });
         // a window never leaves the app's own pages (the developer tools' own window, open only in Developer mode, is no page of anyone's and is left to itself)
         wc.on('will-navigate', (details, url) => {
@@ -328,6 +366,7 @@ function install(electron, opts) {
     return {
         own: own,
         devMode: () => dev,
+        barWindow: (at, main) => barTarget(own, at, [main].concat(Array.from(bars)), main),
         refresh: () => { const was = dev; dev = devModeOf(opts.prefsFile); if (dev !== was) setMenu(); if (!dev) closeTools(); const z = zoomOf(opts.prefsFile); if (z !== zoom) { zoom = z; all.forEach(setZoom); } return dev; }
     };
 }
@@ -440,4 +479,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, zoomOf, WINBAR_H, barColor, barStart, menuTemplate, devToolsKey, zoomInKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };
+    devModeOf, zoomOf, WINBAR_H, barColor, barStart, barPageOf, barTarget, menuTemplate, devToolsKey, zoomInKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };

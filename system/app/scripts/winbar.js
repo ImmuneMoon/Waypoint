@@ -5,8 +5,11 @@
 
    In the desktop app the main window has no title bar of the system's own. The system draws only its three buttons, over the window's top right
    corner (main.js, shellguard.js barStart), and the page draws the strip they stand on: #winBar, the first child of .app, as tall as the CSS
-   env titlebar-area-height (style.css --winbar), which is 0 in a browser, on a website, in a window of its own and wherever the system draws no
+   env titlebar-area-height (style.css --winbar), which is 0 in a browser, on a website, in the stream window and wherever the system draws no
    buttons, so the strip is there only where they are. The style sheet gives the strip the look's own ground (--winbar-bg) to start with.
+   A pop-out (a page, a part, a big table, a sheet, Table Chat) has the same bar since 1.6.4's later fold: there .app is hidden, and its strip
+   is #popWinBar (barEl), which stands over the pop-out's own bar, so the color read under it is that bar's. The colors are said with the
+   page's own address, so each window's buttons follow its own page.
 
    The strip then takes the color of whatever stands right under it on screen, so it blends with the screen in view: the welcome screen, the top
    row, the gap around Slate's floating row, a window's dimmed backdrop. underColor() reads it: at a row of points along the line just under the
@@ -25,8 +28,15 @@ var WB_POINTS = 12;         // how many points along the line under the strip ar
 var WB_BUTTONS = 150;       // the width the system's three buttons take at the right, never read
 var WB_DEPTH = 30;          // how many elements one point's stack is read to, at most
 var _said = '';   // the colors last said, so the same two are never sent again
+// 1.6.4: the strip of this window. A pop-out (body.popout-mode, which popout.js sets) hides .app and with it #winBar, and stands on a strip of
+// its own, #popWinBar (Fulllion, 2026-11-25: "the external waypoint windows dont have the integrated window bar the main app has"); every other
+// page uses #winBar. Asked at every look, since popout.js marks the page after this module has started
+function barEl() {
+    var pop = document.body && document.body.classList.contains('popout-mode') ? document.getElementById('popWinBar') : null;
+    return pop || document.getElementById('winBar');
+}
 // The strip's height now, in CSS pixels (0 where there is none)
-function winBarH() { var b = document.getElementById('winBar'); return b ? b.offsetHeight : 0; }
+function winBarH() { var b = barEl(); return b ? b.offsetHeight : 0; }
 
 // [lookcheck:winblend-start] the pure half: a color read, layered and chosen, run by lookcheck
 // A computed color as { r, g, b, a }, or null for anything that is no rgb() or rgba() (transparent reads as a 0 alpha)
@@ -80,7 +90,7 @@ function pointsX(width) {
 
 // The color right under the strip now, as a hex color, or '' where nothing can be read
 function underColor() {
-    var bar = document.getElementById('winBar'), h = winBarH();
+    var bar = barEl(), h = winBarH();
     if (!bar || !h || typeof document.elementsFromPoint !== 'function') return '';
     var base = rgbaOf(getComputedStyle(document.documentElement).backgroundColor);
     base = base && base.a >= 1 ? base : { r: 0, g: 0, b: 0, a: 1 };
@@ -101,13 +111,14 @@ function underColor() {
 function barShown() { var o = navigator.windowControlsOverlay; return !!(o && o.visible); }
 function say() {
     if (!barShown() || document.hidden) return;
-    var bar = document.getElementById('winBar'); if (!bar) return;
+    var bar = barEl(); if (!bar) return;
     var color = underColor(); if (!color) return;
     var symbol = inkFor(color);
     if (bar.style.backgroundColor !== color) { bar.style.backgroundColor = color; bar.style.color = symbol; }
     var k = color + symbol; if (k === _said) return;
     _said = k;
-    try { fetch('/api/winbar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: color, symbol: symbol }) }).then(function(r) { if (!r.ok) _said = ''; }, function() { _said = ''; }); } catch (e) { _said = ''; }
+    // the page's own address goes with the colors (1.6.4), so the shell sets this very window's buttons and no other's (shellguard.barTarget)
+    try { fetch('/api/winbar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: color, symbol: symbol, at: String(location.href) }) }).then(function(r) { if (!r.ok) _said = ''; }, function() { _said = ''; }); } catch (e) { _said = ''; }
 }
 // A look a moment from now, and once more a little later for a window or a screen that fades in
 var _soon = 0, _later = 0;

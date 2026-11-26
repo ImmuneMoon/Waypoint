@@ -86,9 +86,10 @@
     overflow:hidden;
   }
   .app{display:flex;flex-direction:column;height:100vh}
-  /* 1.6.4: the window bar (scripts/winbar.js). In the desktop app the system draws its three buttons over the top right corner and this strip is the ground they stand on, in the top row's own colors; --winbar is the height the system gives them, 0 in a browser, on a website and in a window of its own, so the strip is there only where they are. A box the app pins near the window's top keeps below it: an overlay that covers the window starts at var(--winbar) and is that much shorter, a banner's or a floating box's first top is moved down by it, and a height worked out from 100vh takes it off, so with --winbar 0 (a browser, the website, a window of its own, the stream window) nothing moves at all */
+  /* 1.6.4: the window bar (scripts/winbar.js). In the desktop app the system draws its three buttons over the top right corner and this strip is the ground they stand on, in the top row's own colors; --winbar is the height the system gives them, 0 in a browser, on a website and in the stream window, so the strip is there only where they are. A box the app pins near the window's top keeps below it: an overlay that covers the window starts at var(--winbar) and is that much shorter, a banner's or a floating box's first top is moved down by it, and a height worked out from 100vh takes it off, so with --winbar 0 (a browser, the website, the stream window) nothing moves at all. Since 1.6.4's later fold a pop-out has the bar too (Fulllion, 2026-11-25: "the external waypoint windows dont have the integrated window bar the main app has"): .app, and so #winBar, is hidden there, so the pop-out stands on a strip of its own, #popWinBar, shown only in a pop-out (see body.popout-mode below) */
   :root { --winbar: env(titlebar-area-height, 0px); }
   #winBar { flex: none; height: var(--winbar); background: var(--winbar-bg, var(--bg2)); color: var(--ink); -webkit-app-region: drag; }
+  #popWinBar { display: none; }
   /* the viewing of 2026-11-09 (the owner, by prompt: "One font (Recommended)"): a button, a list and a text box take the app’s font, never the browser’s own Arial; any rule that names a font of its own still wins */
   button, input, select, textarea { font-family: inherit; }
   a.wp-mention { display: inline-block; padding: 0 7px; margin: 0 1px; border-radius: 10px; background: rgba(224,165,79,0.14); color: var(--gold); text-decoration: none; font-weight: 500; line-height: 1.45; }   /* 1.6.2 (backlog 166 f): a mention, a chip in its current name */
@@ -1285,13 +1286,18 @@
      text") and the element it lays a diagram out in when it is given no place of its own (id "dmermaid-…"). Nothing else of the page is an
      <svg> directly under the body. The app's own question (#customConfirm) is kept too: a link in a popped-out page may ask before it opens
      (linkgate.js), and a question nobody can see cannot be answered — closed, it hides itself. The release check's cover (#releaseCover,
-     releasecheck.js) is kept as well: it stops every key and press, so hidden it would leave a window that does nothing */
-  body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(#customConfirm):not(#releaseCover):not(svg):not([id^="dmermaid"]) { display: none !important; }
-  body.popout-mode #popoutWrap { display: flex; flex-direction: column; position: fixed; inset: 0; background: var(--bg); }
+     releasecheck.js) is kept as well: it stops every key and press, so hidden it would leave a window that does nothing. And the pop-out's own
+     window bar (#popWinBar, 1.6.4), the strip the system's three buttons stand on, which the window is dragged by */
+  body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(#customConfirm):not(#releaseCover):not(#popWinBar):not(svg):not([id^="dmermaid"]) { display: none !important; }
+  /* 1.6.4: the pop-out's window bar, as #winBar is the main window's: as tall as the system's buttons (var(--winbar), 0 in a browser, on the
+     website and in the stream window, where it takes no room at all), on the pop-out bar's own ground until scripts/winbar.js reads what stands
+     under it, and the window is dragged by it. What the pop-out shows starts under it: #popoutWrap, and Table Chat's panel under the dock bar */
+  body.popout-mode #popWinBar { display: block; position: fixed; top: 0; left: 0; right: 0; height: var(--winbar); background: var(--panel2); color: var(--ink); -webkit-app-region: drag; }
+  body.popout-mode #popoutWrap { display: flex; flex-direction: column; position: fixed; inset: var(--winbar) 0 0 0; background: var(--bg); }
   /* chat kind: the dock bar at top, the existing #chatPanel filling the rest of the window */
-  body.popout-chat #popoutWrap { position: fixed; left: 0; right: 0; top: 0; bottom: auto; height: 44px; }
+  body.popout-chat #popoutWrap { position: fixed; left: 0; right: 0; top: var(--winbar); bottom: auto; height: 44px; }
   body.popout-chat #popoutBody { display: none; }
-  body.popout-chat #chatPanel { display: flex !important; position: fixed !important; left: 0; right: 0; top: 44px; bottom: 0; width: auto !important; max-width: none !important; max-height: none !important; min-height: 0; border: none !important; border-radius: 0 !important; box-shadow: none !important; z-index: 4; }
+  body.popout-chat #chatPanel { display: flex !important; position: fixed !important; left: 0; right: 0; top: calc(44px + var(--winbar)); bottom: 0; width: auto !important; max-width: none !important; max-height: none !important; min-height: 0; border: none !important; border-radius: 0 !important; box-shadow: none !important; z-index: 4; }
   body.popout-chat #chatPanel #chatLog { max-height: none !important; }
   body.popout-chat #chatPanel > div:first-child { display: none !important; }   /* the dock bar replaces the panel's own "Table Chat" header (which has an inline display:flex) */
   #popoutBar { flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--edge); background: var(--panel2); }
@@ -3638,7 +3644,7 @@
   body.stream-mode #docReaderModal { display: none !important; }
 
   @media print {
-      :root { --winbar: 0px; } #winBar { display: none !important; }   /* 1.6.4: the window bar never on paper, and nothing kept clear of it there */
+      :root { --winbar: 0px; } #winBar, #popWinBar { display: none !important; }   /* 1.6.4: the window bar never on paper (a pop-out's neither), and nothing kept clear of it there */
       body:not(.print-sheet) header, body:not(.print-sheet) .sidebar, body:not(.print-sheet) #plannerEditor, body:not(.print-sheet) .tool, body:not(.print-sheet) .canvas-controls { display: none !important; }   /* a printed sheet (F2b) shows its own buttons as on screen */
       #plannerFindBar { display: none !important; }
       #plannerPreview mark.pf-hit { background: transparent !important; color: inherit !important; box-shadow: none !important; }

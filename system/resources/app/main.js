@@ -44,7 +44,7 @@ const holdFile = path.join(rootDir, 'system', 'userdata', 'instance-hold.json');
 function holdWrite(what) { try { fs.writeFileSync(holdFile, shellguard.holdText(what)); } catch (e) {} }   // a folder not made yet: the new launch starts after its wait, as before
 function holdRead() { try { return shellguard.holdOf(fs.readFileSync(holdFile, 'utf8')); } catch (e) { return null; } }
 let closer = null, stayUntil = 0;
-let mainWin = null;   // 1.6.4: the main window, whose bar's colors POST /api/winbar sets
+let mainWin = null;   // 1.6.4: the main window, whose bar's colors POST /api/winbar sets where its page says so (or says no address); a pop-out's own go to the pop-out
 app.on('second-instance', function() {
     if (Date.now() < stayUntil) return;
     if (closer && closer.asking()) holdWrite('asking');   // a question already up (the GM pressed close first): the new launch waits for it too
@@ -185,7 +185,12 @@ const server = http.createServer((req, res) => {
             let c = null;
             try { c = shellguard.barColor(JSON.parse(body)); } catch (e) { c = null; }
             if (!c) { res.writeHead(400); return res.end('{"error":"bad colors"}'); }
-            try { if (mainWin && !mainWin.isDestroyed() && typeof mainWin.setTitleBarOverlay === 'function') mainWin.setTitleBarOverlay({ color: c.color, symbolColor: c.symbolColor, height: shellguard.WINBAR_H }); } catch (e) { /* no bar to set */ }
+            // 1.6.4: the page says its own address too (at), so a pop-out's colors go to its own buttons and the main window's to the main
+            // window's (shellguard.barTarget, through guard.barWindow): only a window that has the app's bar is picked, an address that is no page
+            // of the app's own goes to the main window as before, and one that names no such window sets nothing
+            let at = null; try { const b = JSON.parse(body); at = b && typeof b === 'object' && typeof b.at === 'string' ? b.at : null; } catch (e) { at = null; }
+            const win = guard ? guard.barWindow(at, mainWin) : mainWin;
+            try { if (win && !win.isDestroyed() && typeof win.setTitleBarOverlay === 'function') win.setTitleBarOverlay({ color: c.color, symbolColor: c.symbolColor, height: shellguard.WINBAR_H }); } catch (e) { /* no bar to set */ }
             res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
         });
         return;

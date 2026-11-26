@@ -5266,6 +5266,30 @@ if (mode === 'samples') {
         /function say\(\) \{\n    if \(!barShown\(\) \|\| document\.hidden\) return;/.test(wb) && wb.includes('var color = underColor(); if (!color) return;') && wb.includes('var symbol = inkFor(color);')
         && wb.includes("if (bar.style.backgroundColor !== color) { bar.style.backgroundColor = color; bar.style.color = symbol; }") && wb.includes('var k = color + symbol; if (k === _said) return;')
         && wb.includes("['pointerup', 'keyup'].forEach(function(t) { document.addEventListener(t, saySoon, true); });") && /var WB_LOOK_MS = 500;/.test(wb) && wb.includes('if (el === bar || bar.contains(el)) continue;'));
+    // 1.6.4 (Fulllion, 2026-11-25: "the external waypoint windows dont have the integrated window bar the main app has"): a pop-out stands on a
+    // strip of its own, #popWinBar, since .app and with it #winBar is hidden there. winbar.js's barEl run for real on pages of plain objects, then
+    // the style sheet's rules read, each worked out with --winbar at 0 (a browser, the website, the stream window) and at the system's 26 px
+    const be = /\nfunction barEl\(\) \{\n[\s\S]*?\n\}\n/.exec(wb);
+    const barElOf = (pop, ids) => { if (!be) return 'no barEl'; const doc = { body: { classList: { contains: c => pop && c === 'popout-mode' } }, getElementById: id => ids.indexOf(id) >= 0 ? { id } : null }; const b = new Function('document', be[0] + '\nreturn barEl();')(doc); return b ? b.id : null; };
+    const htmlW = read('index.html'), cssW = read('style.css');
+    check('1.6.4, a pop-out\'s window bar (winbar.js barEl, run for real): in a pop-out the strip read and colored is the pop-out\'s own #popWinBar, everywhere else the main window\'s #winBar; the strip\'s height and the color under it are read from that strip, and the page says its own address with its colors so the shell sets this very window\'s buttons',
+        barElOf(true, ['winBar', 'popWinBar']) === 'popWinBar' && barElOf(false, ['winBar', 'popWinBar']) === 'winBar' && barElOf(true, ['winBar']) === 'winBar' && barElOf(false, []) === null
+        && wb.includes('function winBarH() { var b = barEl(); return b ? b.offsetHeight : 0; }') && wb.includes('var bar = barEl(), h = winBarH();') && wb.includes('var bar = barEl(); if (!bar) return;')
+        && wb.includes('JSON.stringify({ color: color, symbol: symbol, at: String(location.href) })'), JSON.stringify([barElOf(true, ['winBar', 'popWinBar']), barElOf(false, ['winBar', 'popWinBar'])]));
+    // a declaration's value with --winbar at w px, worked out: var(--winbar) as w, calc of a sum, and inset as its four sides
+    const ruleOf = sel => { const i = cssW.indexOf('\n  ' + sel + ' {'); if (i < 0) return null; return cssW.slice(i + 3 + sel.length + 2, cssW.indexOf('}', i)); };
+    const declOf = (sel, prop) => { const r = ruleOf(sel); if (r === null) return null; const m = new RegExp('(?:^|;)\\s*' + prop.replace(/-/g, '\\-') + ':\\s*([^;]+)').exec(r); return m ? m[1].replace(/\s*!important\s*$/, '').trim() : null; };
+    const pxAt = (v, w) => { if (v === null) return null; const s = v.split('var(--winbar)').join(w + 'px'); const one = t => { t = t.trim(); const c = /^calc\((.*)\)$/.exec(t); if (c) return c[1].split('+').reduce((a, p) => a + parseFloat(p), 0); return parseFloat(t); }; return /^calc\(/.test(s.trim()) ? one(s) : s.trim().split(/\s+/).map(one); };
+    const wrapInset = declOf('body.popout-mode #popoutWrap', 'inset'), chatTop = declOf('body.popout-chat #popoutWrap', 'top'), panelTop = declOf('body.popout-chat #chatPanel', 'top'), stripH = declOf('body.popout-mode #popWinBar', 'height');
+    check('1.6.4, a pop-out\'s window bar in the style sheet: #popWinBar is a child of the page\'s body, outside .app, put away everywhere but in a pop-out and never on paper; in a pop-out it is shown, fixed at the window\'s top, as tall as var(--winbar), on the pop-out bar\'s own ground, and the window is dragged by it; the rule that hides the body\'s other children in a pop-out keeps it',
+        /<div id="popWinBar" aria-hidden="true"><\/div>\n<\/body>/.test(htmlW.replace(/\r\n/g, '\n')) && htmlW.split('id="popWinBar"').length === 2
+        && cssW.includes('\n  #popWinBar { display: none; }') && cssW.includes('#winBar, #popWinBar { display: none !important; }')
+        && cssW.includes('\n  body.popout-mode #popWinBar { display: block; position: fixed; top: 0; left: 0; right: 0; height: var(--winbar); background: var(--panel2); color: var(--ink); -webkit-app-region: drag; }')
+        && cssW.includes('body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(#customConfirm):not(#releaseCover):not(#popWinBar):not(svg):not([id^="dmermaid"]) { display: none !important; }'), JSON.stringify([stripH]));
+    check('1.6.4, what a pop-out shows starts under its window bar, and with --winbar at 0 nothing moves at all: the pop-out\'s wrap (a page, a part, a big table, a sheet) and Table Chat\'s dock bar start at the strip\'s foot and Table Chat\'s panel 44 px under it; at 0 (a browser, the website, the stream window) the wrap fills the window from its top as before, the dock bar is at the top and the panel at 44 px, and the strip takes no room',
+        JSON.stringify(pxAt(wrapInset, 0)) === '[0,0,0,0]' && JSON.stringify(pxAt(wrapInset, 26)) === '[26,0,0,0]' && JSON.stringify(pxAt(chatTop, 0)) === '[0]' && JSON.stringify(pxAt(chatTop, 26)) === '[26]'
+        && pxAt(panelTop, 0) === 44 && pxAt(panelTop, 26) === 70 && JSON.stringify(pxAt(stripH, 0)) === '[0]' && JSON.stringify(pxAt(stripH, 26)) === '[26]',
+        JSON.stringify([wrapInset, chatTop, panelTop, stripH, pxAt(wrapInset, 0), pxAt(panelTop, 0)]));
 }
 {
     // 1.6.4, the looks (Fulllion, 2026-11-24: Slate the app's own, Lantern and Ink to pick): the rulers, the minimap and the zoom box wear the look

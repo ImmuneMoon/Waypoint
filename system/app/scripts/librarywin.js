@@ -8,6 +8,7 @@
 import { state as saved } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { toast } from './io.js';
+import { saveStart, saved as saveDone } from './savefile.js';   // 1.6.4: a pack's file is said exported only once it was saved (the save dialog where the window has one)
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText, lvlsFromBox } from './librarycore.js';
 import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTarget, bestList, csvEntries, csvPreview, csvCats } from './csvcore.js';
@@ -161,9 +162,10 @@ function exportPack(which) {
     if (players && LB() && LB().whole && LB().whole() !== true) { toast('A pack of this campaign could not be read, so a players\u2019 copy would leave every rule out. Nothing was exported.'); return; }   // the owed review, 2026-10-09: such a file would keep its rules hidden for good, with nothing said
     var file = packFile(p, workOf(p.id), players ? libCtx(pv || { fields: [] }, F(), false, LB() && LB().needShown ? LB().needShown : undefined, LB() && LB().needRuleShown ? LB().needRuleShown : undefined) : gmCtx());   // 126b: a players' copy names no entry players cannot see
     var base = String(p.name || '').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) || 'pack';
-    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' })); a.download = base + (players ? '.players' : '') + '.wppack.json';
-    document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    toast((players ? 'A players’ copy of “' : '“') + p.name + '” exported: ' + plural(file.entries.length) + '.');
+    var ticket = saveStart({ name: base + (players ? '.players' : '') + '.wppack.json', type: 'application/json', desc: 'Library pack' });   // the save dialog, at the press
+    ticket.save(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' })).then(function(how) {
+        if (saveDone(how)) toast((players ? 'A players’ copy of “' : '“') + p.name + '” exported: ' + plural(file.entries.length) + '.');
+    });
 }
 
 /* ---- import (L2a2): a .wppack.json read, its dry run shown, then applied ---- */

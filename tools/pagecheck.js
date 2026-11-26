@@ -2240,7 +2240,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             P.players === J([['print-players'], []]) && P.whole === J([[''], []]) && P.cancel === J([[], []]), J(P));
         const mainS = read('scripts/main.js'), ixP = read('index.html');
         check('the review of pages reveal (finding 3) Save HTML asks the same question through window.wpKeptExport and, saved as players read it, writes the page through keptCut, and says so; Help says both answers in plain words',
-            ioS.includes('window.wpKeptExport = { ask: keptAsk, cut: keptCut };') && mainS.includes("askK(activeMap, showConfirm, function(players) { run(function() {") && mainS.includes('content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;')
+            ioS.includes('window.wpKeptExport = { ask: keptAsk, cut: keptCut };') && mainS.includes("askK(activeMap, showConfirm, function(players) { var ticket = saveStart({ name: title + '.html', type: 'text/html', desc: 'Web page' }); run(function() {") /* 1.6.4: the save dialog opens at the answer's press, before the page is drawn (savefile.js), moved on purpose */ && mainS.includes('content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;')
             && mainS.includes("toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.');")
             && ixP.includes('<li><b>Save PDF</b> and <b>Save HTML</b> ask first on a page with blocks you kept back. <b>As players read it</b> leaves those blocks out. <b>With what I kept back</b> keeps them, each marked on paper as on screen.</li>'));
     }

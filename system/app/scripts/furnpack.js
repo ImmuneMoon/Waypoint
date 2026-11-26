@@ -13,6 +13,7 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast, pressHold } from './io.js';
+import { saveStart, saved } from './savefile.js';   // 1.6.4: a file is said saved only once it was (the save dialog where the window has one)
 import { showConfirm } from './dialogs.js';
 import './objcore.js';   // brings furncore.js
 import './drawwin.js';   // 1.6.2, backlog 232: the paint window Draw… opens, window.wpPaint
@@ -196,12 +197,11 @@ function fileOfItem(F, l) {
 }
 function b64(u) { var s = ''; for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function fileName(name) { return String(name || '').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'pack'; }
-function download(blob, name) {
-    var a = document.createElement('a'), url = URL.createObjectURL(blob);
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
-}
-function exportLooksFile(name, looks) {
+// The save dialog for a pack's one file, opened at the press, before its pictures are read (savefile.js; 1.6.4, Fulllion: "Yes, wait for
+// the save"). Asked by exportFile and makerExport
+function looksTicket(name) { return saveStart({ name: fileName(name) + '.wpfurn', type: 'application/json', desc: 'Furnishing pack' }); }
+// ticket: the save dialog opened at the press (looksTicket). The words that it was exported come only once the file was saved
+function exportLooksFile(name, looks, ticket) {
     var out = { wpfurn: 1, name: name, looks: {} }, tiles = {}, blocks = [];
     looks.forEach(function(l) {
         out.looks[l.key] = 'data:image/' + l.kind + ';base64,' + b64(l.bytes);
@@ -209,8 +209,10 @@ function exportLooksFile(name, looks) {
         if (l.blk) blocks.push({ id: l.key.slice(4), name: l.blk.name, mat: l.blk.mat });
     });
     if (Object.keys(tiles).length) out.tiles = tiles; if (blocks.length) out.blocks = blocks;   // fold 4: a pack of furnishings alone is written as it always was
-    download(new Blob([JSON.stringify(out)], { type: 'application/json' }), fileName(name) + '.wpfurn');
-    log('export', { as: 'file', n: looks.length }); toast('Exported ' + name + ' as one file, ' + looks.length + (looks.length === 1 ? ' picture.' : ' pictures.'));
+    (ticket || looksTicket(name)).save(new Blob([JSON.stringify(out)], { type: 'application/json' })).then(function(how) {
+        if (!saved(how)) { log('export-not-saved', { as: 'file', how: how }); return; }
+        log('export', { as: 'file', n: looks.length }); toast('Exported ' + name + ' as one file, ' + looks.length + (looks.length === 1 ? ' picture.' : ' pictures.'));
+    });
 }
 async function exportLooksFolder(name, getLooks) {   // getLooks: a function that reads the pictures, asked once the folder is picked
     var F = FU();
@@ -223,7 +225,7 @@ async function exportLooksFolder(name, getLooks) {   // getLooks: a function tha
         log('export', { as: 'folder', n: looks.length }); toast('Exported ' + name + ' as a folder of ' + looks.length + (looks.length === 1 ? ' picture.' : ' pictures.'));
     } catch (e) { log('export-failed', { as: 'folder' }); toast('The folder could not be written. Export it as one file instead.'); }
 }
-async function exportFile(p) { exportLooksFile(p.name, await looksOf(p)); }
+async function exportFile(p) { var t = looksTicket(p.name); exportLooksFile(p.name, await looksOf(p), t); }
 async function exportFolder(p) { exportLooksFolder(p.name, function() { return looksOf(p); }); }
 
 // ---- the template (fold 3): Waypoint's drawings at the size you pick, in a reference folder, beside an empty pack folder ----
@@ -249,6 +251,7 @@ async function texPng(n, px, t) {
     var b = await new Promise(function(r) { cv.toBlob(r, 'image/png'); }); return new Uint8Array(await b.arrayBuffer());
 }
 async function template() {
+    var ticket = saveStart({ name: 'Furnishing pack template.zip', type: 'application/zip', desc: 'Template' });   // 1.6.4: the save dialog opens at the press, before the drawings are made
     var F = FU(), px = tplPx(), enc = new TextEncoder(), ents = [];
     toast('Making the template…');
     try {
@@ -260,9 +263,10 @@ async function template() {
         ents.push({ name: 'pack/Put your pictures here.txt', data: enc.encode('Put your pictures in this folder, named as the ones in the reference folder, such as chest-fantasy.png or tex-bricks.png.\r\nA block of your own is named block, the material it lays as, and its name, such as block-floor-Marble.png.\r\n') });
         ents.push({ name: 'How to make a pack.txt', data: enc.encode(F.tplGuide(px)) });
         var zip = await import('./zip.js');
-        download(zip.zipCreate(ents), 'Furnishing pack template.zip');
+        var how = await ticket.save(zip.zipCreate(ents));
+        if (!saved(how)) { log('template-not-saved', { how: how }); return; }
         log('template', { px: px }); toast('The template is downloaded, ' + px + ' pixels a cell.');
-    } catch (er) { log('template-failed', {}); toast('The template could not be made.'); }
+    } catch (er) { ticket.drop(); log('template-failed', {}); toast('The template could not be made.'); }
 }
 
 // ---- the pack maker (fold 3): a grid of every kind and era, the picked one beside it at its real size. Fold 4 (the owner: "Blocks tab in the
@@ -563,8 +567,9 @@ async function makerExport(asFolder) {
     var F = FU(); if (!_m) return;
     var nm = F.packName(_m.name) || 'A pack'; if (!Object.keys(_m.looks).length) { toast('Add at least one picture.'); return; }
     if (asFolder) { await exportLooksFolder(nm, makerLooks); return; }
-    var looks = await makerLooks(); if (!looks.length) { toast('Add at least one picture.'); return; }
-    exportLooksFile(nm, looks);
+    var ticket = looksTicket(nm);   // 1.6.4: the save dialog opens at the press, before the pictures are read
+    var looks = await makerLooks(); if (!looks.length) { ticket.drop(); toast('Add at least one picture.'); return; }
+    exportLooksFile(nm, looks, ticket);
 }
 
 function othersOf() {

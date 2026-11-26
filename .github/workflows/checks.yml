@@ -150,6 +150,9 @@ jobs:
       - name: syszipcheck — a system exported whole as one .zip with its packs and pictures, and read back
         if: ${{ !cancelled() }}
         run: node tools/syszipcheck.js
+      - name: savecheck, an export is said saved only once its file was saved
+        if: ${{ !cancelled() }}
+        run: node tools/savecheck.js
       - name: viewcheck — the view that turns with your token
         if: ${{ !cancelled() }}
         run: node tools/viewcheck.js

@@ -10,6 +10,7 @@
 import { state } from './state.js';
 import { getActiveMap } from './models.js';
 import { toast } from './io.js';
+import { saveStart, saved as saveDone } from './savefile.js';   // 1.6.4: the picture is said saved only once it was (the save dialog where the window has one)
 import * as SC from './shotcore.js';
 import * as BC from './buildcore.js';
 
@@ -139,11 +140,9 @@ function shotDoneWords(p, lost, cut) {
     if (cut === true) s += ' This map holds more pieces than one picture draws, so the newest were left out.';
     return s;
 }
-function shotSave(name, blob) {
-    var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function() { URL.revokeObjectURL(url); }, blob && blob.size > 50 * 1024 * 1024 ? 600000 : 1000);
-}
+// The picture written through the save dialog Save picture opened at its press (savefile.js; 1.6.4, Fulllion: "Yes, wait for the save"), or
+// handed over as a download where the window has none. Answers a promise of how it went: 'saved', 'download', 'cancel' or 'failed'
+function shotSave(ticket, blob) { return ticket.save(blob); }
 // Save picture: everything is loaded first, then drawn in one go in the board's own order, then saved. A dialog closed meanwhile saves nothing
 function shotGo() {
     if (!shotShown() || _shot.busy) return false;
@@ -153,6 +152,9 @@ function shotGo() {
     var fp = flatNow(map), grid = fp ? '' : shotGridOf(map), lines = !fp && _shot.grid && !!grid, labels = fp ? true : _shot.labels, bg = fp ? 'none' : _shot.bg, items = fp ? fp.draw.slice() : map.whiteboard.slice(), need = SC.needs(items, { labels: labels, grid: !!grid, box: box }), title = shotTitle(map), my = ++_shot.gen;   // 1.6.2 (backlog 39): a flatten draws its own pieces alone, on a clear ground
     _shot.busy = true; shotKeep(); shotSync();
     var fail = function() { if (my !== _shot.gen) return; _shot.busy = false; _shot.err = SHOT_CANT; shotSync(); };
+    // 1.6.4: the save dialog opens now, at the press, before anything is loaded or drawn; a flatten saves no file and opens none. The dialog
+    // closes with nothing saved where the person cancels it, and stays up to try again (fail: false: what could not be saved is said in its line)
+    var ticket = fp ? null : saveStart({ name: title + '.png', type: 'image/png', desc: 'Picture', fail: false });
     Promise.all([Promise.all(need.pics.map(shotPic)), Promise.all(need.fonts.map(shotFont))]).then(function(got) {
         if (my !== _shot.gen) return null;
         var pics = Object.create(null), tiles = Object.create(null), lost = 0, k = Math.max(2, Math.ceil(p.scale) + 1);
@@ -169,7 +171,7 @@ function shotGo() {
         if (cps && cps.pic === true && typeof CPs.roseDraw === 'function') { var rs = Math.max(48, Math.min(256, Math.round(Math.min(p.w, p.h) * 0.12))), rx = cps.at === 'map' ? (cps.x - box.x) * p.scale : cps.at === 'bl' ? rs / 2 + 12 : p.w - rs / 2 - 12, ry = cps.at === 'map' ? (cps.y - box.y) * p.scale : p.h - rs / 2 - 12; if (cps.at === 'map') rs = Math.max(16, 64 * p.scale); CPs.roseDraw(ctx, rx, ry, rs, cps.north || 0); }
         return new Promise(function(res, rej) { try { cv.toBlob(function(b) { if (b) res({ blob: b, lost: lost, cut: !!(drew && drew.cut) }); else rej(new Error('no file')); }, 'image/png'); } catch (e) { rej(e); } });
     }).then(function(r) {
-        if (!r || my !== _shot.gen) return;
+        if (!r || my !== _shot.gen) { if (ticket) ticket.drop(); return; }
         if (fp) {   // 1.6.2 (backlog 39): the picture is saved with the campaign's pictures and laid where its pieces were
             var mapId = state.appState && state.appState.campaigns && state.appState.activeCampaignId ? (state.appState.campaigns[state.appState.activeCampaignId] || {}).activeItemId : null;
             if (typeof window.wpUploadBlob !== 'function' || !mapId) throw new Error('no upload');
@@ -178,10 +180,14 @@ function shotGo() {
                 shotHide(); window.wpFlatten.lay(m2, fp2, url);
             });
         }
-        shotSave(title + '.png', r.blob);
-        shotHide();
-        toast(shotDoneWords(p, r.lost, r.cut));
-    }).catch(fail);
+        return shotSave(ticket, r.blob).then(function(how) {
+            if (my !== _shot.gen) return;
+            if (how === 'cancel') { _shot.busy = false; shotSync(); return; }   // canceled: nothing saved and nothing said, the dialog ready again
+            if (!saveDone(how)) throw new Error('not saved');
+            shotHide();
+            toast(shotDoneWords(p, r.lost, r.cut));
+        });
+    }).catch(function(e) { if (ticket) ticket.drop(); fail(e); });
     return true;
 }
 function shotStops() {

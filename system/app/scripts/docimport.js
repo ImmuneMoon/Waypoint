@@ -18,6 +18,7 @@ import { save, toast } from './io.js';
 import { updateSidebarNav } from './sidebar.js';
 import { getUniqueItemTitle } from './dialogs.js';
 import { zipRead, zipCreate } from './zip.js';
+import { saveStart, saved } from './savefile.js';   // 1.6.4: a file is said saved only once it was (the save dialog where the window has one)
 import { DOC_BLOCKS } from './docrender.js';
 import { markdownToBlocks, docToMarkdown, detectBundle, PLANNER_BLOCKS, LIMITS, TEMPLATE } from './docmd.js';
 
@@ -25,7 +26,6 @@ var ui = function(id) { return document.getElementById(id); };
 function render() { if (window.appRender) window.appRender(); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function canWrite() { if (window.wpStream) return false; if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return false; } return true; }
-function downloadBlob(name, blob) { var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function() { URL.revokeObjectURL(url); }, 1000); }
 function slug(s) { return String(s || 'document').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'document'; }
 var TYPE_LABEL = { h1: 'Title', h2: 'Section', h3: 'Sub-heading', text: 'Text', lede: 'Lead text', oneline: 'One-line summary', callout: 'Callout', flare: 'Flare', image: 'Picture', table: 'Table', node: 'Scene node', rule: 'Line', diagram: 'Diagram', flowchart: 'Flowchart' };
 // Which types a row may be flipped to: prose among prose, headings among headings, table ↔ scene node on a planner
@@ -232,13 +232,17 @@ async function exportMarkdown(item) {
     var out = docToMarkdown(item, { who: DRw && typeof DRw.seeWho === 'function' && camp ? DRw.seeWho(camp) : null, items: camp ? camp.items : {}, chars: camp ? camp.chars : {}, cueName: cues && typeof cues.name === 'function' ? function(cu) { return cues.name(cu, camp); } : null });
     var name = slug(item.meta && item.meta.title);
     var leftW = out.left && out.left.length ? ' Not kept in Markdown: ' + out.left.join(', ') + '.' : '';   // what the file cannot hold is said, never lost in silence
-    if (!out.images.length) { downloadBlob(name + '.md', new Blob([out.text], { type: 'text/markdown' })); toast('Markdown saved.' + leftW); return; }
+    // 1.6.4 (Fulllion: "Yes, wait for the save"): the save dialog opens at the press, before any picture is read, naming a .md or a .zip as
+    // the file will be (savefile.js); the words that it was saved come only once it was, and a cancel says nothing and reads no picture
+    var ticket = saveStart({ name: name + (out.images.length ? '.zip' : '.md'), type: out.images.length ? 'application/zip' : 'text/markdown', desc: 'Markdown' });
+    if (!out.images.length) { if (saved(await ticket.save(new Blob([out.text], { type: 'text/markdown' })))) toast('Markdown saved.' + leftW); return; }
+    if ((await ticket.ready) === 'cancel') return;
     var entries = [{ name: name + '.md', data: new TextEncoder().encode(out.text) }], missing = 0;
     for (var k = 0; k < out.images.length; k++) {
         try { var r = await fetch(encodeURI(out.images[k].path)); if (!r.ok) { missing++; continue; } entries.push({ name: 'images/' + item.id + '/' + out.images[k].name, data: new Uint8Array(await r.arrayBuffer()) }); }
         catch (e) { missing++; }
     }
-    downloadBlob(name + '.zip', zipCreate(entries));
+    if (!saved(await ticket.save(zipCreate(entries)))) return;
     toast('Markdown saved with ' + (entries.length - 1) + ' picture' + (entries.length === 2 ? '' : 's') + (missing ? ' (' + missing + ' missing)' : '') + '.' + leftW);
 }
 
@@ -251,7 +255,7 @@ var b4 = ui('exportMdBtn'); if (b4) b4.addEventListener('click', function() { ex
 // 1.6.3 (the improvement week's review of pages and planners, finding 47; the owner, 2026-11-21): Export beside Import on the planner bar, the
 // same one way out as Save Markdown on Export As
 var b5 = ui('plannerExportBtn'); if (b5) b5.addEventListener('click', function() { exportMarkdown(); });
-var b5 = ui('helpMdTemplateBtn'); if (b5) b5.addEventListener('click', function() { downloadBlob('handbook-template.md', new Blob([TEMPLATE], { type: 'text/markdown' })); toast('Template saved.'); });
+var b5 = ui('helpMdTemplateBtn'); if (b5) b5.addEventListener('click', function() { var tT = saveStart({ name: 'handbook-template.md', type: 'text/markdown', desc: 'Markdown' }); tT.save(new Blob([TEMPLATE], { type: 'text/markdown' })).then(function(how) { if (saved(how)) toast('Template saved.'); }); });
 var goBtn = ui('docImportGo'); if (goBtn) goBtn.addEventListener('click', function() { doImport(); });
 var cancelBtn = ui('docImportCancel'); if (cancelBtn) cancelBtn.addEventListener('click', closeDialog);
 var guideBtn = ui('docImportGuide'); if (guideBtn) guideBtn.addEventListener('click', function() { if (window.wpOpenHelp) window.wpOpenHelp('handbook', 'helpMdGuide'); });

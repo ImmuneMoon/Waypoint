@@ -219,8 +219,12 @@ function go() {
     log('export', { scope: _s.scope, card: !blank, cover: !!_s.cover, left: form.leave.length, pics: form.pics.length, author: !!form.author.trim(), version: !!form.version.trim(), desc: !!form.desc.trim() });
     var scope = _s.scope;
     hide('');
-    // straight from the click: a large export asks for its file first, while the press still counts (io.js exportScope)
-    var p = typeof window.wpExportScope === 'function' ? window.wpExportScope(scope, share) : null;
+    // straight from the click: the export opens its save dialog first, while the press still counts (io.js exportScope). The count of the
+    // files the plan found tells it whether the file will be a .zip or a .json before anything is waited for (1.6.4)
+    // A count the plan could not finish (the pictures no map uses could not be listed) is no count: the kind is then not known at the
+    // press, and the file goes as a download (the review of a92c0d93, finding 1)
+    var files = _s.plan && Array.isArray(_s.plan.paths) && !_s.plan.unlisted ? _s.plan.paths.length : undefined;
+    var p = typeof window.wpExportScope === 'function' ? window.wpExportScope(scope, share, files) : null;
     if (p && typeof p.then === 'function') p.then(function(r) { log('done', { ok: !!r, zip: !!(r && !r.text), card: !blank }); }, function() { log('failed', { card: !blank }); toast('The export could not be made.'); });
 }
 function wire() {

@@ -1,4 +1,5 @@
 import { state, dom } from './state.js';
+import { saveStart, saved as saveDone } from './savefile.js';   // 1.6.4: an export is said saved only once it was (the save dialog where the window has one)
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors, isDocLike } from './models.js';
 
@@ -470,16 +471,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   /* ---------- exports ---------- */
 
-  function downloadFile(name, blob) {
-
-      var url = URL.createObjectURL(blob);
-
-      var a = document.createElement('a'); a.href = url; a.download = name;
-
-      document.body.appendChild(a); a.click(); a.remove();
-
-      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-
+  // A page's or a map's export, saved (1.6.4, Fulllion: "Yes, wait for the save"): the file is written through the save dialog its press
+  // opened (savefile.js saveStart, called before anything is waited for), or handed over as a download where the window has none. then()
+  // says it was exported, only once it was saved: a cancel says nothing, and savefile.js says a failure
+  function saveExport(ticket, blob, then) {
+      ticket.save(blob).then(function(how) { if (saveDone(how)) then(); });
   }
 
   function exportTitle() {
@@ -547,7 +543,7 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
       // the review of pages reveal (finding 3): a page with a block kept back asks first (io.js keptAsk). As players read it saves the drawn
       // page with every kept block left out (io.js keptCut); With what I kept back saves it whole, each kept block marked as on screen
       var KX = window.wpKeptExport, askK = KX && KX.ask ? KX.ask : function(it, a, then) { then(false); };
-      askK(activeMap, showConfirm, function(players) { run(function() { return saveStyleCss(document, fetch, window.wpRelease).then(function(css) {
+      askK(activeMap, showConfirm, function(players) { var ticket = saveStart({ name: title + '.html', type: 'text/html', desc: 'Web page' }); run(function() { return saveStyleCss(document, fetch, window.wpRelease).then(function(css) {
           var pvX = document.getElementById('plannerPreview'), navX = window.wpPageNav;
           if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)
           var campX = getActiveCampaign(), content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;
@@ -561,9 +557,8 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
 
               '</head><body><div id="plannerPreviewWrap" class="doc-view">' + content + '</div></body></html>';
 
-          downloadFile(title + '.html', new Blob([htmlOutput], {type: 'text/html'}));
-          toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.');
-      }).catch(function() { toast('HTML export failed.'); }); }); });
+          saveExport(ticket, new Blob([htmlOutput], {type: 'text/html'}), function() { toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.'); });
+      }).catch(function() { ticket.drop(); toast('HTML export failed.'); }); }); });
   });
 
   var _el_exportImgBtn = document.getElementById('exportImgBtn');
@@ -610,6 +605,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       }
 
+      var ticket = saveStart({ name: title + '.png', type: 'image/png', desc: 'Picture' });   // the save dialog opens at the press, before the picture is drawn
       toast('Rendering image...');
 
       var pvI = isDocLike(activeMap) ? document.getElementById('plannerPreview') : null, navI = window.wpPageNav, refoldI = function() { if (pvI && navI && navI.apply) navI.apply(pvI); };
@@ -619,17 +615,16 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
           cv.toBlob(function(blob) {
 
-              if(!blob) { toast('Image export failed.'); return; }
+              if(!blob) { ticket.drop(); toast('Image export failed.'); return; }
 
-              downloadFile(title + '.png', blob);
-
-              toast('Image exported.');
+              saveExport(ticket, blob, function() { toast('Image exported.'); });
 
           });
 
       }).catch(function() {
 
           refoldI();
+          ticket.drop();
           toast('Image export failed.');
 
       });

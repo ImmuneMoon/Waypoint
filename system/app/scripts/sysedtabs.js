@@ -1602,9 +1602,10 @@ function exportSystem() {
         showConfirm(Z.askWords(plan.packs.length, plan.pics.length), function(ans) {
             if (ans === 'alt') { exportAlone(clean); return; }
             if (ans !== true) return;
+            var zt = sysSaveStart(Z.zipName(clean.name), 'application/zip');   // 1.6.4: the Save As dialog opens at the press of Whole system, before the archive is made
             toast('Making the export…');
-            Z.buildWhole(clean, D).then(function(r) { sysDownload(Z.zipName(clean.name), r.blob); toast(Z.exportWords(r)); })
-                .catch(function(e) { console.error(e); toast('The export could not be made. Nothing was saved.'); });   // the review (finding 6): plain words; the archive's own reason goes to the console and the step log
+            Z.buildWhole(clean, D).then(function(r) { sysDownload(zt, r.blob, function() { toast(Z.exportWords(r)); }); })
+                .catch(function(e) { if (zt) zt.drop(); console.error(e); toast('The export could not be made. Nothing was saved.'); });   // the review (finding 6): plain words; the archive's own reason goes to the console and the step log
         }, { noEnter: true, yes: 'Whole system', alt: 'System alone' });
     }).catch(function(e) { console.error(e); toast('The whole system could not be made ready, so the system alone is exported.'); exportAlone(clean); });   // the module cannot be had: the system alone, and why (the review, finding 3)
 }
@@ -1616,18 +1617,22 @@ function sysZipDeps(cp) {
     cp = cp || getActiveCampaign();
     return { camp: cp, lib: window.wpLibrary || null, F: F(), stores: [state.appState && state.appState.imageCats, cp && cp.imageCats], fetch: function(u, o) { return fetch(u, o); }, log: function(a, s, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog(a, s, o); } };
 }
-// A file handed to the browser as a download; a large one is kept a minute, while it is still being written
-function sysDownload(name, blob) {
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-    document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, blob.size > 50 * 1024 * 1024 ? 60000 : 500);
+// The Save As dialog for a system's file (1.6.4, at Fulllion's word of 2026-11-25), opened at the press that asked for it, before anything is
+// made: savefile.js, reached through window.wpSaveFile since a part imports from its root alone. null where it is not there. (This part says
+// "Save As dialog" and writes through wpSaveFile.saveTo: the root imports a name spelled as the plain word, which splitcheck's word rule reads)
+function sysSaveStart(name, type) { var SF = typeof window !== 'undefined' ? window.wpSaveFile : null; return SF && typeof SF.start === 'function' ? SF.start({ name: name, type: type }) : null; }
+// The file written to the file picked in the dialog opened at the press, or handed over as a download where the window has no dialog; then
+// done(), the words that it was exported, only once it was. A cancel says nothing, and savefile.js says a failure
+function sysDownload(ticket, blob, done) {
+    if (!ticket) { toast('The file could not be saved here.'); return; }
+    window.wpSaveFile.saveTo(ticket, blob).then(function(how) { if (window.wpSaveFile.saved(how)) done(); });
 }
 // [syszipcheck:export-end]
 // The system alone, as a .wpsystem.json: what Export always wrote, unchanged
 function exportAlone(clean) {
     var blob = new Blob([JSON.stringify(clean, null, 1)], { type: 'application/json' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (clean.name || 'system').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) + '.wpsystem.json';
-    document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    toast('System exported.');
+    var name = (clean.name || 'system').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) + '.wpsystem.json';
+    sysDownload(sysSaveStart(name, 'application/json'), blob, function() { toast('System exported.'); });   // 1.6.4: said only once it was saved
 }
 function importFile(file) {
     if (!file || !draft) return;

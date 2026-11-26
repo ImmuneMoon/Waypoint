@@ -3516,7 +3516,7 @@
   #popoutBody .tw-size, #popoutBody .tw-help { color: var(--dim); font-size: 12px; }
   #popoutBody .tw-note { color: var(--gold); font-size: 12px; }
   #popoutBody .tw-help { flex-basis: 100%; }
-  #popoutBody .tw-scroll { overflow: auto; max-height: calc(100vh - 140px); border-radius: 8px; }
+  #popoutBody .tw-scroll { overflow: auto; max-height: calc(100vh - 140px - var(--winbar)); border-radius: 8px; }   /* 1.6.4: the big table window's grid takes the window bar's strip off too, so its own scrollbar stays in sight */
   #popoutBody table.tw-grid { width: max-content; min-width: 100%; margin: 0; }
   #popoutBody table.tw-grid thead th { position: sticky; top: 0; z-index: 2; cursor: text; }
   #popoutBody table.tw-grid td { cursor: text; max-width: 320px; min-width: 60px; }

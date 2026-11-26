@@ -5290,6 +5290,14 @@ if (mode === 'samples') {
         JSON.stringify(pxAt(wrapInset, 0)) === '[0,0,0,0]' && JSON.stringify(pxAt(wrapInset, 26)) === '[26,0,0,0]' && JSON.stringify(pxAt(chatTop, 0)) === '[0]' && JSON.stringify(pxAt(chatTop, 26)) === '[26]'
         && pxAt(panelTop, 0) === 44 && pxAt(panelTop, 26) === 70 && JSON.stringify(pxAt(stripH, 0)) === '[0]' && JSON.stringify(pxAt(stripH, 26)) === '[26]',
         JSON.stringify([wrapInset, chatTop, panelTop, stripH, pxAt(wrapInset, 0), pxAt(panelTop, 0)]));
+    // the review of the pop-out window bar: a height worked out from 100vh takes the strip off, so the big table window's grid ends where it did
+    // before the strip came (its foot, the wrap's inset plus its own height, the same at 0 and 26 px). calcAt works out a calc of sums and
+    // differences of px, with 100vh as the window's height and var(--winbar) as the strip's
+    const calcAt = (v, vh, w) => { if (v === null) return null; const m = /^calc\((.*)\)$/.exec(v.trim()); if (!m) return null; const t = m[1].split('var(--winbar)').join(w + 'px').split('100vh').join(vh + 'px').replace(/\s+/g, ''); const parts = t.match(/[+-]?[\d.]+px/g) || []; return parts.reduce((a, p) => a + parseFloat(p), 0); };
+    const twMax = declOf('#popoutBody .tw-scroll', 'max-height');
+    check('1.6.4, the big table window\'s grid takes the window bar\'s strip off its height: in a window 860 px tall its box is 720 px at --winbar 0 and 694 px at 26 px, so its foot stays where it was and its own scrollbar in sight',
+        calcAt(twMax, 860, 0) === 720 && calcAt(twMax, 860, 26) === 694 && calcAt(twMax, 860, 0) + pxAt(wrapInset, 0)[0] === calcAt(twMax, 860, 26) + pxAt(wrapInset, 26)[0],
+        JSON.stringify([twMax, calcAt(twMax, 860, 0), calcAt(twMax, 860, 26)]));
 }
 {
     // 1.6.4, the looks (Fulllion, 2026-11-24: Slate the app's own, Lantern and Ink to pick): the rulers, the minimap and the zoom box wear the look

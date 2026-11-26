@@ -594,10 +594,18 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const pillBg = colorOf(declOf('#streamBar .stream-fight', 'background'), T);
             parts.push(['the fight\'s pill', colorOf(declOf('#streamBar .stream-fight', 'color'), T), pillBg && ground ? overC(pillBg, ground) : null, 4.5]);
             parts.push(['the fold arrow', colorOf(declOf('#streamBar .tool', 'color'), T), ground, 3]);
+            // the review of b52ddcb2: each list's arrow, a drawing whose color is written in its picture, read from the rule that paints it in this
+            // theme, held to 3:1 on the list's ground; and a list that is off draws its arrow in another, dimmer color than a live list's
+            const strokeOf = v => { const m = /stroke='%23([0-9a-f]{6})'/i.exec(v || ''); return m ? parseC('#' + m[1]) : null; };
+            const liveArrow = strokeOf((light && declOf('html[data-theme="light"] #streamBar select:not(:disabled)', 'background-image')) || declOf('#streamBar select', 'background-image'));
+            const offArrow = strokeOf(declOf('#streamBar select:disabled', 'background-image'));
+            parts.push(['a list\'s arrow', liveArrow, panel, 3]);
+            parts.push(['the arrow of a list that is off', offArrow, panel, 3]);
+            if (!liveArrow || !offArrow || j(liveArrow) === j(offArrow)) bad.push(name + ': a list that is off draws the same arrow as a live list');
             parts.forEach(([what, fg, bg, need]) => { const r = fg && bg ? ratio(fg, bg) : 0; rows.push(name + ': ' + what + ' ' + r.toFixed(2)); if (!(r >= need)) bad.push(name + ': ' + what + ' ' + r.toFixed(2) + ' < ' + need); });
         }));
         check('1.6.4 (the hand test of 2026-11-25) every part of the stream bar reads in every look and theme (Slate, Lantern and Ink, each dark and light), worked out from the style sheet\'s own colors: each caption at 7:1 or more on the bar\'s ground, a list\'s words and a list that is off at 4.5:1 or more on its own ground, the fight\'s pill at 4.5:1 on its tint over the bar, the fold arrow at 3:1; the captions take a color halfway between the look\'s ink and its dim, and a list that is off is dimmed by its words and a dashed edge, never by an opacity',
-            rows.length === 30 && bad.length === 0 && /^color-mix\(in srgb, var\(--ink\) 50%, var\(--dim\)\)$/.test(declOf('#streamBar label', 'color') || '') && declOf('#streamBar select:disabled', 'opacity') === null,
+            rows.length === 42 && bad.length === 0 && /^color-mix\(in srgb, var\(--ink\) 50%, var\(--dim\)\)$/.test(declOf('#streamBar label', 'color') || '') && declOf('#streamBar select:disabled', 'opacity') === null,
             j(bad.length ? bad : rows));
     }
     summed = true;

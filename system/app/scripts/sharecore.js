@@ -119,15 +119,18 @@ function zipOverhead(names) {
 // data.json. card: a share card goes in (share.json). Each file is counted by its own size as the saves folder answered it, else by its
 // list's, else it is unknown; a file that is not there adds nothing, as the export leaves it out. Answers { bytes, unsure }: unsure where a
 // file's size could not be had, or the pictures no map uses could not be listed, so the sheet says "At least"
-function exportSize(plan, on, out, data, card) {
+// cover (the review of b4587dbe, finding 5): the cover the sheet picked, which goes in the file whatever is unticked or left out (io.js
+// buildExport keepPaths keeps it), so it is counted whatever on and out say. card: the sheet writes share.json (its size a short card)
+function exportSize(plan, on, out, data, card, cover) {
     var P = isObj(plan) ? plan : {}, sets = fileSets(P.payload), sizes = isObj(P.sizes) ? P.sizes : null, O = Object.create(null);
     (Array.isArray(out) ? out : []).forEach(function(p) { if (typeof p === 'string') O[p] = 1; });
     var bytes = bytesOf(data), unsure = P.unlisted === true, names = ['data.json'], seen = Object.create(null), files = 0;
     (Array.isArray(P.paths) ? P.paths : []).forEach(function(p) {
         if (typeof p !== 'string' || seen[p]) return; seen[p] = 1;
         var k = kindOf(p, sets);
-        if (typeof on === 'function' && !on(k)) return;
-        if (k === 'pictures' && O[p]) return;
+        var isCover = typeof cover === 'string' && cover !== '' && p === cover;
+        if (!isCover && typeof on === 'function' && !on(k)) return;
+        if (!isCover && k === 'pictures' && O[p]) return;
         if (knownSize(sizes, p)) { if (!(sizes[p] > 0)) return; bytes += bytesOf(sizes[p]); }
         else if (k !== 'pictures' && sets[k] && sets[k][p] > 0) bytes += sets[k][p];
         else unsure = true;
@@ -135,10 +138,13 @@ function exportSize(plan, on, out, data, card) {
     });
     var lib = isObj(P.lib) ? P.lib : null;
     if (lib) { bytes += bytesOf(lib.bytes); if (Array.isArray(lib.names)) names = names.concat(lib.names.filter(function(x) { return typeof x === 'string'; })); }
-    if (card) names.push('share.json');
+    if (card) { names.push('share.json'); bytes += CARD_BYTES; }
     if (files || names.length > 1) bytes += zipOverhead(names);   // a .json alone has no archive around it
     return { bytes: Math.min(LIMITS.bytes, bytes), unsure: unsure };
 }
+// About how large share.json is: a card holds a title, an author, a version, a description and the counts (sharecore cardFor), a few
+// hundred bytes as JSON with two spaces; a long description makes it more, which "About" covers
+var CARD_BYTES = 600;
 // The sheet's line of the whole file's size: "About" where every size is known, "At least" where one is not
 function sizeLine(bytes, unsure) { return (unsure ? 'At least ' : 'About ') + sizeWords(bytes) + ' in all.'; }
 function leaveOut(payload, leave) {

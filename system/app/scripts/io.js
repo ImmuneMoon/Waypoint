@@ -2190,21 +2190,30 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
               if (isFinite(len) && len >= 0) sizes[p] = Math.floor(len); else unknown++;   // no length said (a server that sends none): unknown
           } catch (e) { unknown++; }
       };
-      for (var i = 0; i < todo.length; i += MEASURE_AT_ONCE) await Promise.all(todo.slice(i, i + MEASURE_AT_ONCE).map(one));
-      var lib = { n: 0, bytes: 0, missing: 0, names: [] };
+      // Each pinned library pack: its length read from the answer's Content-Length, its body then let go unread (the review of b4587dbe: every
+      // pack was downloaded whole only to be measured, before the sheet could open); read whole only where no length is said. The packs go
+      // through the same pool as the files, 8 at a time, and keep their order in the list of names
+      var lib = { n: 0, bytes: 0, missing: 0, names: [] }, packs = [];
       var camps = payload && payload.campaigns && typeof payload.campaigns === 'object' ? Object.values(payload.campaigns) : [];
-      for (var c = 0; c < camps.length; c++) {
-          var lm = camps[c] && camps[c].library;
-          if (!lm || typeof lm.dir !== 'string' || !Array.isArray(lm.packs)) continue;
-          for (var k = 0; k < lm.packs.length; k++) {
-              var pk = lm.packs[k]; if (!pk || !pk.rev) continue;
-              try {
-                  var lr = await get('/api/library?dir=' + encodeURIComponent(lm.dir) + '&pack=' + encodeURIComponent(pk.id) + '&rev=' + pk.rev);
-                  if (lr && lr.ok) { lib.n++; lib.bytes += (await lr.arrayBuffer()).byteLength; lib.names.push('library/' + lm.dir + '/' + pk.id + '.' + pk.rev + '.json'); }
-                  else lib.missing++;
-              } catch (e) { lib.missing++; }
-          }
-      }
+      camps.forEach(function(cp) {
+          var lm = cp && cp.library;
+          if (!lm || typeof lm.dir !== 'string' || !Array.isArray(lm.packs)) return;
+          lm.packs.forEach(function(pk) { if (pk && pk.rev) packs.push({ dir: lm.dir, id: pk.id, rev: pk.rev, len: -1 }); });
+      });
+      var onePack = async function(q) {
+          try {
+              var lr = await get('/api/library?dir=' + encodeURIComponent(q.dir) + '&pack=' + encodeURIComponent(q.id) + '&rev=' + q.rev);
+              if (!lr || !lr.ok) return;
+              var said = lr.headers && typeof lr.headers.get === 'function' ? lr.headers.get('Content-Length') : null, len = said === null || said === '' ? NaN : Number(said);
+              if (isFinite(len) && len >= 0) { q.len = Math.floor(len); try { if (lr.body && typeof lr.body.cancel === 'function') lr.body.cancel(); } catch (e2) {} }
+              else q.len = (await lr.arrayBuffer()).byteLength;
+          } catch (e) { q.len = -1; }
+      };
+      var jobs = todo.map(function(p) { return function() { return one(p); }; }).concat(packs.map(function(q) { return function() { return onePack(q); }; }));
+      for (var i = 0; i < jobs.length; i += MEASURE_AT_ONCE) await Promise.all(jobs.slice(i, i + MEASURE_AT_ONCE).map(function(f) { return f(); }));
+      packs.forEach(function(q) {
+          if (q.len >= 0) { lib.n++; lib.bytes += q.len; lib.names.push('library/' + q.dir + '/' + q.id + '.' + q.rev + '.json'); } else lib.missing++;
+      });
       return { lib: lib, asked: asked, unknown: unknown };
   }
   function exportBaseName(scope) { var c = getActiveCampaign(); return scope === 'all' ? 'waypoint-everything' : slugName(c && c.name) + '-campaign'; }
@@ -2256,7 +2265,10 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   }
   // 1.6.0 backlog 34: what Export this campaign or Export everything would carry, for the share sheet (share.js) to count before anything is
   // written: the payload as the export makes it, the files it names with the campaign's own pictures, and each listed picture's size
-  async function exportPlan(scope) {
+  // later (the review of b4587dbe, finding 3): the plan is answered at once, before any file is measured, with measure(), which measures
+  // them, fills the plan's sizes, lib and unknown in place and answers the plan; the share sheet opens on it and counts behind it. With no
+  // later the plan is measured before it is answered, as before
+  async function exportPlan(scope, later) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
       var camp = getActiveCampaign();
       if (!camp) { toast('No campaign selected.'); return null; }
@@ -2266,9 +2278,17 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       Object.values(payload.campaigns || {}).forEach(function(c) { if (c) dropWaiting(c); });
       var paths = collectImagePaths(payload), sizes = {};
       var ok = await exportListed(scope, payload, paths, sizes);
-      var meas = await exportMeasure(paths, sizes, payload);   // 1.6.4: every file the export carries, by its real size, and the library packs it carries
-      if (typeof window.wpStepLog === 'function') window.wpStepLog('export v1', 'plan', { files: paths.length, asked: meas.asked, unknown: meas.unknown, packs: meas.lib.n, packsMissing: meas.lib.missing });
-      return { payload: payload, paths: paths, sizes: sizes, lib: meas.lib, unknown: meas.unknown, unlisted: !ok, campId: camp.id, name: scope === 'all' ? '' : String(camp.name || ''), camps: Object.keys(payload.campaigns || {}).length };
+      var plan = { payload: payload, paths: paths, sizes: sizes, lib: null, unknown: 0, measured: false, unlisted: !ok, campId: camp.id, name: scope === 'all' ? '' : String(camp.name || ''), camps: Object.keys(payload.campaigns || {}).length };
+      var asked = null;
+      plan.measure = function() {
+          if (asked) return asked;
+          asked = exportMeasure(paths, sizes, payload).then(function(meas) {   // 1.6.4: every file the export carries, by its real size, and the library packs it carries
+              if (typeof window.wpStepLog === 'function') window.wpStepLog('export v1', 'plan', { files: paths.length, asked: meas.asked, unknown: meas.unknown, packs: meas.lib.n, packsMissing: meas.lib.missing });
+              plan.lib = meas.lib; plan.unknown = meas.unknown; plan.measured = true; return plan;
+          });
+          return asked;
+      };
+      return later ? plan : plan.measure();
   }
   window.wpExportPlan = exportPlan;
   // What an export of this scope holds, made at once with nothing waited for (1.6.4): exportScope asks it at the press, so that it knows
@@ -2483,7 +2503,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       if (st === 'cancel') return;   // canceled: no export
       var handle = st === 'picked' && kind === '.zip' ? ticket.handle : null;
       var r = await buildExport(scope, handle, share, pl);
-      if (!r) { if (ticket) ticket.drop(); return null; }
+      if (!r) { if (ticket) ticket.drop({ quiet: true }); return null; }   // buildExport said its own reason already: the empty file goes quietly, never over that reason (the review of b4587dbe)
       if (r.text) {
           if (st === 'picked') {
               var how = await ticket.save(new Blob([r.text], { type: 'application/json' }));

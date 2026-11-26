@@ -160,9 +160,37 @@ function drawKinds() {
     // own size as the saves folder answered it, the library packs it carries, data.json and the archive's own headers (sharecore exportSize);
     // "At least" where a size could not be had
     var on = function(k) { var b = kindBox(k); return !b || b.checked; };
-    var sz = SC.exportSize(_s.plan, on, on('pictures') ? outNow() : [], _s.data, false);
+    // (the review of b4587dbe) the count waits for the files to be measured, and holds the cover whatever is unticked, share.json where the
+    // sheet writes one, and data.json as the sheet's choices leave it (dataNow)
     var line = el('shareTotal');
+    if (_s.plan && _s.plan.measured === false) { if (line) line.textContent = 'Counting the file' + '\u2019' + 's size' + '\u2026'; return; }
+    var form = formNow(), card = !SC.isBlank(form, _s.title0);
+    var sz = SC.exportSize(_s.plan, on, on('pictures') ? outNow() : [], dataNow(form.leave, card), card, _s.cover);
     if (line) line.textContent = SC.sizeLine(sz.bytes, sz.unsure) + (_s.plan && _s.plan.unlisted ? ' The pictures no map uses yet could not be listed.' : '');
+}
+// What the sheet holds now, as go() reads it: its words, the kinds it leaves out and the pictures it leaves out
+function formNow() {
+    var v = function(id) { var f = el(id); return f ? str(f.value) : ''; };
+    var picsOn = !!kindBox('pictures') && kindBox('pictures').checked;
+    return { title: v('shareName'), author: v('shareAuthor'), version: v('shareVersion'), desc: v('shareDesc'), cover: _s.cover ? _s.cover.replace(/^\/saves\//, '') : '', leave: leaveList(), pics: picsOn ? outNow() : [] };
+}
+// data.json's size as the export writes it with what the sheet leaves out (io.js buildExport: sharecore leaveOut, then stripPrivate on a
+// Full export, then stripTable), kept for the kinds left out, since the payload of a large campaign is slow to write out at every tick. A
+// sheet left as it came on a plain export hands the export no share, and then data.json is the payload as it is
+function dataNow(leave, card) {
+    if (!card && !_s.share) return _s.data;
+    var key = (Array.isArray(leave) ? leave.join(',') : '') + '|' + (_s.share ? 1 : 0);
+    if (_s.dataKey === key && typeof _s.dataAt === 'number') return _s.dataAt;
+    var n = _s.data;
+    try {
+        var p = JSON.parse(JSON.stringify(_s.plan.payload));
+        if (Array.isArray(leave) && leave.length) SC.leaveOut(p, leave);
+        if (_s.share && typeof SC.stripPrivate === 'function') SC.stripPrivate(p, [state.appState && state.appState.imageCats]);
+        if (typeof SC.stripTable === 'function') SC.stripTable(p);
+        n = new TextEncoder().encode(JSON.stringify(p, null, 2)).length;
+    } catch (e) { n = _s.data; }
+    _s.dataKey = key; _s.dataAt = n;
+    return n;
 }
 // [zipcheck:sharetotal-end]
 async function open(scope, share) {
@@ -170,9 +198,10 @@ async function open(scope, share) {
     var gen = ++_s.gen, m = el('shareModal');
     if (!m) { if (typeof window.wpExportScope === 'function') window.wpExportScope(scope); return; }
     log('open', { scope: scope === 'all' ? 'all' : 'campaign', share: !!share });
-    var plan = typeof window.wpExportPlan === 'function' ? await window.wpExportPlan(scope) : null;
+    var plan = typeof window.wpExportPlan === 'function' ? await window.wpExportPlan(scope, true) : null;
     if (gen !== _s.gen) return;
     if (!plan) { log('open-none', {}); return; }
+    _s.dataKey = ''; _s.dataAt = null;
     _s.scope = scope === 'all' ? 'all' : 'campaign'; _s.share = !!share; _s.plan = plan;
     _s.sets = SC.fileSets(plan.payload);
     _s.tally = SC.tally(plan.payload, plan.paths, plan.sizes);
@@ -202,6 +231,12 @@ async function open(scope, share) {
     var t = _s.tally;
     log('shown', { maps: t.maps.n, pages: t.pages.n, chars: t.chars.n, pictures: t.pictures.n, sounds: t.sounds.n, music: t.music.n, videos: t.videos.n, players: t.players.n, camps: plan.camps, cover: !!_s.cover, templates: t.templates.n, off: Object.keys(_s.off).length, tags: SC.tagRows(_s.allPics, _s.stores, _s.sets).rows.length });
     var first = el('shareName'); if (first) first.focus();
+    // (the review of b4587dbe, finding 3) the sheet is up at once and says it is counting; the sizes come in behind it, and only for this
+    // very opening of the sheet
+    if (typeof plan.measure === 'function' && plan.measured === false) plan.measure().then(function() {
+        if (gen !== _s.gen || _s.plan !== plan || !shown()) return;
+        _s.tally = SC.tally(plan.payload, plan.paths, plan.sizes); drawKinds();
+    }, function() { if (gen !== _s.gen || _s.plan !== plan) return; plan.measured = true; drawKinds(); });
 }
 function hide(why) {
     var m = el('shareModal'); if (!m || !shown()) return;

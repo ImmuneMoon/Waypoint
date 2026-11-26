@@ -219,10 +219,14 @@ pending.push((async function() {
     reset(); L = later(0);
     t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }); L.pick('picked');
     const f7 = await t.fail(''); const said7 = W.said.slice();
-    check('fail() says what became of the picked file in one notice with the words: left empty where the window cannot take it away, untouched where it holds something, and with no words only what became of the file',
+    reset(); L = later(0, 'no-remove');
+    t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }); L.pick('picked');
+    const f7b = await t.fail(''); const said7b = W.said.slice();
+    // moved on purpose (the review of b4587dbe): with no words, a file taken away again says nothing, and only one left empty is said
+    check('fail() says what became of the picked file in one notice with the words: left empty where the window cannot take it away, untouched where it holds something, and with no words nothing unless a file was left empty',
         f5 === 'empty' && j(said5) === j(['Image export failed. The Undertow.png was left empty. Nothing was written to it.'])
         && f6 === 'kept' && j(said6) === j(['Add at least one picture. Nothing was written to The Undertow.png.'])
-        && f7 === 'removed' && j(said7) === j(['No file was written.']), j([f5, said5, f6, said6, f7, said7]));
+        && f7 === 'removed' && j(said7) === j([]) && j(said7b) === j(['The Undertow.png was left empty. Nothing was written to it.']), j([f5, said5, f6, said6, f7, said7, f7b, said7b]));
     reset(); D = dialog('write-fails');
     t = SF.saveStart({ name: 'Notes.md', type: 'text/markdown' }); await t.save(blob); const saidW = W.said.slice(); W.said = [];
     const f8 = await t.fail('The journal could not be saved.');

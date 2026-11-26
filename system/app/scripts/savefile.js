@@ -133,8 +133,8 @@ function saveStart(opts) {
     // dialog was still open, so its notice was gone before the person pressed Save, and the empty file was then taken away with nothing said).
     // fail() waits for the dialog to close before it says anything, then: after a cancel it says nothing at all (the person asked for no
     // file); where a file was picked it takes the empty file away quietly (drop) and says the words with what became of that file; where no
-    // file was picked (no dialog in this window, or it would not open) it says the words alone. words may be empty: then only what became of
-    // the picked file is said, where it was left empty. Every export that used to call drop() and then say its own failure calls this
+    // file was picked (no dialog in this window, or it would not open) it says the words alone. words may be empty: then nothing is said unless
+    // the picked file was left empty, which is then said alone (the review of b4587dbe: a lone "No file was written." said nothing new). Every export that used to call drop() and then say its own failure calls this
     // instead. Answers a promise of 'cancel', or of what drop() did ('none', 'kept', 'removed', 'empty')
     t.fail = function(words) { return failPicked(t, ext, words); };
     return t;
@@ -150,7 +150,7 @@ function failPicked(t, ext, words) {
         if (st !== 'picked') { saveLog('failed', { ext: ext, picked: 0 }); if (w) say(w); return 'none'; }
         return dropPicked(t, ext, { quiet: true }).then(function(d) {
             saveLog('failed', { ext: ext, picked: 1, file: d });
-            say(failWords(w, t.name, d));
+            if (w || d === 'empty') say(failWords(w, t.name, d));
             return d;
         });
     });

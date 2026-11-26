@@ -151,7 +151,9 @@ function shotGo() {
     var box = shotBox(map), p = SC.plan(box, _shot.cell, shotRef(map)); if (!p.ok) { shotSync(); return false; }
     var fp = flatNow(map), grid = fp ? '' : shotGridOf(map), lines = !fp && _shot.grid && !!grid, labels = fp ? true : _shot.labels, bg = fp ? 'none' : _shot.bg, items = fp ? fp.draw.slice() : map.whiteboard.slice(), need = SC.needs(items, { labels: labels, grid: !!grid, box: box }), title = shotTitle(map), my = ++_shot.gen;   // 1.6.2 (backlog 39): a flatten draws its own pieces alone, on a clear ground
     _shot.busy = true; shotKeep(); shotSync();
-    var fail = function() { if (my !== _shot.gen) return; _shot.busy = false; _shot.err = SHOT_CANT; shotSync(); };
+    // more: words that follow the dialog's line, as what became of a file the person named (the review of b4587dbe: a notice lies under this
+    // dialog's backdrop, so the dialog's own line says it)
+    var fail = function(e, more) { if (my !== _shot.gen) return; _shot.busy = false; _shot.err = SHOT_CANT + (typeof more === 'string' ? more : ''); shotSync(); };
     // 1.6.4: the save dialog opens now, at the press, before anything is loaded or drawn; a flatten saves no file and opens none. The dialog
     // closes with nothing saved where the person cancels it, and stays up to try again (fail: false: what could not be saved is said in its line)
     var ticket = fp ? null : saveStart({ name: title + '.png', type: 'image/png', desc: 'Picture', fail: false });
@@ -188,10 +190,14 @@ function shotGo() {
             toast(shotDoneWords(p, r.lost, r.cut));
         });
     }).catch(function(e) {
-        // 1.6.4: with a save dialog open, the failure waits for it to close (savefile.js fail): a cancel then only makes the dialog ready again,
-        // and otherwise the dialog's own line says it could not be made, the notice saying what became of the file named
+        // 1.6.4: with a save dialog open, the failure waits for it to close: a cancel then only makes the dialog ready again, and otherwise
+        // the empty file named is taken away quietly (savefile.js drop) and the dialog's own line says it could not be made, with the file
+        // left empty where the window could not take it away. Never a notice: it would lie under this dialog's backdrop
         if (!ticket) { fail(e); return; }
-        ticket.fail('').then(function(how) { if (how === 'cancel') { if (my === _shot.gen) { _shot.busy = false; shotSync(); } return; } fail(e); });
+        ticket.ready.then(function(st) {
+            if (st === 'cancel') { if (my === _shot.gen) { _shot.busy = false; shotSync(); } return; }
+            return ticket.drop({ quiet: true }).then(function(d) { fail(e, d === 'empty' ? ' ' + ticket.name + ' was left empty.' : ''); });
+        }).catch(function() { fail(e); });
     });
     return true;
 }

@@ -403,6 +403,23 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && !('/saves/images/m1/nolen.png' in sizes) && sizes['/saves/images/m1/a.png'] === 300 && m.unknown === 1 && m.asked === 5
             && !asked.some(a => a[0] === '/saves/images/m1/a.png') && asked.filter(a => a[1] === 'HEAD').length === 5
             && m.lib.n === 1 && m.lib.bytes === 4321 && m.lib.missing === 1 && j(m.lib.names) === j(['library/lib1/p1.3.json']), j([sizes, m, asked]));
+        // the review of b4587dbe: a pack that says its length is sized by it and its body let go unread, never downloaded whole only to be
+        // measured; the packs go through the same pool as the files, and their names keep the packs' order whatever answers first
+        const reads = [], cancels = [];
+        const fake2 = async function(u) {
+            if (/pack=q2/.test(u)) await new Promise(r => setTimeout(r, 20));
+            const n = /pack=q1/.test(u) ? 5000 : 7000;
+            return { ok: true, status: 200, headers: { get: k => /content-length/i.test(k) ? String(n) : null }, body: { cancel: () => { cancels.push(u); } }, arrayBuffer: async () => { reads.push(u); return new ArrayBuffer(n); } };
+        };
+        const pay2 = { campaigns: { c1: { library: { dir: 'lib1', packs: [{ id: 'q2', rev: 1 }, { id: 'q1', rev: 2 }] } } } };
+        const m2 = await exM([], {}, pay2, fake2);
+        check('the review of b4587dbe: a library pack that says its length is sized by that length and its body is let go unread, never downloaded whole to be measured; the packs keep their order in the list of names whatever answers first',
+            m2.lib.n === 2 && m2.lib.bytes === 12000 && reads.length === 0 && cancels.length === 2 && j(m2.lib.names) === j(['library/lib1/q2.1.json', 'library/lib1/q1.2.json']), j([m2, reads, cancels]));
+        // and the plan answers at once where the sheet asks for it later, measuring only when asked, once
+        const ioS = ioSrc.replace(/\r\n/g, '\n');
+        check('the review of b4587dbe: exportPlan answers at once where it is asked with later, its measure() filling the sizes and the packs in place and answering the plan, asked once however often; the share sheet opens on it and counts behind it, saying so (source)',
+            /async function exportPlan\(scope, later\) \{/.test(ioS) && /return later \? plan : plan\.measure\(\);/.test(ioS) && /if \(asked\) return asked;/.test(ioS)
+            && /window\.wpExportPlan\(scope, true\)/.test(read('system/app/scripts/share.js')) && /plan\.measure\(\)\.then\(function\(\) \{/.test(read('system/app/scripts/share.js')));
     }
     check('what an export says of itself (exportTally / exportDoneWords, run for real): a file left out is taken off the count of its kind and counted as missing, and the closing line says how many — an archive short of a file is never called whole; both ways of writing an export and the closing line go through them (source)',
         j(exSay.exportTally(212, 3, ['images/video/c/a.webm', 'images/m/b.png'])) === j({ images: 211, videos: 2, missing: 2 }) && j(exSay.exportTally(5, 0, [])) === j({ images: 5, videos: 0, missing: 0 }) && j(exSay.exportTally(4, 2, ['images/video/c/a.webm', 'images/video/c/b.webm'])) === j({ images: 4, videos: 0, missing: 2 })
@@ -732,11 +749,25 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             // the sheet's own line, from share.js (drawKinds) on stand-ins: it says what exportSize says, "About" or "At least"
             {
                 const shT = read('system/app/scripts/share.js'), ta = shT.indexOf('// [zipcheck:sharetotal-start]'), tb = shT.indexOf('// [zipcheck:sharetotal-end]');
-                const line = (pl) => { const els = { shareTotal: { textContent: '' } }; const boxes = {}; S.KINDS.forEach(k => { boxes[k] = { checked: true, disabled: false }; });
-                    try { new Function('SC', '_s', 'el', 'kindBox', 'outNow', shT.slice(ta, tb) + '\ndrawKinds();')(S, { tally: S.tally(pl.payload, pl.paths, pl.sizes), plan: pl, data: 2000 }, id => els[id] || null, k => boxes[k], () => []); } catch (e) { return 'threw: ' + e.message; }
+                // o (the review of b4587dbe): what the sheet holds, { off: kinds unticked, title, cover, share }
+                const line = (pl, o) => { o = o || {}; const els = { shareTotal: { textContent: '' }, shareName: { value: o.title || '' } }; const boxes = {}; S.KINDS.forEach(k => { boxes[k] = { checked: !(o.off || []).includes(k), disabled: false }; });
+                    try { new Function('SC', '_s', 'el', 'kindBox', 'outNow', 'leaveList', 'str', 'state', shT.slice(ta, tb) + '\ndrawKinds();')(S, { tally: S.tally(pl.payload, pl.paths, pl.sizes), plan: pl, data: 2000, cover: o.cover || '', share: !!o.share, title0: 'Vault' }, id => els[id] || null, k => boxes[k], () => [], () => S.KINDS.filter(k => !boxes[k].checked), v => typeof v === 'string' ? v : '', { appState: {} }); } catch (e) { return 'threw: ' + e.message; }
                     return els.shareTotal.textContent; };
                 check('1.6.4: the sheet\'s line (share.js drawKinds, run for real on stand-ins) says the whole file\'s size as exportSize counts it, "About" where every size is known and "At least" where one is not',
                     ta > 0 && tb > ta && line(plan) === S.sizeLine(e1.bytes, false) && line(Object.assign({}, plan, { sizes: {} })).indexOf('At least ') === 0, j([line(plan), line(Object.assign({}, plan, { sizes: {} }))]));
+                // the review of b4587dbe: the sheet opens before the files are measured and says it is counting; the cover is counted with Pictures
+                // unticked, as the export keeps it; a filled sheet counts share.json; and data.json is counted as the sheet's choices leave it
+                const dataOf = p => new TextEncoder().encode(JSON.stringify(p, null, 2)).length;
+                const noChars = JSON.parse(JSON.stringify(plan.payload)); S.leaveOut(noChars, ['chars']); S.stripTable(noChars);
+                const kept = JSON.parse(JSON.stringify(plan.payload)); S.stripTable(kept);
+                const eC = S.exportSize(plan, k => k !== 'pictures', [], 2000, false, '/saves/images/m1/b.jpg'), eP = S.exportSize(plan, k => k !== 'pictures', [], 2000, false);
+                const eK = S.exportSize(plan, () => true, [], 2000, true);
+                check('the review of b4587dbe: the sheet says it is counting until the files are measured; the cover is counted whatever is unticked, as the export keeps it; a sheet that writes share.json counts it, file and header; and data.json is counted as the export writes it with what the sheet leaves out (sharecore leaveOut, stripTable), so leaving characters out takes their part off the figure',
+                    line(Object.assign({}, plan, { measured: false })) === 'Counting the file\u2019s size\u2026'
+                    && eC.bytes === eP.bytes + 700 + 76 + 2 * 'images/m1/b.jpg'.length && eK.bytes === e1.bytes + 600 + 76 + 2 * 'share.json'.length
+                    && line(plan, { off: ['pictures'], cover: '/saves/images/m1/b.jpg', title: 'Vault 2' }) === S.sizeLine(S.exportSize(plan, k => k !== 'pictures', [], dataOf(kept), true, '/saves/images/m1/b.jpg').bytes, false)
+                    && line(plan, { off: ['chars'], title: 'Vault' }) === S.sizeLine(S.exportSize(plan, k => k !== 'chars', [], dataOf(noChars), true).bytes, false) && dataOf(noChars) < dataOf(kept),
+                    j([line(Object.assign({}, plan, { measured: false })), eC, eP, eK, e1, line(plan, { off: ['chars'], title: 'Vault' }), dataOf(noChars), dataOf(kept)]));
             }
         }
         /* 1.6.2, Export all (backlog 227; the owner, by prompt on the drawn sheet: "Grow the Share sheet, no new export", "Both", "a Template tick on a

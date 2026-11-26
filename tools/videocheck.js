@@ -589,8 +589,10 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const parts = [];
             parts.push(['a caption', colorOf(declOf('#streamBar label', 'color'), T), ground, 7]);
             parts.push(['a list\'s words', colorOf(declOf('#streamBar select', 'color'), T), panel, 4.5]);
-            const offOp = declOf('#streamBar select:disabled', 'opacity'), offC = colorOf(declOf('#streamBar select:disabled', 'color') || declOf('#streamBar select', 'color'), T);   // a list that is off, as it is painted: its words faded by any opacity over its own ground
+            const offOp = declOf('#streamBar select:disabled', 'opacity') || '0.7' /* the browser's own sheet fades a disabled list to 0.7 unless a rule says otherwise (the hand test of b8799d2f) */, offC = colorOf(declOf('#streamBar select:disabled', 'color') || declOf('#streamBar select', 'color'), T);   // a list that is off, as it is painted: its words faded by any opacity over its own ground
             parts.push(['a list that is off', offC && offOp ? overC(offC.slice(0, 3).concat(+offOp), panel) : offC, panel, 4.5]);
+            const offEdge = colorOf(declOf('#streamBar select:disabled', 'border-color') || declOf('#streamBar select', 'border-color') || 'var(--edge)', T);
+            parts.push(['the dashed edge of a list that is off', offEdge ? overC(offEdge.slice(0, 3).concat(+offOp), panel) : null, panel, 3]);
             const pillBg = colorOf(declOf('#streamBar .stream-fight', 'background'), T);
             parts.push(['the fight\'s pill', colorOf(declOf('#streamBar .stream-fight', 'color'), T), pillBg && ground ? overC(pillBg, ground) : null, 4.5]);
             parts.push(['the fold arrow', colorOf(declOf('#streamBar .tool', 'color'), T), ground, 3]);
@@ -605,7 +607,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             parts.forEach(([what, fg, bg, need]) => { const r = fg && bg ? ratio(fg, bg) : 0; rows.push(name + ': ' + what + ' ' + r.toFixed(2)); if (!(r >= need)) bad.push(name + ': ' + what + ' ' + r.toFixed(2) + ' < ' + need); });
         }));
         check('1.6.4 (the hand test of 2026-11-25) every part of the stream bar reads in every look and theme (Slate, Lantern and Ink, each dark and light), worked out from the style sheet\'s own colors: each caption at 7:1 or more on the bar\'s ground, a list\'s words and a list that is off at 4.5:1 or more on its own ground, the fight\'s pill at 4.5:1 on its tint over the bar, the fold arrow at 3:1; the captions take a color halfway between the look\'s ink and its dim, and a list that is off is dimmed by its words and a dashed edge, never by an opacity',
-            rows.length === 42 && bad.length === 0 && /^color-mix\(in srgb, var\(--ink\) 50%, var\(--dim\)\)$/.test(declOf('#streamBar label', 'color') || '') && declOf('#streamBar select:disabled', 'opacity') === null,
+            rows.length === 48 && bad.length === 0 && /^color-mix\(in srgb, var\(--ink\) 50%, var\(--dim\)\)$/.test(declOf('#streamBar label', 'color') || '') && declOf('#streamBar select:disabled', 'opacity') === '1' /* the hand test of b8799d2f: the browser fades a disabled list by itself unless the rule says opacity 1 (moved on purpose) */ && /^(11|1[2-9])px$/.test(declOf('#streamBar label', 'font-size') || '') && +(declOf('#streamBar label', 'font-weight') || 400) >= 600,
             j(bad.length ? bad : rows));
     }
     summed = true;

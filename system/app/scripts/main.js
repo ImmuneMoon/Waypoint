@@ -694,9 +694,10 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       } else {
 
-          // Capture the visible region of the big inner canvas. html2canvas ignores the
-
-          // root element's scale transform, so crop coordinates are in unscaled space.
+          // Capture the visible region of the big inner canvas, in the board's own unscaled space: the crop below is the view's place
+          // and size divided by the zoom. The board's copy has its zoom transform taken off before it is drawn (onclone, below): the
+          // renderer does draw that transform, so at 45% the map came out a corner of the picture at 45% of its size, and a view
+          // scrolled far into the board cropped where nothing was drawn, the board's ground alone in every pixel (the hand test of b8799d2f)
 
           var wrapEl = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
 
@@ -711,7 +712,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
       }
       // 1.6.4: the colors the renderer cannot read are written back on its own copy (imgColorsFix), and the picture is drawn at a scale that
       // fits a canvas (imgScaleFor), its size logged as a step
-      opts.onclone = function(d, root) { var nC = imgColorsFix(d, root); if (pageOwn) pageOwn(d); imgLog('colors', { fixed: nC }); };
+      opts.onclone = function(d, root) { var nC = imgColorsFix(d, root); if (pageOwn) pageOwn(d); if (!isDocLike(activeMap) && root && root.style) root.style.transform = 'none'; imgLog('colors', { fixed: nC }); };   // a map's copy drawn at its own size, north up, as the crop reads it
       var mapPic = !isDocLike(activeMap), tr = target ? target.getBoundingClientRect() : null;
       var size = imgScaleFor(mapPic ? opts.width : (tr && tr.width), mapPic ? opts.height : (tr && tr.height), window.devicePixelRatio || 1);
       if (size) opts.scale = size.scale;

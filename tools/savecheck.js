@@ -295,6 +295,16 @@ pending.push((async function() {
     check('Save as image of a map zoomed far out is drawn at a scale that fits a canvas (the renderer is handed it, and the hook that writes its colors back), the file written, and the notice says it was made smaller, with its size',
         !!R4 && sc > 0 && sc < 2 && R4.opts.width * sc <= 16384 && R4.opts.width * sc * R4.opts.height * sc <= 120000000 && typeof R4.opts.onclone === 'function' && R4.L.closed === true
         && j(R4.toasts) === j(['Rendering image...', 'Image exported, made smaller to fit: 16000 by 7500 pixels.']) && R4.said.length === 0, j(R4 && [sc, R4.toasts, R4.said]));
+    // the hand test of b8799d2f: The Undertow at 45% gave a picture of the board's ground alone. The renderer draws the board's zoom transform,
+    // while the crop is in the board's own unscaled space, so the copy it draws has that transform taken off (the hook handed to it, run on a
+    // stand-in copy); a page's copy keeps its own
+    let cloneMap = null, clonePage = null;
+    if (R4 && typeof R4.opts.onclone === 'function') {
+        const rootM = { style: { transform: 'scale(0.45)', setProperty() {} }, querySelectorAll: () => [] };
+        R4.opts.onclone({ defaultView: { getComputedStyle: () => ({ getPropertyValue: () => '' }) }, querySelectorAll: () => [] }, rootM); cloneMap = rootM.style.transform;
+    }
+    check('Save as image of a map draws the board\'s copy at its own size: the hook the renderer is handed takes the zoom transform off the copy, as the crop is worked out in the board\'s unscaled space, so a map zoomed out is drawn whole and in place, never a corner of the picture or the ground alone',
+        cloneMap === 'none' && /if \(!isDocLike\(activeMap\) && root && root\.style\) root\.style\.transform = 'none';/.test(mainSrc), j([cloneMap]));
 
     global.setTimeout = realTimeout; URL.createObjectURL = realMake; URL.revokeObjectURL = realLetGo;
 })());

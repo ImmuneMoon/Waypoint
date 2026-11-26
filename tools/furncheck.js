@@ -230,6 +230,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('a campaign\'s packs never leave the host, and a save\'s are cleaned as it loads, by the cleaners objcore brings before the first load',
         require('./checkkit').part('netfog.js').includes("        delete camp.furnPacks;   // 1.6.2 (backlog 222)") && read('scripts/io.js').includes("if (c.furnPacks !== undefined) { var FUl = window.wpFurnCore, FCp = window.wpFogCore, fpL = FUl && FUl.cleanPacks && FCp && FCp.cleanTexSrc ? FUl.cleanPacks(c.furnPacks, FCp.cleanTexSrc) : [];")
         && read('scripts/io.js').includes("import './objcore.js';") && ocSrc.includes("from './fogcore.js'"));
+    // the hand test of b8799d2f: the template brought back in with its pack folder still empty was refused with nothing on screen, and the
+    // step log wrote its reason as ?. It is now known as the template (tplEmpty, run for real on lists of names), every refusal is said in
+    // the Packs window's own line as well as a notice (packSay), and every reason is one word the log can write
+    {
+        const tA = pwSrc.indexOf('function tplEmpty(names) {'), tB = pwSrc.indexOf('\n}\n', tA);
+        const tplEmpty = new Function(pwSrc.slice(tA, tB + 2) + '\nreturn tplEmpty;')();
+        const reasons = (pwSrc.match(/log\('import-refused', \{ why: '([^']*)'/g) || []).map(s => /why: '([^']*)'/.exec(s)[1]);
+        check('the template brought back in with nothing in its pack folder is said as what it is, in the Packs window\'s own line as well as a notice, and every reason an import is refused for is one word the step log can write',
+            tplEmpty(['Furnishing pack template/reference/chest-fantasy.png', 'Furnishing pack template/pack/Put your pictures here.txt', 'How to make a pack.txt']) === true
+            && tplEmpty(['reference/chest-fantasy.png', 'pack/chest-fantasy.png']) === false && tplEmpty(['pack/chest-fantasy.png']) === false && tplEmpty(['REFERENCE\\tex-bricks.PNG']) === true && tplEmpty([]) === false && tplEmpty(null) === false
+            && pwSrc.includes("packSay('That is the template with nothing in its pack folder yet. Put your pictures in its pack folder, named as the ones in its reference folder, then bring it in.'); log('import-refused', { why: 'template-empty'")
+            && reasons.length >= 6 && reasons.every(r => /^[a-z0-9_.:-]{1,60}$/i.test(r)) && !/toast\('No picture in that|toast\('That is no furnishing pack|toast\('That \.zip could not be read/.test(pwSrc)
+            && count(ix, 'id="furnPackSay"') === 1 && /role="status"/.test(ix.slice(ix.indexOf('id="furnPackSay"') - 40, ix.indexOf('id="furnPackSay"') + 80))
+            && pwSrc.includes("var said = $('furnPackSay'); if (said) { said.textContent = ''; said.hidden = true; }"), JSON.stringify(reasons));
+    }
     check('the page: the packs window with its buttons and its two file pickers, its script after the palette\'s, and Escape closes it',
         ix.includes('<script type="module" src="scripts/furnish.js"></script>\n<script type="module" src="scripts/furnpack.js"></script>\n') && ['furnPackModal', 'furnPackList', 'furnPackImportFile', 'furnPackImportFolder', 'furnPackFromOther', 'furnPackFile', 'furnPackDir', 'furnPackFromList', 'furnPackClose'].every(id => count(ix, 'id="' + id + '"') === 1)
         && ix.includes('<input type="file" id="furnPackDir" webkitdirectory multiple hidden>') && read('scripts/esckey.js').includes("['furnPackModal', 'furnPackClose']"));

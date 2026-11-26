@@ -119,9 +119,9 @@ async function bringIn(name, items, pre) {   // items: [itemOf]; pre: what the f
         if ((it.t === 2 || it.t === 4) && key.indexOf('.') > 0 && (key.slice(0, 4) === 'tex.' || key.slice(0, 4) === 'blk.')) tiles[key] = it.t;
     }
     var nm = F.packName(name) || 'A pack';
-    if (n && !campLive(c)) { log('import-refused', { why: 'campaign gone' }); toast('The campaign ' + nm + ' was brought into is gone, so the pack was not kept.'); return; }
+    if (n && !campLive(c)) { log('import-refused', { why: 'campaign-gone' }); packSay('The campaign ' + nm + ' was brought into is gone, so the pack was not kept.'); return; }
     var now = packsOf(c);   // read again: a rename or a removal made while the pictures were saved stands
-    if (n && now.length >= F.PACK_MAX) { log('import-refused', { why: 'full' }); toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
+    if (n && now.length >= F.PACK_MAX) { log('import-refused', { why: 'full' }); packSay('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
     if (n) { var pk = F.cleanPack({ id: id, name: nm, looks: looks, tiles: tiles, blocks: blocks }, srcRule()); if (pk) { c.furnPacks = now.concat([pk]); save(); if (window.wpFurnish) window.wpFurnish.draw(); bdraw(); } }   // written to the campaign it began in, whichever is on screen now
     log('import', { n: n, blocks: blocks.length, left: left.kind + left.picture + left.upload + left.twice + left.over, solid: left.solid });
     toast(importWords(nm, n, left));
@@ -144,14 +144,33 @@ async function importFile(file) {
     if (isZip(head)) return importZip(file);
     var j; try { j = JSON.parse(await file.text()); } catch (e) { j = null; }
     var got = j ? readPackFile(F, j) : null;
-    if (!got) { toast('That is no furnishing pack.'); log('import-refused', { why: 'not a pack' }); return; }
+    if (!got) { packSay('That is no furnishing pack.'); log('import-refused', { why: 'not-a-pack' }); return; }
     var items = got.looks.map(function(l) { var b; try { b = bytesOf(l.data); } catch (e) { b = new Uint8Array(0); } return itemOf(l, b); });
     await bringIn(got.name || String(file.name || '').replace(/\.[^.]*$/, ''), items, got.left);
+}
+// What an import that brings nothing in says (the hand test of b8799d2f: a refusal was said only in a notice, which the person did not see):
+// the notice, and the same words in the Packs window's own line under its import buttons, which stay while the window is up. The line is
+// emptied as the window opens (open). A step log reason is one word, so the log shows it: stepLine writes any value with a space as ?
+function packSay(words) {
+    toast(words);
+    var l = $('furnPackSay'); if (l) { l.textContent = words; l.hidden = !words; }
+}
+// Whether a .zip's names are the template's, brought back with its pack folder still empty: pictures under a reference folder, and none
+// under a pack folder. Pure: buildcheck reads it on lists of names
+function tplEmpty(names) {
+    var ref = false, pack = false;
+    (Array.isArray(names) ? names : []).forEach(function(n) {
+        if (typeof n !== 'string') return;
+        var p = n.replace(/\\/g, '/').toLowerCase(), pic = /\.(png|jpe?g|webp|gif|svg|bmp)$/.test(p);
+        if (pic && /(^|\/)reference\//.test(p)) ref = true;
+        if (pic && /(^|\/)pack\//.test(p)) pack = true;
+    });
+    return ref && !pack;
 }
 // A .zip, such as the template filled in: its pack folder's pictures, never the reference folder's (furncore pickLooks)
 async function importZip(file) {
     var F = FU(), z; try { var zip = await import('./zip.js'); z = await zip.zipOpen(file); } catch (e) { z = null; }
-    if (!z) { toast('That .zip could not be read.'); log('import-refused', { why: 'zip' }); return; }
+    if (!z) { packSay('That .zip could not be read.'); log('import-refused', { why: 'zip' }); return; }
     var ents = z.entries.slice(0, FOLDER_MAX), pick = F.pickLooks(ents.map(function(e) { return e.name; })), items = [];
     for (var i = 0; i < pick.looks.length; i++) {
         var l = pick.looks[i], e = ents[l.i];
@@ -159,7 +178,10 @@ async function importZip(file) {
         var b; try { b = await e.bytes(); } catch (er) { b = new Uint8Array(0); }
         items.push(itemOf(l, b));
     }
-    if (!items.length) { toast('No picture in that .zip is named for a furnishing, a pattern or a block, such as pack/chest-fantasy.png or pack/tex-bricks.png.'); log('import-refused', { why: 'no names', files: ents.length }); return; }
+    // the hand test of b8799d2f: the template brought back in before anything was put in its pack folder holds pictures in its reference
+    // folder alone, which are Waypoint's own and never read as a pack; that is said as what it is
+    if (!items.length && tplEmpty(ents.map(function(e) { return e.name; }))) { packSay('That is the template with nothing in its pack folder yet. Put your pictures in its pack folder, named as the ones in its reference folder, then bring it in.'); log('import-refused', { why: 'template-empty', files: ents.length }); return; }
+    if (!items.length) { packSay('No picture in that .zip is named for a furnishing, a pattern or a block, such as pack/chest-fantasy.png or pack/tex-bricks.png.'); log('import-refused', { why: 'no-names', files: ents.length }); return; }
     await bringIn(String(file.name || '').replace(/\.zip$/i, ''), items, { kind: pick.left.kind, twice: pick.left.twice, over: Math.max(0, z.entries.length - FOLDER_MAX) });
 }
 async function importFolder(files) {
@@ -172,7 +194,7 @@ async function importFolder(files) {
         if (f.size > PIC_MAX) { items.push(itemOf(l, new Uint8Array(0))); continue; }
         items.push(itemOf(l, new Uint8Array(await f.arrayBuffer())));
     }
-    if (!items.length) { toast('No picture in that folder is named for a furnishing, a pattern or a block, such as chest-fantasy.png or tex-bricks.png.'); log('import-refused', { why: 'no names', files: files.length }); return; }
+    if (!items.length) { packSay('No picture in that folder is named for a furnishing, a pattern or a block, such as chest-fantasy.png or tex-bricks.png.'); log('import-refused', { why: 'no-names', files: files.length }); return; }
     await bringIn(name || 'A pack', items, { kind: pick.left.kind, twice: pick.left.twice, over: Math.max(0, files.length - FOLDER_MAX) });
 }
 // Each picture's bytes, read from the campaign's own picture, as items that say what they are: a furnishing, a pattern with its tile, a block
@@ -627,7 +649,7 @@ function drawSoon() { var box = $('furnPackList'), h = box ? pressHold(box, wind
 function open() {
     if (!packMay(net(), window)) { toast('Furnishing packs are the GM’s.'); return; }
     var m = $('furnPackModal'); if (!m) return;
-    _w.from = false; draw(); m.style.display = 'flex'; log('open', {});
+    _w.from = false; draw(); var said = $('furnPackSay'); if (said) { said.textContent = ''; said.hidden = true; } m.style.display = 'flex'; log('open', {});   // what an import said last time goes as the window opens again
 }
 function close() { var m = $('furnPackModal'); if (m) m.style.display = 'none'; }
 function wire() {

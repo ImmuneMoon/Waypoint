@@ -662,6 +662,61 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
   function imgDoneWords(size) {
       return size && size.small ? 'Image exported, made smaller to fit: ' + size.w + ' by ' + size.h + ' pixels.' : 'Image exported.';
   }
+  // Icons drawn by a mask (the hand test of eea706f2: the icon marks of a token's effects came out as plain white squares). The app draws
+  // many of its icons as a block of the text's color cut out by a CSS mask (a token's effect chips through .wp-glyph, every .wib drawing);
+  // the renderer does not know masks, so it painted the whole block. imgMasksFix, asked through the renderer's onclone on its own copy, finds
+  // each element of the copy that wears a mask picture, draws that picture in the element's own color on a small canvas of its own size
+  // (paint, imgMaskPaint by default), and sets the result as the element's background in place of the mask, so the renderer draws the very
+  // icon. One that cannot be drawn is hidden, never left a square. At most IMG_MASKS elements; answers a promise of how many it drew
+  var IMG_MASKS = 4000;
+  function imgMasksFix(doc, root, ratio, paint) {
+      var win = doc && doc.defaultView; if (!win || !root || typeof root.querySelectorAll !== 'function') return Promise.resolve(0);
+      var draw = typeof paint === 'function' ? paint : imgMaskPaint, n = 0, kept = {}, jobs = [];
+      var els = [root].concat(Array.prototype.slice.call(root.querySelectorAll('*'))).slice(0, IMG_MASKS);
+      els.forEach(function(el) {
+          var cs; try { cs = win.getComputedStyle(el); } catch (e) { return; }
+          if (!cs || !el.style) return;
+          var mi = cs.getPropertyValue('mask-image') || cs.getPropertyValue('-webkit-mask-image'), m = /url\((['"]?)(.*?)\1\)/.exec(mi || '');
+          if (!m || !m[2]) return;
+          var r = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null, w = r ? r.width : 0, h = r ? r.height : 0;
+          var hide = function() { el.style.setProperty('visibility', 'hidden', 'important'); };
+          if (!(w > 0 && h > 0)) return;
+          var color = cs.getPropertyValue('background-color') || 'rgb(0, 0, 0)', key = m[2] + '|' + Math.round(w) + '|' + Math.round(h) + '|' + color;
+          if (!kept[key]) kept[key] = Promise.resolve().then(function() { return draw(m[2], w, h, color, ratio > 0 ? ratio : 1); }).catch(function() { return ''; });
+          jobs.push(kept[key].then(function(url) {
+              if (typeof url !== 'string' || !/^data:image\/png;base64,/.test(url)) { hide(); return; }
+              ['mask-image', '-webkit-mask-image'].forEach(function(p) { el.style.setProperty(p, 'none', 'important'); });
+              el.style.setProperty('background-image', 'url("' + url + '")', 'important');
+              el.style.setProperty('background-size', '100% 100%', 'important');
+              el.style.setProperty('background-repeat', 'no-repeat', 'important');
+              el.style.setProperty('background-color', 'transparent', 'important');
+              n++;
+          }));
+      });
+      return Promise.all(jobs).then(function() { return n; });
+  }
+  // A mask picture drawn in one color: the picture (an address of the app's own, or an inline svg) laid inside w by h as the app's masks lay
+  // it (contained and centered), at the picture's scale, and only its shape kept, filled with the color. Answers a promise of a PNG data
+  // address, or '' where the picture cannot be loaded
+  function imgMaskPaint(src, w, h, color, ratio) {
+      return new Promise(function(res) {
+          var im = new Image(), done = false, end = function(v) { if (!done) { done = true; res(v); } };
+          im.onload = function() {
+              try {
+                  var cw = Math.max(1, Math.round(w * ratio)), ch = Math.max(1, Math.round(h * ratio)), cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+                  var g = cv.getContext('2d'), iw = im.naturalWidth || im.width || cw, ih = im.naturalHeight || im.height || ch, k = Math.min(cw / iw, ch / ih), dw = iw * k, dh = ih * k;
+                  g.drawImage(im, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+                  g.globalCompositeOperation = 'source-in'; g.fillStyle = color; g.fillRect(0, 0, cw, ch);
+                  end(cv.toDataURL('image/png'));
+              } catch (e) { end(''); }
+          };
+          im.onerror = function() { end(''); };
+          setTimeout(function() { end(''); }, 4000);
+          try { im.src = new URL(src, document.baseURI).href; } catch (e) { end(''); }
+      });
+  }
+  // imgMasksFix with its count written to the step log; what the renderer's onclone hands back, which the renderer waits for
+  function imgMasksLogged(doc, root, ratio) { return imgMasksFix(doc, root, ratio).then(function(nM) { imgLog('masks', { drawn: nM }); return nM; }); }
   // One step of Save as image in the app's step log, with sizes and short words alone
   function imgLog(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('imgexport v1', step, facts || {}); } catch (e) {} }
   // [savecheck:imgexport-end]
@@ -712,7 +767,9 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
       }
       // 1.6.4: the colors the renderer cannot read are written back on its own copy (imgColorsFix), and the picture is drawn at a scale that
       // fits a canvas (imgScaleFor), its size logged as a step
-      opts.onclone = function(d, root) { var nC = imgColorsFix(d, root); if (pageOwn) pageOwn(d); if (!isDocLike(activeMap) && root && root.style) root.style.transform = 'none'; imgLog('colors', { fixed: nC }); };   // a map's copy drawn at its own size, north up, as the crop reads it
+      opts.onclone = function(d, root) { var nC = imgColorsFix(d, root); if (pageOwn) pageOwn(d); if (!isDocLike(activeMap) && root && root.style) root.style.transform = 'none'; imgLog('colors', { fixed: nC });   // a map's copy drawn at its own size, north up, as the crop reads it
+          return imgMasksLogged(d, root, opts.scale || (window.devicePixelRatio || 1));   // the eea706f2 hand test: icons drawn by a mask, drawn as themselves (the renderer waits for this)
+      };
       var mapPic = !isDocLike(activeMap), tr = target ? target.getBoundingClientRect() : null;
       var size = imgScaleFor(mapPic ? opts.width : (tr && tr.width), mapPic ? opts.height : (tr && tr.height), window.devicePixelRatio || 1);
       if (size) opts.scale = size.scale;

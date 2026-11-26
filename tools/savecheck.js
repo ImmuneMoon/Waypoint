@@ -239,7 +239,7 @@ pending.push((async function() {
     const mainSrc = read('main.js');
     const imgA = mainSrc.indexOf('// [savecheck:imgexport-start]'), imgB = mainSrc.indexOf('// [savecheck:imgexport-end]');
     const imgSlice = imgA >= 0 && imgB > imgA ? mainSrc.slice(imgA, imgB) : '';
-    const IMG = imgSlice ? new Function('window', imgSlice + '\nreturn { imgScaleFor: imgScaleFor, imgColorFix: imgColorFix, imgColorsFix: imgColorsFix, imgWhy: imgWhy, imgFailWords: imgFailWords, imgDoneWords: imgDoneWords, IMG_SIDE: IMG_SIDE, IMG_AREA: IMG_AREA };')(window) : null;
+    const IMG = imgSlice ? new Function('window', imgSlice + '\nreturn { imgScaleFor: imgScaleFor, imgColorFix: imgColorFix, imgColorsFix: imgColorsFix, imgWhy: imgWhy, imgFailWords: imgFailWords, imgDoneWords: imgDoneWords, IMG_SIDE: IMG_SIDE, IMG_AREA: IMG_AREA, imgMasksFix: imgMasksFix, IMG_MASKS: IMG_MASKS };')(window) : null;
     const big = IMG && IMG.imgScaleFor(18000, 10000, 2), fits = IMG && IMG.imgScaleFor(800, 600, 2), tall = IMG && IMG.imgScaleFor(1000, 60000, 1.5);
     check('a picture is drawn at the screen\'s own pixel ratio where it fits, and else at the largest scale that keeps both sides within 16,384 pixels and the whole within the area kept under Chromium\'s canvas limit (imgScaleFor); nothing for a size that is none',
         !!IMG && IMG.IMG_SIDE === 16384 && IMG.IMG_AREA <= 268435456 && fits.scale === 2 && !fits.small && fits.w === 1600 && fits.h === 1200
@@ -256,6 +256,27 @@ pending.push((async function() {
     const nFix = IMG ? IMG.imgColorsFix(fakeDoc, root) : -1;
     check('the renderer\'s own copy of the page has every such color written back inline and important before it reads any style (imgColorsFix), the colors it reads left alone',
         nFix === 2 && j(root.set['background-color']) === j(['rgba(255, 0, 0, 1)', 'important']) && j(kid.set['box-shadow']) === j(['rgba(0, 0, 0, 0.5) 0px 2px 4px', 'important']) && !kid.set.color, j([nFix, root.set, kid.set]));
+    // the hand test of eea706f2: the icon marks of a token's effects came out as plain white squares, since the renderer does not know a CSS mask.
+    // imgMasksFix, run on a stand-in copy of the page with a painter of the suite's own: each element wearing a mask picture is drawn as that
+    // picture in its own color, set as its background with the mask taken off; one that cannot be drawn is hidden; the rest are left alone
+    {
+        const mk = (cs, r) => { const e = { cs, set: {}, r }; e.style = { setProperty: (p, v, pr) => { e.set[p] = [v, pr]; } }; e.getBoundingClientRect = () => r || { width: 0, height: 0 }; return e; };
+        const glyph = mk({ 'mask-image': 'url("/assets/icons/fist.svg")', 'background-color': 'rgb(233, 233, 240)' }, { width: 9, height: 9 });
+        const wib = mk({ '-webkit-mask-image': 'url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E")', 'background-color': 'rgb(1, 2, 3)' }, { width: 12, height: 12 });
+        const twin = mk({ 'mask-image': 'url("/assets/icons/fist.svg")', 'background-color': 'rgb(233, 233, 240)' }, { width: 9, height: 9 });
+        const gone = mk({ 'mask-image': 'url("/assets/icons/gone.svg")', 'background-color': 'rgb(0, 0, 0)' }, { width: 9, height: 9 });
+        const plain = mk({ 'mask-image': 'none' }, { width: 9, height: 9 }), noSize = mk({ 'mask-image': 'url("/assets/icons/fist.svg")' }, { width: 0, height: 0 });
+        const rootM = mk({}, { width: 100, height: 100 }); rootM.querySelectorAll = () => [glyph, wib, twin, gone, plain, noSize];
+        const docM = { defaultView: { getComputedStyle: e => ({ getPropertyValue: p => e.cs[p] || '' }) } };
+        const painted = [];
+        const paint = (src, w, h, color, ratio) => { painted.push([src, w, h, color, ratio]); return /gone/.test(src) ? Promise.resolve('') : Promise.resolve('data:image/png;base64,AAAA'); };
+        const nM = IMG ? await IMG.imgMasksFix(docM, rootM, 1.25, paint) : -1;
+        const drawn = e => e.set['background-image'] && e.set['background-image'][0] === 'url("data:image/png;base64,AAAA")' && e.set['mask-image'][0] === 'none' && e.set['-webkit-mask-image'][0] === 'none' && e.set['background-color'][0] === 'transparent' && e.set['background-size'][0] === '100% 100%';
+        check('Save as image draws an icon made by a mask as that icon, in its own color, never a plain square (imgMasksFix, the hand test of eea706f2): each element of the renderer\'s copy that wears a mask picture has it drawn at its own size and the picture\'s scale and set as its background, the mask taken off; one picture shared by two of the same size and color is drawn once; one that cannot be drawn is hidden; one with no mask or no size is left alone; and the copy hook hands the count to the step log',
+            nM === 3 && drawn(glyph) && drawn(wib) && drawn(twin) && !gone.set['background-image'] && j(gone.set.visibility) === j(['hidden', 'important'])
+            && Object.keys(plain.set).length === 0 && Object.keys(noSize.set).length === 0 && painted.length === 3 && j(painted[0]) === j(['/assets/icons/fist.svg', 9, 9, 'rgb(233, 233, 240)', 1.25])
+            && /return imgMasksLogged\(d, root, opts\.scale \|\| \(window\.devicePixelRatio \|\| 1\)\);/.test(mainSrc) && IMG.IMG_MASKS === 4000, j([nM, glyph.set, gone.set, painted]));
+    }
     check('why a picture failed is one short word for the step log (imgWhy): the renderer refusing a color, the canvas giving none, the copy of the page, else the error\'s own name',
         !!IMG && IMG.imgWhy(new Error('Attempting to parse an unsupported color function "color"')) === 'color' && IMG.imgWhy('canvas') === 'canvas' && IMG.imgWhy('Error finding the DIV in the cloned document') === 'clone' && IMG.imgWhy(new RangeError('x')) === 'RangeError' && IMG.imgWhy(null) === 'error');
     // the handler itself, from the page, with the slice of helpers before it

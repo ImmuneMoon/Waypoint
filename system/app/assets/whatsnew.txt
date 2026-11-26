@@ -31,8 +31,7 @@ The window bar (draft for Fulllion)
   own colors, and the strip changes when you switch the theme.
 - Drag the strip to move the window, and double-click it to maximize.
 - A page or a sheet you pop out into a window of its own gets the same
-  strip. The stream window keeps its usual title bar, so the buttons
-  never show up on your stream.
+  strip, and so does the stream window, with its title on the strip.
 
 Seeing as one character (draft for Fulllion)
 - Tick See as selected in the View menu, then select a character token.

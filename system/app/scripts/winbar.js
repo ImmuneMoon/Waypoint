@@ -5,8 +5,9 @@
 
    In the desktop app the main window has no title bar of the system's own. The system draws only its three buttons, over the window's top right
    corner (main.js, shellguard.js barStart), and the page draws the strip they stand on: #winBar, the first child of .app, as tall as the CSS
-   env titlebar-area-height (style.css --winbar), which is 0 in a browser, on a website, in the stream window and wherever the system draws no
-   buttons, so the strip is there only where they are. The style sheet gives the strip the look's own ground (--winbar-bg) to start with.
+   env titlebar-area-height (style.css --winbar), which is 0 in a browser, on a website and wherever the system draws no buttons, so the strip is
+   there only where they are. The stream window has the bar too, and its strip says the window's title (barTitle), as the system's own title bar
+   did before (Fulllion, 2026-11-25: "id rather it matched, but have the title in the integrated bar like it does today"). The style sheet gives the strip the look's own ground (--winbar-bg) to start with.
    A pop-out (a page, a part, a big table, a sheet, Table Chat) has the same bar since 1.6.4's later fold: there .app is hidden, and its strip
    is #popWinBar (barEl), which stands over the pop-out's own bar, so the color read under it is that bar's. The colors are said with the
    page's own address, so each window's buttons follow its own page.
@@ -107,11 +108,29 @@ function underColor() {
     });
     return modeOf(picks);
 }
+// 1.6.4: the stream window's title in its strip, so the strip reads as the system's own title bar did: the app's icon (icon.ico, the mark the
+// top row wears; Fulllion, the same day: "yeah lets add that in just the stream window along with it's title") and then the title, a text node
+// in a span of its own. Both are made once, by name, and the words are set only when they change. Only in the stream window (body.stream-mode): the main window's strip stays empty, as
+// Fulllion asked of it, and a pop-out says its title in its own bar. The colors are read under the strip, never on it (underColor passes over
+// the strip and what it holds), so the title changes no color
+function barTitle(bar) {
+    if (!bar || !document.body || !document.body.classList.contains('stream-mode')) return;
+    var t = bar.querySelector('.winbar-title');
+    if (!t) {
+        t = document.createElement('span'); t.className = 'winbar-title';
+        var icon = document.createElement('img'); icon.className = 'winbar-icon'; icon.src = 'icon.ico'; icon.alt = ''; t.appendChild(icon);
+        var w = document.createElement('span'); w.className = 'winbar-words'; t.appendChild(w);
+        bar.appendChild(t);
+    }
+    var words = String(document.title || ''), wEl = t.querySelector('.winbar-words');
+    if (wEl && wEl.textContent !== words) wEl.textContent = words;
+}
 // Whether the system draws its buttons over this page
 function barShown() { var o = navigator.windowControlsOverlay; return !!(o && o.visible); }
 function say() {
     if (!barShown() || document.hidden) return;
     var bar = barEl(); if (!bar) return;
+    barTitle(bar);
     var color = underColor(); if (!color) return;
     var symbol = inkFor(color);
     if (bar.style.backgroundColor !== color) { bar.style.backgroundColor = color; bar.style.color = symbol; }

@@ -5298,6 +5298,28 @@ if (mode === 'samples') {
     check('1.6.4, the big table window\'s grid takes the window bar\'s strip off its height: in a window 860 px tall its box is 720 px at --winbar 0 and 694 px at 26 px, so its foot stays where it was and its own scrollbar in sight',
         calcAt(twMax, 860, 0) === 720 && calcAt(twMax, 860, 26) === 694 && calcAt(twMax, 860, 0) + pxAt(wrapInset, 0)[0] === calcAt(twMax, 860, 26) + pxAt(wrapInset, 26)[0],
         JSON.stringify([twMax, calcAt(twMax, 860, 0), calcAt(twMax, 860, 26)]));
+    // 1.6.4 (Fulllion, 2026-11-25: "id rather it matched, but have the title in the integrated bar like it does today"): the stream window has the
+    // bar too, and its strip says the window's title (winbar.js barTitle, run for real on pages of plain objects)
+    const bt = /\nfunction barTitle\(bar\) \{\n[\s\S]*?\n\}\n/.exec(wb);
+    // a node of plain objects: its children, appendChild and a querySelector by one class that searches its children's children too
+    const mkNode = (tag) => { const kids = []; const n = { tag, kids, className: '', textContent: '', appendChild: k => { kids.push(k); return k; }, querySelector: s => { for (const k of kids) { if ('.' + k.className === s) return k; const d = k.querySelector ? k.querySelector(s) : null; if (d) return d; } return null; } }; return n; };
+    const titleRun = (stream, title, bar) => { if (!bt) return 'no barTitle'; const made = []; const doc = { title: title, body: { classList: { contains: c => stream && c === 'stream-mode' } }, createElement: t => { const e = mkNode(t); made.push(e); return e; } }; new Function('document', bt[0] + '\nreturn barTitle;')(doc)(bar); return made; };
+    const mkBar = () => mkNode('div');
+    const b1 = mkBar(), made1 = titleRun(true, 'Waypoint VTT: Stream', b1), made2 = titleRun(true, 'Waypoint VTT: Stream', b1), b3 = mkBar(), made3 = titleRun(false, 'Waypoint VTT', b3);
+    const b4 = mkBar(); titleRun(true, 'A', b4); titleRun(true, 'B', b4);
+    const sOf = (sel, prop) => declOf(sel, prop);
+    check('1.6.4, the stream window has the window bar too, the app\'s icon and its title in the strip: barTitle makes the icon (icon.ico, 16 px) and a span of the title\'s words once, by name, and sets the words only when they change, only in the stream window; the strip\'s title is drawn on one line clear of the system\'s buttons, takes no press so the strip still drags the window, and the stream bar, the trackers strip, a video shown and a scene stand under the strip, with nothing moved at --winbar 0',
+        made1.length === 3 && b1.kids.length === 1 && b1.kids[0].className === 'winbar-title' && b1.kids[0].kids.length === 2
+        && b1.kids[0].kids[0].tag === 'img' && b1.kids[0].kids[0].className === 'winbar-icon' && b1.kids[0].kids[0].src === 'icon.ico' && b1.kids[0].kids[0].alt === ''
+        && b1.kids[0].kids[1].className === 'winbar-words' && b1.kids[0].kids[1].textContent === 'Waypoint VTT: Stream'
+        && made2.length === 0 && made3.length === 0 && b3.kids.length === 0 && b4.kids.length === 1 && b4.kids[0].kids[1].textContent === 'B'
+        && /#winBar \.winbar-icon \{[^}]*width: 16px; height: 16px;/.test(cssW) && /#winBar \.winbar-words \{[^}]*text-overflow: ellipsis;/.test(cssW)
+        && /#winBar \.winbar-title \{[^}]*pointer-events: none;[^}]*\}/.test(cssW) && /#winBar \.winbar-title \{[^}]*padding: 0 150px 0 calc\(env\(titlebar-area-x, 0px\) \+ 9px\);[^}]*white-space: nowrap;/.test(cssW)
+        && wb.includes('    var bar = barEl(); if (!bar) return;\n    barTitle(bar);')
+        && pxAt(sOf('body.stream-mode #trkStrip', 'top'), 0) === 10 && pxAt(sOf('body.stream-mode #trkStrip', 'top'), 26) === 36
+        && JSON.stringify(pxAt(sOf('#streamVideo', 'inset'), 0)) === '[0,0,0,0]' && JSON.stringify(pxAt(sOf('#streamVideo', 'inset'), 26)) === '[26,0,0,0]'
+        && JSON.stringify(pxAt(sOf('#streamScene', 'inset'), 26)) === '[26,0,0,0]' && /#streamBar \{\n\s*position: fixed; top: calc\(8px \+ var\(--winbar\)\);/.test(cssW),
+        JSON.stringify([made1.length, made2.length, made3.length, b4.kids.map(k => k.kids.map(x => x.textContent)), sOf('body.stream-mode #trkStrip', 'top'), sOf('#streamVideo', 'inset')]));
 }
 {
     // 1.6.4, the looks (Fulllion, 2026-11-24: Slate the app's own, Lantern and Ink to pick): the rulers, the minimap and the zoom box wear the look

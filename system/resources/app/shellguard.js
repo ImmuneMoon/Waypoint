@@ -47,12 +47,14 @@ const TABLE_QUERY = /^\?popout=doc:[^&#]*\/table:[A-Za-z0-9_-]{1,64}$/;
 // 1.6.4 (Fulllion, 2026-11-25: "the external waypoint windows dont have the integrated window bar the main app has"): a pop-out (a page, a
 // part, a big table, a sheet, Table Chat) has the main window's kind of bar, no title bar of the system's own and its three buttons over the
 // top right corner, on the colors the settings file's theme names (barStart, prefsFile), until its page says its own (POST /api/winbar).
-// The stream window keeps the system's own title bar: streaming software captures it, and the three buttons would show in the capture.
+// The stream window has it too (Fulllion, the same day: "id rather it matched, but have the title in the integrated bar like it does today"):
+// its page writes its title into the strip (scripts/winbar.js barTitle).
 // prefsFile is the settings file install() is handed; with none the bar starts on the dark theme, as barStart reads a missing file
 function childWindowOptions(url, icon, prefsFile) {
     const u = parseUrl(url), portrait = !!u && /^\?popout=/.test(u.search), part = portrait && PART_QUERY.test(u.search), table = portrait && TABLE_QUERY.test(u.search);
     const o = { autoHideMenuBar: true, icon: icon, width: table ? 1280 : part ? 640 : portrait ? 840 : 1280, height: table ? 860 : part ? 760 : portrait ? 1000 : 720, backgroundColor: '#15151c' };
-    if (portrait) { const b = barStart(prefsFile); o.titleBarStyle = b.titleBarStyle; o.titleBarOverlay = b.titleBarOverlay; }
+    const stream = !!u && u.search === '?stream=1';
+    if (portrait || stream) { const b = barStart(prefsFile); o.titleBarStyle = b.titleBarStyle; o.titleBarOverlay = b.titleBarOverlay; }
     return o;
 }
 
@@ -144,7 +146,7 @@ function zoomOf(prefsFile) {
 // ink are set here: barStart picks them by the theme the settings file names before the page has drawn anything, and the page says its colors
 // (scripts/winbar.js, POST /api/winbar) whenever its theme or look changes, read through barColor. Since 1.6.4's later fold a pop-out has the
 // same kind of bar (childWindowOptions), and its page says its own colors with its own address, so each window's buttons follow its own page
-// (barTarget); the stream window keeps the system's own title bar.
+// (barTarget); so does the stream window, which shows its title in the strip.
 const WINBAR_H = 26;
 const WINBAR_DARK = Object.freeze({ color: '#1c1c26', symbolColor: '#e9e9f0' }), WINBAR_LIGHT = Object.freeze({ color: '#e6e2d9', symbolColor: '#1f1d24' });   // the top row's own ground and ink in the two themes
 function barHex(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null; }
@@ -315,7 +317,7 @@ function install(electron, opts) {
             if (!isOwn(own, url)) openWebLink(url);
             return { action: 'deny' };
         });
-        // 1.6.4: a window made from those options with the app's bar (a pop-out, never the stream window) is noted, so its page's colors can
+        // 1.6.4: a window made from those options with the app's bar (a pop-out, the stream window) is noted, so its page's colors can
         // reach its own buttons (barWindow); it is let go of when it closes
         wc.on('did-create-window', (win, details) => {
             const o = details && details.options, at = details && typeof details.url === 'string' ? details.url : '';

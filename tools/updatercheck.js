@@ -1489,15 +1489,23 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     // a file the build stages that the commit lacks, and a build that changes a file the commit holds, each stop the release
                     const loose = ghRun('', null, null, r => { fs.writeFileSync(path.join(r, 'system', 'app', 'never-added.js'), '// not committed' + NL); });
                     const unbuilt = ghRun('unbuilt');
+                    // a checkout with core.autocrlf whose files are CRLF on disk: the build writes README.md and version.json with LF, the same text,
+                    // which git status lists as modified though nothing changed; the release goes ahead (the real 1.6.4 build, 2026-11-26)
+                    const autocrlf = ghRun('', null, null, r => {
+                        git(r, ['config', 'core.autocrlf', 'true']);
+                        for (const f of ['README.md', 'system/app/version.json']) { const p = path.join(r, f); fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(/\r?\n/g, '\r\n')); }
+                        try { cp.execFileSync('git', ['-C', r, 'update-index', '--refresh'], { stdio: 'ignore' }); } catch (e) {}
+                    });
                     check('release.js --github names the commit it releases and holds gh to github.com (the review of 2026-11-25): it refuses, with no release made and nothing built, where main on GitHub is at another commit or the checkout holds a change not committed; it refuses at the release, with none made, where main moved during the build; it refuses notes still marked as a draft; and with GH_HOST, GH_REPO and the enterprise tokens set it still publishes to github.com, none of them handed to gh, every api call naming --hostname github.com and every release call github.com/<repo>',
                         refuse(behind, /Not built: this checkout is at [0-9a-f]{8}, but main on GitHub is at ffffffff: push this commit to main/) && refuse(dirty, /Not built: the checkout holds changes not committed \(1 file, the first README\.md\)/)
                         && !!moved && moved.status === 1 && /Not published to GitHub: main on GitHub is no longer at [0-9a-f]{8}, the commit this run built\. Nothing was published/.test(moved.said) && !moved.calls.some(c => c.args[0] === 'release')
                         && refuse(draftNotes, /Not built: WHATSNEW\.txt's newest section is still marked as a draft \(- x \[DRAFT\]\)/)
                         && refuse(loose, /Not built: the checkout holds changes not committed \(1 file, the first system\/app\/never-added\.js\)/)
+                        && !!autocrlf && autocrlf.status === 0 && !!autocrlf.st && autocrlf.st.published === true
                         && !!unbuilt && unbuilt.status === 1 && /Not published to GitHub: the build changed (README\.md, system\/app\/version\.json|system\/app\/version\.json, README\.md|README\.md|system\/app\/version\.json), which the commit does not hold/.test(unbuilt.said) && !unbuilt.calls.some(c => c.args[0] === 'release')
                         && !!hostSet && hostSet.status === 0 && hostSet.calls.length > 0 && hostSet.calls.every(c => c.env.length === 0) && hostSet.calls.filter(c => c.args[0] === 'api').every(c => c.args[1] === '--hostname' && c.args[2] === 'github.com')
                         && hostSet.calls.filter(c => c.args[0] === 'release').every(c => c.args[3] === '--repo' && c.args[4] === 'github.com/' + REPO_GH) && !!hostSet.st && hostSet.st.published === true,
-                        j([behind, dirty, moved, draftNotes, hostSet, loose, unbuilt].map(r => r && [r.status, r.said.slice(-260), r.calls.length])));
+                        j([behind, dirty, moved, draftNotes, hostSet, loose, unbuilt, autocrlf].map(r => r && [r.status, r.said.slice(-260), r.calls.length])));
                     const eaten = ghRun('eat');
                     check('release.js --github refuses where any of the six assets is missing from dist/<version>/ when the release is to be made (here manifest.json, taken away after the build): exit 1, the missing file named, no draft made',
                         !!eaten && eaten.status === 1 && /Not published to GitHub: manifest\.json missing from /.test(eaten.said) && !eaten.calls.some(c => c.args[0] === 'release'), j(eaten && [eaten.status, eaten.said.slice(-300)]));

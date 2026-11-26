@@ -672,7 +672,10 @@ const GH_STAGE_TOP = ['Waypoint.exe', 'license.txt', 'README.md', 'WHATSNEW.txt'
 function ghDirty() {
     const run = args => execFileSync('git', ['-C', ROOT].concat(args), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: GH_ENV }).replace(/\s+$/, '');
     try {
-        const tracked = run(['status', '--porcelain', '--untracked-files=no']);
+        // a tracked file is changed where its content differs from the commit's, as git diff reads it: git status also lists a file
+        // whose text is the same but whose line endings the build wrote otherwise (a checkout with core.autocrlf: the real build of
+        // 2026-11-26 rewrote system/app/version.json so), which would refuse every release. Each line is written as status writes one.
+        const tracked = run(['diff', '--name-only', 'HEAD', '--']).split('\n').filter(Boolean).map(f => ' M ' + f).join('\n');
         const loose = run(['status', '--porcelain', '--untracked-files=all', '--'].concat(GH_STAGE_TOP, ['system'])).split('\n').filter(l => /^\?\? /.test(l)).join('\n');
         return [tracked, loose].filter(Boolean).join('\n');
     } catch (e) { return null; }

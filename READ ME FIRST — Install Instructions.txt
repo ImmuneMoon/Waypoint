@@ -1,5 +1,5 @@
-WAYPOINT VTT — INSTALL INSTRUCTIONS
-====================================
+WAYPOINT VTT: INSTALL INSTRUCTIONS
+==================================
 
 Waypoint VTT is a desktop app for tabletop campaigns: maps, whiteboards, and
 online multiplayer where you join your GM's table with a room code.
@@ -12,9 +12,9 @@ INSTALLING
    Waypoint_Setup.exe you got from this folder or from Waypoint's own
    releases page; if it came from anywhere else, do not run it.
    (Google Drive may also say it "can't scan this file for viruses" because
-   of its size — that's normal for a 110 MB download; choose Download anyway.)
-3. Follow the installer. It puts Waypoint in your user folder — no admin
-   rights needed — and offers a Start Menu / desktop shortcut.
+   of its size. That's normal for a 110 MB download; choose Download anyway.)
+3. Follow the installer. It puts Waypoint in your user folder, with no admin
+   rights needed, and offers a Start Menu / desktop shortcut.
 
 REQUIREMENTS
 ------------
@@ -25,7 +25,7 @@ JOINING YOUR GM'S TABLE
 -----------------------
 1. Get the room code from your GM (ten characters, like AB2CD-EF3GH).
 2. Open Waypoint and click the globe button (top right).
-3. Type your name, enter the code, press Join. That's it — no account.
+3. Type your name, enter the code, press Join. That's it: no account.
 4. Optional: click the gear (Settings) to set a profile picture for the table.
 
 The in-app Help (question-mark button) has a full "Multiplayer: Joining"
@@ -33,7 +33,7 @@ tutorial with what you can and can't do at the table.
 
 UPDATING LATER
 --------------
-New versions install right over old ones — just run the newer setup file.
+New versions install right over old ones: just run the newer setup file.
 Your saves and settings are always kept, and old saves are upgraded
 automatically (with a backup made first).
 

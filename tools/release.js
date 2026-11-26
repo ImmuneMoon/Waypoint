@@ -3,6 +3,14 @@
 
    Usage:
      node tools/release.js                    build into dist/<version>/ and print what to publish
+     node tools/release.js --github           build as above, then publish it as a GitHub Release with the GitHub command
+                                              line tool (gh), signed in on this machine: the way to release while installs
+                                              read GitHub (updater.js UPDATE_SOURCE 'github', 1.6.4; Fulllion, 2026-11-25).
+                                              Refused where the source is not 'github', where gh is missing or not signed
+                                              in, where the tag or a release of it is already on GitHub, and where any of
+                                              the six assets is missing. It never touches the website's download host and
+                                              sends no dispatch. Then node tools/ghlive.js says whether an install of
+                                              1.6.3 sees it, as an install reads it (read only, no token).
      node tools/release.js --publish          also put the files and the signed list on Waypoint's download host
                                               (Cloudflare R2, through its S3 API: WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET,
                                               WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET) and wake the website
@@ -14,8 +22,9 @@
                                               owner approved on 2026-11-16: the December installer ships to both)
      node tools/sitepub.js --check            the checklist step after: does the live site name this release, as an
                                               install reads it? (exit 0 yes, 1 no; writes nothing)
-   Any other option is refused, --github without --publish too, so a word mistyped never builds a release that is not
-   published as it was meant to be.
+   Any other option is refused, so a word mistyped never builds a release that is not published as it was meant to be.
+   --github alone is the GitHub-only release above; --publish --github is the website's release with GitHub beside it, for
+   later, once the source is 'site' and a code-signing certificate exists.
 
    Reads the version from system/resources/app/package.json and the release notes from the top section of WHATSNEW.txt,
    which must be this version's section (the build is refused otherwise, before it writes anything). From 1.6.4 an install
@@ -66,7 +75,9 @@
    (Waypoint_Setup.exe.sig: its name, its digest, the version): an install that updates its own core
    checks it before running it.
    The installer is code-signed only when WAYPOINT_SIGNTOOL is set: a whole command line, in which
-   {file} stands for the installer's path (the path is appended when the command has no {file}).
+   {file} stands for the installer's path (the path is appended when the command has no {file}). 1.6.4 ships with an
+   installer that is not code-signed (no certificate yet), so a plain build and --github leave it so and say it; --publish,
+   the website's release, is refused without WAYPOINT_SIGNTOOL, since that release is meant to ship with a certificate.
 
    The installer is compiled from a clean copy, never from this folder. installer.iss packs every file that lies
    beside it, and this folder holds more than an install needs. So the build copies what an install needs, by name,
@@ -88,7 +99,7 @@ const ROOT = path.join(__dirname, '..');
 const SYSTEM = path.join(ROOT, 'system');
 const pkg = JSON.parse(fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'package.json'), 'utf8'));
 const VERSION = pkg.version;
-const REPO = 'ImmuneMoon/Waypoint';   // the public GitHub repository releases are still published to while installs move to the website (1.6.4)
+const REPO = 'ImmuneMoon/Waypoint';   // the public GitHub repository releases are published to: every install of 1.6.4 and older reads it (updater.js UPDATE_REPO, which updatercheck holds to this)
 const ISCC = process.env.ISCC || 'D:\\Files\\Programs\\Inno Setup 6\\ISCC.exe';
 // The options this tool takes, and nothing else: an option it does not know (an old --publish-site among them) refuses the run before
 // anything is read or written, so a mistyped word never builds a release that is not published as it was meant to be.
@@ -98,13 +109,13 @@ const OPTIONS = ['--publish', '--github', '--notes-only'];
     if (odd.length) { console.error('Not built: ' + odd[0] + ' is no option of this tool (it takes ' + OPTIONS.join(', ') + (odd[0] === '--publish-site' ? '; --publish now puts the release on the site' : '') + ').'); process.exit(1); }
 }
 const PUBLISH = process.argv.includes('--publish');   // 1.6.4: put the files and the signed list on Waypoint's download host, and wake the website
-const GITHUB = process.argv.includes('--github');     // with --publish: the GitHub Release too, as before, while installs move
+const GITHUB = process.argv.includes('--github');     // with --publish: the GitHub Release too; alone: the GitHub-only release through gh (GH_ONLY)
+const GH_ONLY = GITHUB && !PUBLISH;                   // while installs read GitHub (updater.js UPDATE_SOURCE 'github'): build, then gh release
 const NOTES_ONLY = process.argv.includes('--notes-only');   // just regenerate RELEASE_NOTES.md
 const SIGNTOOL = process.env.WAYPOINT_SIGNTOOL;
 const sitepub = require('./sitepub.js');
 const stripcore = require('./stripcore.js');
-if (GITHUB && !PUBLISH) { console.error('Not built: --github goes with --publish (the site first, then GitHub), never alone.'); process.exit(1); }
-if (NOTES_ONLY && PUBLISH) { console.error('Not built: --notes-only builds no release to publish.'); process.exit(1); }
+if (NOTES_ONLY && (PUBLISH || GITHUB)) { console.error('Not built: --notes-only builds no release to publish.'); process.exit(1); }
 // Where a test's stand-ins are: { test: false } for every real run. A stand-in named without WAYPOINT_RELEASE_TEST=1 refuses the run.
 const TEST = sitepub.testHosts(process.env);
 if (TEST.why) { console.error(TEST.why); process.exit(1); }
@@ -112,6 +123,9 @@ const signkey = require('./signkey.js');
 const shellrev = require('./shellrev.js');
 const updater = require('../system/resources/app/updater.js');
 const { UPDATE_PUBKEY } = require('../system/resources/app/updatekey.js');
+// --github alone publishes to GitHub only, which is right only while installs read GitHub: once the switch says 'site', a
+// release made on GitHub alone would reach no install of the new source, so it must go through --publish --github.
+if (GH_ONLY && updater.UPDATE_SOURCE !== 'github') { console.error('Not built: --github alone publishes to GitHub only, and installs now read Waypoint\'s website (updater.js UPDATE_SOURCE is \'' + updater.UPDATE_SOURCE + '\'): use --publish --github.'); process.exit(1); }
 // What every child process is handed (the review of 2026-11-17): this environment without the secrets only this process uses (the
 // bucket's token, the dispatch token, GITHUB_TOKEN) and the signing key's path, so the tour's check, the archiver, Inno Setup (whose
 // preprocessor can read the environment) and the owner's code-signing command never see them. Names are matched in any letter case,
@@ -159,9 +173,10 @@ if (PUBLISH) {
     if (!repo) { console.error('Not built: WAYPOINT_DISPATCH_REPO is not a repository\'s name (owner/name).'); process.exit(1); }
     DISPATCH = { token, repo, origin: TEST.dispatch || 'https://api.github.com' };
     if (GITHUB && !(typeof process.env.GITHUB_TOKEN === 'string' && process.env.GITHUB_TOKEN.trim())) { console.error('Not built: GITHUB_TOKEN is not set (--github): nothing built or uploaded.'); process.exit(1); }
-    // 1.6.4 (Fulllion, 2026-11-23: "Yes, sign 1.6.4"): the install words say the installer is code-signed, so a release that is published
-    // is never built with an unsigned installer. A build that is not published, and a test's run with its stand-ins, may still leave it unsigned
-    if (!SIGNTOOL && TEST.test !== true) { console.error('Not built: WAYPOINT_SIGNTOOL is not set, and a published installer is never left not code-signed (the install words say it is signed).'); process.exit(1); }
+    // --publish is the website's release, meant to ship once a code-signing certificate exists (Fulllion, 2026-11-23, and 2026-11-25:
+    // 1.6.4 itself goes out on GitHub, not code-signed, through --github). So it is never built with an installer that is not
+    // code-signed. A plain build, --github, and a test's run with its stand-ins may still leave it unsigned
+    if (!SIGNTOOL && TEST.test !== true) { console.error('Not built: WAYPOINT_SIGNTOOL is not set, and --publish is the website\'s release, made with a code-signing certificate (to release on GitHub while installs read it, use --github alone).'); process.exit(1); }
 }
 
 // Before the build (the review of 2026-11-17): with --publish the bucket is looked at first (sitepub.siteState: each key of this version,
@@ -194,6 +209,8 @@ async function siteBefore() {
 // Where the bucket already holds this version (RESUME) nothing is checked for a build or built: the release is finished from dist as it is.
 // Called once, at the end of this file; whatever it throws is said in one line and ends the run with exit 1.
 async function main() {
+// With --github alone, gh is asked first whether it can publish at all, and whether GitHub already holds this version (ghBefore, below)
+if (GH_ONLY) ghBefore();
 // With --publish, what the bucket holds decides whether this run builds (siteBefore, above)
 const RESUME = PUBLISH ? await siteBefore() : null;
 // And the core's record is the core's: minShell is read from it, so a stale one would send app files to cores too old for them.
@@ -481,8 +498,9 @@ if (RUNTIME_NOTE) console.warn(RUNTIME_NOTE);   // said last, where it is read: 
 
 if (!PUBLISH) {
     // 1.6.4 ships reading its updates from GitHub (updater.js UPDATE_SOURCE 'github'; Fulllion, 2026-11-25), so until that is
-    // switched to 'site' a release is a GitHub Release of the six files above, which this plain build writes.
-    if (!NOTES_ONLY) console.log('\nTo publish while installs read GitHub (updater.js UPDATE_SOURCE is \'github\'): make a GitHub Release tagged ' + VERSION + '\nwith the six files above (' + ASSETS.join(', ') + ').\nOnce installs read the website: run again with --publish (the R2 bucket, its token and WAYPOINT_DISPATCH_TOKEN set), with --github too,\nthen node tools/sitepub.js --check.');
+    // switched to 'site' a release is a GitHub Release of the six files above: --github makes it here, through gh.
+    if (GH_ONLY) { ghPublish(dist, ASSETS); return; }
+    if (!NOTES_ONLY) console.log('\nTo publish while installs read GitHub (updater.js UPDATE_SOURCE is \'github\'): run node tools/release.js --github, which builds again and makes the GitHub Release\ntagged ' + VERSION + ' with the six files above (' + ASSETS.join(', ') + '), then node tools/ghlive.js.\nOnce installs read the website: run with --publish (the R2 bucket, its token, WAYPOINT_DISPATCH_TOKEN and WAYPOINT_SIGNTOOL set), with --github too,\nthen node tools/sitepub.js --check.');
     process.exit(0);
 }
 
@@ -559,4 +577,80 @@ function api(method, url, body, contentType) {
     const done = await api('PATCH', GH_API + '/repos/' + REPO + '/releases/' + rel.id, { draft: false });
     console.log('Published:', (done && done.html_url) || rel.html_url);
 }
+/* ---- The GitHub-only release, through the GitHub command line tool (--github alone; 1.6.4, Fulllion 2026-11-25) ----
+   While installs read GitHub (updater.js UPDATE_SOURCE 'github'), a release is a GitHub Release tagged exactly VERSION, titled
+   "Waypoint VTT Alpha <version>", its body dist/<version>/RELEASE_NOTES.md, not a prerelease, carrying the six assets. It is
+   made as 1.6.3's was (the review of 2026-11-17's order): a DRAFT first, which no install sees, then the six assets
+   uploaded, then the names on the draft read back, and only then published, so no install ever sees a release short of its
+   files. This code never reads, prints, stores or passes a token: it only runs gh, which uses the sign-in gh keeps itself
+   (gh auth login), and gh is handed CHILD_ENV, without GITHUB_TOKEN and the other secrets. It never touches the website's
+   download host and sends no dispatch.
+   gh is run through the shell (execSync), as Inno Setup and the archiver are, so a stand-in on PATH can answer for it in a
+   test (gh.cmd on Windows). Every argument is quoted, and one that holds a character the shell would read ("%!$`^ or a
+   line break) is refused rather than passed on. */
+function ghArg(a) {
+    const s = String(a);
+    if (/["%!$`^\r\n]/.test(s)) throw new Error('Not published to GitHub: an argument for gh holds a character the shell would read (' + s.slice(0, 80) + ').');
+    return '"' + s + '"';
+}
+// Run gh with these arguments. Answers { ok, out }: ok false where gh could not be run or answered with an error. Nothing gh says
+// is printed here (gh auth status names the account and a masked token); a caller says what it means in its own words.
+function gh(args) {
+    const cmd = 'gh ' + args.map(ghArg).join(' ');   // a refusal of an argument is thrown here, never read as gh failing
+    try { return { ok: true, out: execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], env: CHILD_ENV, encoding: 'utf8', timeout: 120000 }) }; }
+    catch (e) { return { ok: false, out: String((e && e.stdout) || '') }; }
+}
+function ghJson(args, what) {
+    const r = gh(args);
+    if (!r.ok) return { why: 'GitHub could not be asked ' + what + ' (gh ' + args.slice(0, 2).join(' ') + ' failed)' };
+    try { return { json: JSON.parse(r.out) }; } catch (e) { return { why: 'GitHub\'s answer ' + what + ' could not be read' }; }
+}
+// Does GitHub hold this version already, as a tag (VERSION or vVERSION) or as a release of it (a draft included)? Answers null where
+// it holds neither, else one plain line. matching-refs answers every tag that begins with the name, so the exact ref is looked for.
+function ghTaken() {
+    for (const t of [VERSION, 'v' + VERSION]) {
+        const r = ghJson(['api', 'repos/' + REPO + '/git/matching-refs/tags/' + t], 'about its tags');
+        if (r.why) return r.why;
+        if (!Array.isArray(r.json)) return 'GitHub\'s answer about its tags could not be read';
+        if (r.json.some(x => x && x.ref === 'refs/tags/' + t)) return 'the tag ' + t + ' is already on GitHub (' + REPO + '): a published version is never made again. Build the next version.';
+    }
+    const rels = ghJson(['api', 'repos/' + REPO + '/releases?per_page=100'], 'about its releases');
+    if (rels.why) return rels.why;
+    if (!Array.isArray(rels.json)) return 'GitHub\'s answer about its releases could not be read';
+    const old = rels.json.find(x => x && (x.tag_name === VERSION || x.tag_name === 'v' + VERSION));
+    if (old) return old.draft ? 'a draft release of ' + VERSION + ' is on GitHub already (an earlier run stopped part way). Delete it on GitHub, or with gh release delete ' + VERSION + ' --repo ' + REPO + ', and run again.'
+        : 'a release of ' + VERSION + ' is on GitHub already (' + REPO + '). Build the next version.';
+    return null;
+}
+// Before anything is built: gh is there, signed in, and GitHub holds nothing of this version. Each refusal is one plain line, exit 1.
+function ghBefore() {
+    const refuse = why => { console.error('Not built: ' + why); process.exit(1); };
+    if (!gh(['--version']).ok) refuse('--github publishes through the GitHub command line tool (gh), which could not be run here. Install it (https://cli.github.com) and sign in with gh auth login.');
+    if (!gh(['auth', 'status', '--hostname', 'github.com']).ok) refuse('gh is not signed in to github.com. Sign in with gh auth login, then run again.');
+    const taken = ghTaken();
+    if (taken) refuse(taken);
+}
+// After the build: the GitHub Release, draft first, then the six assets, then published. A step that fails says where it stopped.
+function ghPublish(dist, assets) {
+    const taken = ghTaken();   // asked again, first: the build took a while
+    if (taken) throw new Error('Not published to GitHub: ' + taken);
+    const missing = assets.filter(f => !fs.existsSync(path.join(dist, f)));
+    if (missing.length) throw new Error('Not published to GitHub: ' + missing.join(', ') + ' missing from ' + dist + '.');   // never a release without its signatures: no install would take it
+    const notesFile = path.join(dist, 'RELEASE_NOTES.md');
+    if (!fs.existsSync(notesFile)) throw new Error('Not published to GitHub: RELEASE_NOTES.md is missing from ' + dist + '.');
+    const title = 'Waypoint VTT Alpha ' + VERSION;
+    console.log('\nCreating release ' + VERSION + ' on ' + REPO + ' (a draft until its assets are up)');
+    if (!gh(['release', 'create', VERSION, '--repo', REPO, '--draft', '--title', title, '--notes-file', notesFile]).ok) throw new Error('Not published to GitHub: gh could not make the draft release of ' + VERSION + '. Nothing was published.');
+    const leftDraft = ' The draft is left on GitHub, unseen by installs: delete it (gh release delete ' + VERSION + ' --repo ' + REPO + ') and run again.';
+    console.log('Uploading the six assets: ' + assets.join(', '));
+    if (!gh(['release', 'upload', VERSION, '--repo', REPO].concat(assets.map(f => path.join(dist, f)))).ok) throw new Error('Not published to GitHub: gh could not upload the assets.' + leftDraft);
+    const seen = ghJson(['release', 'view', VERSION, '--repo', REPO, '--json', 'assets,isDraft'], 'about the draft');
+    const names = (seen.json && Array.isArray(seen.json.assets) ? seen.json.assets : []).map(a => a && a.name);
+    const lack = assets.filter(f => names.indexOf(f) < 0);
+    if (seen.why || lack.length) throw new Error('Not published to GitHub: the draft does not hold ' + (lack.length ? lack.join(', ') : 'what was uploaded') + '.' + leftDraft);
+    if (!gh(['release', 'edit', VERSION, '--repo', REPO, '--draft=false', '--prerelease=false']).ok) throw new Error('Not published to GitHub: gh could not publish the draft, which holds its six assets.' + ' Publish it on GitHub by hand, or run gh release edit ' + VERSION + ' --repo ' + REPO + ' --draft=false.');
+    console.log('Published on GitHub: https://github.com/' + REPO + '/releases/tag/' + VERSION);
+    console.log('Now check it as an install reads it: node tools/ghlive.js');
+}
+
 main().catch(e => { console.error(String(e && e.message || e)); process.exit(1); });

@@ -55,7 +55,9 @@ let shellrev = null; try { shellrev = require('./shellrev.js'); } catch (e) { sh
 const REFUSED = /^unsigned update, refused$/;
 const LIST_UNSIGNED = /^the update list is not signed by Waypoint, no update offered$/;   // a list whose signature does not check
 const LIST_BAD = /^the update list could not be read, no update offered$/;               // a signed list with a field that does not clean
-const NOT_OURS = /^that address is not Waypoint's update site, refused$/;                // an address, or a redirect, off the two hosts
+const NOT_OURS = /^that address is not where Waypoint's updates come from, refused$/;    // an address, or a redirect, off the source's hosts (the site's two, or GitHub's): neutral words, moved on purpose on 2026-11-25
+// part G's GitHub mock, published for the release build's test further down (ghRaw(tag, files): a release of these very files)
+let ghRaw = null;
 const NOT_LISTED = /^the download is not the file the update list names, refused$/;   // an installer whose length or digest is not the signed list's
 const NO_UPDATE = /^(unsigned update, refused|the update list is not signed by Waypoint, no update offered|the update list could not be read, no update offered)$/;
 
@@ -416,7 +418,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const zipOff = await attempt({ tag: '1.5.1', served: (req, res) => { res.writeHead(302, { Location: OTHER + '/waypoint/1.5.1/x/waypoint-app-1.5.1.zip' }); res.end(); } });
             const zipSite = await attempt({ tag: '1.5.1', served: (req, res) => { res.writeHead(302, { Location: API + '/waypoint/1.5.1/x/waypoint-app-1.5.1.zip' }); res.end(); } });
             const notList = []; for (const u of [API + '/api/other', API + '/api/updates/../data', API + '/api/updates/latest?x=1']) { try { await updater.checkForUpdate({ currentVersion: '1.5.0', shellVersion: '1.5.0', apiUrl: u, pubKey: PUB }); notList.push('answered'); } catch (e) { notList.push(String(e.message)); } }
-            check('a redirect off the two hosts is refused before it is followed ("not Waypoint\'s update site") and the other host is never asked: the list sent to another host or to the download host, the zip sent to another host or to the site; a redirect of the list to another list on the site is followed; and a list address that is not under /api/updates/ on the site is never asked for',
+            check('a redirect off the two hosts is refused before it is followed ("not where Waypoint\'s updates come from") and the other host is never asked: the list sent to another host or to the download host, the zip sent to another host or to the site; a redirect of the list to another list on the site is followed; and a list address that is not under /api/updates/ on the site is never asked for',
                 none(listOff, NOT_OURS) && none(listFiles, NOT_OURS) && offered(listIn) && refused(zipOff, NOT_OURS) && refused(zipSite, NOT_OURS) && notList.every(s => NOT_OURS.test(s)) && otherHits.length === o0,
                 whyL([listOff, listFiles, listIn]).concat(why([zipOff, zipSite]), j(notList), [otherHits.length - o0]));
 
@@ -505,6 +507,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     assets: Object.keys(files).map(n => ({ name: n, size: typeof files[n] === 'function' ? 0 : Buffer.byteLength(files[n]), browser_download_url: at(n) })) } };
                 return GHM + '/' + id + '/latest';
             }
+            // a release of exactly these files (the release build's own output, further down): files { name: Buffer }
+            ghRaw = (tag, files) => {
+                const id = 'g' + (++seq);
+                ghRels[id] = { files, hits: {}, json: { tag_name: tag, body: 'notes', html_url: 'https://github.com/' + GREPO + '/releases/tag/' + tag,
+                    assets: Object.keys(files).map(n => ({ name: n, size: Buffer.byteLength(files[n]), browser_download_url: GHM + '/' + id + '/' + encodeURIComponent(n) })) } };
+                return GHM + '/' + id + '/latest';
+            };
             const ghHits = (api, name) => { const m = /\/(g\d+)\/latest$/.exec(api); return (m && ghRels[m[1]] && ghRels[m[1]].hits[name]) || 0; };
             // the real module, no source named: the shell's own constant decides
             const ghLook = spec => within(realUpdater.checkForUpdate(Object.assign({ repo: GREPO, currentVersion: spec.from || '1.5.0', shellVersion: spec.shell || '1.5.0', apiUrl: spec.api || ghPublish(spec), pubKey: 'checkKey' in spec ? spec.checkKey : PUB }, 'self' in spec ? { selfInstall: spec.self } : {})), 60000, 'github check');
@@ -559,16 +568,52 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             check('GitHub: nothing is fetched from a host that is not GitHub\'s own: a zip or a checksum the release names on another host is refused (NOT_OURS) before a byte is asked for, a redirect from GitHub to another host is refused, and so is the release\'s own address redirected elsewhere; each leaves the install as it was, and the other host is never reached; a redirect that stays on GitHub is followed',
                 refused(gOffZip, NOT_OURS) && refused(gOffSha, NOT_OURS) && refused(gHop, NOT_OURS) && NOT_OURS.test(String(gHopApiErr)) && otherHits.length === o0 && !gHopIn.err && gHopIn.res && gHopIn.res.ok === true,
                 j([gOffZip.err, gOffSha.err, gHop.err, gHopApiErr, otherHits.slice(o0), gHopIn.err]));
-            const ghOk = ['https://api.github.com/repos/ImmuneMoon/Waypoint/releases/latest', 'https://github.com/ImmuneMoon/Waypoint/releases/download/1.6.4/waypoint-app-1.6.4.zip',
-                'https://objects.githubusercontent.com/github-production-release-asset/1/x?X-Amz-Signature=a', 'https://release-assets.githubusercontent.com/github-production-release-asset/1/x?sp=r&sig=b'];
-            const ghNo = ['http://github.com/ImmuneMoon/Waypoint/releases/latest', 'https://github.com:444/ImmuneMoon/Waypoint/releases/latest', 'https://u:p@github.com/ImmuneMoon/Waypoint/releases/latest', 'https://user@api.github.com/repos/x',
-                'https://github.com.evil.example/x', 'https://evil.github.com/x', 'https://raw.githubusercontent.com/ImmuneMoon/Waypoint/main/x', 'https://waypointvtt.com/api/updates/latest', 'https://downloads.waypointvtt.com/waypoint/1.6.4/Waypoint_Setup.exe',
-                GHM + '/g1/latest', OTHER + '/x', 'file:///C:/x', 'not a url', 42, null];
-            const hDef = realUpdater.githubHosts({}), hMock = realUpdater.githubHosts({ apiUrl: GHM + '/g1/latest' });
-            check('GitHub\'s hosts, judged by githubUrlOk: api.github.com, github.com and the two hosts GitHub sends a download on to, over https with no port, user name or password (a signed download link\'s query kept); not http, another or look-alike host, another of GitHub\'s hosts, the website, a file or junk; the suite\'s mock only where its address was named, and then nothing else on loopback',
-                ghOk.every(u => realUpdater.githubUrlOk(u, hDef) === true) && ghNo.every(u => realUpdater.githubUrlOk(u, hDef) === false) && ghOk.every(u => realUpdater.githubUrlOk(u, hMock) === true)
-                && realUpdater.githubUrlOk(GHM + '/g9/waypoint-app-1.zip', hMock) === true && realUpdater.githubUrlOk(OTHER + '/x', hMock) === false && realUpdater.GITHUB_HOSTS.length === 4,
-                j([ghOk.filter(u => !realUpdater.githubUrlOk(u, hDef)), ghNo.filter(u => realUpdater.githubUrlOk(u, hDef))]));
+            /* the review of 2026-11-25: GitHub has moved its release download host twice, so a redirect may go to any https host under
+               githubusercontent.com (or github.com, api.github.com), while the FIRST address of a fetch is held strictly to this repository's
+               own API answer or its own release files: never another repository's release on github.com */
+            const ghFirstOk = ['https://api.github.com/repos/ImmuneMoon/Waypoint/releases/latest', 'https://api.github.com/repos/immunemoon/waypoint/releases/latest', 'https://github.com/ImmuneMoon/Waypoint/releases/download/1.6.4/waypoint-app-1.6.4.zip', 'https://github.com/immunemoon/Waypoint/releases/download/1.6.4/Waypoint_Setup.exe.sig'];
+            const ghFirstNo = ['https://github.com/someone/else/releases/download/1.6.4/waypoint-app-1.6.4.zip', 'https://github.com/ImmuneMoon/Waypoint-fork/releases/download/1.6.4/x.zip', 'https://github.com/ImmuneMoon/Waypoint/releases/download/', 'https://github.com/ImmuneMoon/Waypoint/raw/main/x',
+                'https://github.com/ImmuneMoon/Waypoint/releases/download/1.6.4/x.zip?y=1', 'https://api.github.com/repos/someone/else/releases/latest', 'https://api.github.com/repos/ImmuneMoon/Waypoint/releases', 'https://objects.githubusercontent.com/github-production-release-asset/1/x?X-Amz-Signature=a',
+                'https://release-assets.githubusercontent.com/github-production-release-asset/1/x?sp=r&sig=b', 'http://github.com/ImmuneMoon/Waypoint/releases/download/1/x', 'https://github.com:444/ImmuneMoon/Waypoint/releases/download/1/x', 'https://u:p@github.com/ImmuneMoon/Waypoint/releases/download/1/x',
+                'https://github.com.evil.example/ImmuneMoon/Waypoint/releases/download/1/x', 'https://waypointvtt.com/api/updates/latest', GHM + '/g1/latest', OTHER + '/x', 'file:///C:/x', 'not a url', 42, null];
+            const ghHopOk = ['https://github.com/someone/else/x', 'https://api.github.com/repositories/1/releases/latest', 'https://objects.githubusercontent.com/github-production-release-asset/1/x?X-Amz-Signature=a', 'https://release-assets.githubusercontent.com/x?sp=r&sig=b',
+                'https://github-releases.githubusercontent.com/x', 'https://a-host-github-has-not-made-yet.githubusercontent.com/x', 'https://deep.er.githubusercontent.com/x'];
+            const ghHopNo = ['https://evil.example/x', 'https://githubusercontent.com/x', 'https://githubusercontent.com.evil.example/x', 'https://xgithubusercontent.com/x', 'https://evilgithubusercontent.com/x', 'https://a.githubusercontent.com.evil.example/x',
+                'https://a.githubusercontent.com:444/x', 'https://u:p@a.githubusercontent.com/x', 'https://u@a.githubusercontent.com/x', 'http://a.githubusercontent.com/x', 'https://evil.github.com/x', 'https://github.com.evil.example/x',
+                'https://waypointvtt.com/x', OTHER + '/x', 'not a url', null];
+            const hDef = realUpdater.githubHosts({}), hMock = realUpdater.githubHosts({ apiUrl: GHM + '/g1/latest' }), U = realUpdater.githubUrlOk;
+            check('GitHub\'s hosts, judged by githubUrlOk in two rules: a FIRST address only this repository\'s own API answer or its own release files on github.com (the repository in any case), with no query, over https with no port, user name or password; a REDIRECT to github.com, api.github.com or any https host ending in ".githubusercontent.com" (the dot included: never one that only holds the name, nor githubusercontent.com itself), with no port or credentials; the suite\'s mock only where its address was named, for both',
+                ghFirstOk.every(u => U(u, hDef) === true && U(u, hDef, false) === true) && ghFirstNo.every(u => U(u, hDef) === false) && ghHopOk.every(u => U(u, hDef, true) === true) && ghHopNo.every(u => U(u, hDef, true) === false)
+                && U('https://a.githubusercontent.com:443/x', hDef, true) === true /* the URL parser drops https's own port */ && ghFirstOk.every(u => U(u, hMock) === true)
+                && U(GHM + '/g9/waypoint-app-1.zip', hMock) === true && U(GHM + '/g9/x', hMock, true) === true && U(OTHER + '/x', hMock) === false && U(OTHER + '/x', hMock, true) === false && realUpdater.GITHUB_HOP_SUFFIX === '.githubusercontent.com' && j(realUpdater.GITHUB_HOP_HOSTS) === j(['github.com', 'api.github.com']),
+                j([ghFirstOk.filter(u => !U(u, hDef)), ghFirstNo.filter(u => U(u, hDef)), ghHopOk.filter(u => !U(u, hDef, true)), ghHopNo.filter(u => U(u, hDef, true))]));
+            {   // and end to end: the real fetches follow a redirect to a host GitHub has not used yet, and refuse the rest before anything is asked.
+                // https.get is stood in for this block alone, so nothing leaves this machine: each https address it is asked for is written down
+                // and answered by the mock (a release's own file by its path, any other by gGood's file of the same name), then put back.
+                const httpsMod = require('https'), realGet = httpsMod.get, asked = [], gid = /\/(g\d+)\/latest$/.exec(gGood.api)[1];
+                httpsMod.get = function (u, o, cb) {
+                    const x = new URL(String(u)); asked.push(x.href);
+                    const m = /\/(g\d+)\/([^/]+)$/.exec(x.pathname);
+                    return http.get(GHM + (m ? '/' + m[1] + '/' + m[2] : '/' + gid + '/' + x.pathname.split('/').pop()), o, cb);
+                };
+                let gNew = null, gBad = [], gOwn = null, gElse = null, gElseSha = null;
+                try {
+                    const hop = loc => (req, res) => { res.writeHead(302, { Location: loc }); res.end(); };
+                    gNew = await ghAttempt({ tag: '1.5.1', served: hop('https://release-assets-next.githubusercontent.com/' + gid + '/waypoint-app-1.5.1.zip') });
+                    const bad = ['https://evil.example/' + gid + '/waypoint-app-1.5.1.zip', 'https://githubusercontent.com.evil.example/' + gid + '/waypoint-app-1.5.1.zip', 'https://xgithubusercontent.com/' + gid + '/waypoint-app-1.5.1.zip',
+                        'https://a.githubusercontent.com:444/' + gid + '/waypoint-app-1.5.1.zip', 'https://u:p@a.githubusercontent.com/' + gid + '/waypoint-app-1.5.1.zip', 'http://a.githubusercontent.com/' + gid + '/waypoint-app-1.5.1.zip'];
+                    for (const b of bad) gBad.push(await ghAttempt({ tag: '1.5.1', served: hop(b) }));
+                    gOwn = await ghAttempt({ tag: '1.5.1', urls: { 'waypoint-app-1.5.1.zip': 'https://github.com/ImmuneMoon/Waypoint/releases/download/1.5.1/waypoint-app-1.5.1.zip' } });
+                    gElse = await ghAttempt({ tag: '1.5.1', urls: { 'waypoint-app-1.5.1.zip': 'https://github.com/someone/else/releases/download/1.5.1/waypoint-app-1.5.1.zip' } });
+                    gElseSha = await ghAttempt({ tag: '1.5.1', urls: { 'waypoint-app-1.5.1.zip.sig': 'https://github.com/someone/else/releases/download/1.5.1/waypoint-app-1.5.1.zip.sig' } });
+                } finally { httpsMod.get = realGet; }
+                check('GitHub, end to end: a redirect to a *.githubusercontent.com host GitHub has not used yet is followed and the release applied; a redirect to another host, to one that only holds the name, with a port, with credentials or over http is refused (NOT_OURS) and that host never asked; a release file of this repository on github.com is fetched; one of another repository is refused before anything is asked, the install as it was',
+                    !!gNew && !gNew.err && gNew.res && gNew.res.ok === true && verOf(gNew.inst.app) === '1.5.1' && asked.indexOf('https://release-assets-next.githubusercontent.com/' + gid + '/waypoint-app-1.5.1.zip') >= 0
+                    && gBad.length === 6 && gBad.every(r => refused(r, NOT_OURS)) && !asked.some(a => /evil|xgithub|:444|u:p@|^http:/.test(a))
+                    && !!gOwn && !gOwn.err && gOwn.res && gOwn.res.ok === true && asked.indexOf('https://github.com/ImmuneMoon/Waypoint/releases/download/1.5.1/waypoint-app-1.5.1.zip') >= 0
+                    && [gElse, gElseSha].every(r => !!r && refused(r, NOT_OURS)) && !asked.some(a => /someone\/else/.test(a)),
+                    j([gNew && gNew.err, gBad.map(r => r.err), gOwn && gOwn.err, gElse && gElse.err, gElseSha && gElseSha.err, asked]));
+            }
 
             // the installer of a GitHub release: 1.6.3's checks (the signature first, then the digest of what arrived)
             const gDl = async (setup, more) => {
@@ -595,6 +640,39 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             check('GitHub, through the routes both servers mount (no source named): the check answers the release, the apply takes it, and a check that cannot reach the release names the repository\'s latest release page for the walk-through, a page the walk-through may open for this source (shellguard.githubReleaseLink)',
                 rc.code === 200 && !!rcj && rcj.latest === '1.5.1' && rcj.canHotUpdate === true && ra.code === 200 && verOf(ri.app) === '1.5.1'
                 && rf.code === 200 && !!rfj && !!rfj.error && rfj.page === 'https://github.com/ImmuneMoon/Waypoint/releases/latest' && require('../system/resources/app/shellguard.js').githubReleaseLink(rfj.page, GREPO) === rfj.page, j([rc.code, rcj && rcj.latest, ra.code, ra.body, rfj]));
+            {   /* the review of 2026-11-25: the one-click core update from GitHub, through the handler's own installer and status routes, with no source
+                   named and a shell that says it can run the installer (selfInstall): the installer fetched by its signature's ADDRESS (sigUrl) and
+                   checked over what arrived, ending ready. Dropping sigUrl or source from makeHandler's download line fails this (or the site's own). */
+                const ii = install('1.5.0'), iTmp = fs.mkdtempSync(path.join(tmp, 'ghtmp-')), iApi = ghPublish({ tag: '1.5.1', manifest: { version: '1.5.1', minShell: '1.5.1' }, setup: {} });
+                const ih = realUpdater.makeHandler({ repo: GREPO, currentVersion: '1.5.0', shellVersion: '1.5.0', systemDir: ii.sys, apiUrl: iApi, pubKey: PUB, selfInstall: true, tmpDir: iTmp, appRoot: ii.root, dataDir: path.join(ii.sys, 'userdata') });
+                const ic = rres(); await within(ih({ method: 'GET' }, ic, new URL('/api/update-check', 'http://localhost')), 60000, 'github route check (installer)');
+                const ip = rres(); await within(ih({ method: 'POST' }, ip, new URL('/api/update-installer', 'http://localhost')), 60000, 'github route installer');
+                let is = null;
+                for (let n = 0; n < 400; n++) {
+                    const s = rres(); await within(ih({ method: 'GET' }, s, new URL('/api/update-installer-status', 'http://localhost')), 60000, 'github route status');
+                    try { is = JSON.parse(s.body); } catch (e) { is = null; }
+                    if (is && (is.state === 'ready' || is.state === 'failed')) break;
+                    await new Promise(r => { const t = setTimeout(r, 15); t.unref(); });
+                }
+                let icj = null, ipj = null; try { icj = JSON.parse(ic.body); ipj = JSON.parse(ip.body); } catch (e) {}
+                const iDirs = fs.readdirSync(iTmp).filter(n => /^waypoint-update-/.test(n)), iFile = iDirs.length === 1 ? path.join(iTmp, iDirs[0], 'Waypoint_Setup-1.5.1.exe') : null;
+                check('GitHub, the one-click core update through the handler\'s own routes with no source named and a shell that can run the installer: the check offers it (needsInstaller, canSelfInstall), the start answers at once, and the status ends ready, the installer whole under its own name in a private folder, its signature fetched once by its address on the release',
+                    !!icj && icj.needsInstaller === true && icj.canSelfInstall === true && ip.code === 200 && !!ipj && ipj.ok === true && !!is && is.state === 'ready' && is.error === null && is.version === '1.5.1'
+                    && !!iFile && fs.existsSync(iFile) && fs.readFileSync(iFile).equals(SETUP) && ghHits(iApi, SETUP_NAME + '.sig') === 1 && ghHits(iApi, SETUP_NAME) === 1, j([icj && [icj.needsInstaller, icj.canSelfInstall], ip.code, ipj, is, iDirs]));
+            }
+            {   // node tools/ghlive.js, the read-only check after --github (checkLive run for real against the mock, as an install of 1.6.3 asks)
+                const live = require(path.join(ROOT, 'tools', 'ghlive.js')), vNow = require('../system/resources/app/package.json').version;
+                const lGood = await live.checkLive({ version: vNow, apiUrl: ghPublish({ tag: vNow, manifest: { version: vNow, minShell: vNow }, setup: {} }), pubKey: PUB });
+                const lOld = await live.checkLive({ version: vNow, apiUrl: ghPublish({ tag: '1.6.3', manifest: { version: '1.6.3', minShell: '1.6.3' }, setup: {} }), pubKey: PUB });
+                const lNoSig = await live.checkLive({ version: vNow, apiUrl: ghPublish({ tag: vNow, manifest: { version: vNow, minShell: vNow }, setup: { noSig: true } }), pubKey: PUB });
+                const lHot = await live.checkLive({ version: vNow, apiUrl: ghPublish({ tag: vNow, manifest: { version: vNow, minShell: '1.6.3' }, setup: {} }), pubKey: PUB });
+                const lDown = await live.checkLive({ version: vNow, apiUrl: GHM + '/g0/latest', pubKey: PUB });
+                const ghl = read('tools/ghlive.js');
+                check('node tools/ghlive.js (checkLive, for real against the mock): yes on every line where the latest release is this version, an install of 1.6.3 is sent to the installer and offered the one-click core update, and both .sig assets are there; no, in plain words, where the latest is another version, where the installer\'s signature is missing, where the release needs no newer core, and where GitHub cannot be read; it asks with the source \'github\' and names no token',
+                    lGood.ok === true && lGood.lines.length === 5 && lGood.lines.every(l => /^Yes: /.test(l)) && lOld.ok === false && /^No: the latest release is 1\.6\.3, not /.test(lOld.lines[0])
+                    && lNoSig.ok === false && lNoSig.lines.some(l => /^No: the installer's signature/.test(l)) && lHot.ok === false && /^No: an install of 1\.6\.3 is not sent to the installer/.test(lHot.lines[1]) && lDown.ok === false && lDown.lines.length === 1 && /^No: the latest release could not be read/.test(lDown.lines[0])
+                    && /source: 'github'/.test(ghl) && !/token|GITHUB_TOKEN|Authorization/i.test(ghl.replace(/needs no token/, '')), j([lGood, lOld.lines, lNoSig.lines, lHot.lines, lDown.lines]));
+            }
         }
 
         /* ================= B. the way back ================= */
@@ -823,7 +901,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const offSite = await fetchSetup({ setup: { served: (req, res) => { res.writeHead(302, { Location: API + '/api/updates/Waypoint_Setup.exe' }); res.end(); } } });
             const offPath = await fetchSetup({ setup: { served: (req, res) => { res.writeHead(301, { Location: '/elsewhere/Waypoint_Setup.exe' }); res.end(); } } });
             const offQuery = await fetchSetup({ setup: { served: (req, res) => { res.writeHead(307, { Location: req.url + '?x=1' }); res.end(); } } });
-            check('a redirect off the two hosts is refused before it is followed ("not Waypoint\'s update site"), with nothing left and the other host never asked: to another host, to a path on the download host outside /waypoint/, with a query; one to the site\'s own update path is within the two hosts and is followed (and gives no installer there)',
+            check('a redirect off the two hosts is refused before it is followed ("not where Waypoint\'s updates come from"), with nothing left and the other host never asked: to another host, to a path on the download host outside /waypoint/, with a query; one to the site\'s own update path is within the two hosts and is followed (and gives no installer there)',
                 [offHost, offPath, offQuery].every(r => nothing(r, NOT_OURS)) && otherHits.length === off0 && !!offSite.err && !NOT_OURS.test(offSite.err) && offSite.left.length === 0, whyD([offHost, offPath, offQuery, offSite]).concat([otherHits.length - off0]));
             const e500 = await fetchSetup({ setup: { served: (req, res) => { res.writeHead(500); res.end('no'); } } }), e404 = await fetchSetup({ setup: { served: (req, res) => { res.writeHead(404); res.end(); } } });
             const cutA = await fetchSetup({ setup: { served: stream(8, { len: 16384 * 20, cut: true }) } }), cutB = await fetchSetup({ setup: { served: stream(8, { cut: true }) } });
@@ -1243,6 +1321,24 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     check('the build\'s own check of its list (sitepub.envelopeCheck) passes the list as written and stops every drift from what an install takes as written: a size in words, a notes page an install would drop or none at all, a signature with a line break in it, a file off /waypoint/<version>/, an electron or notes an install would drop, a digest that is not the file on disk, another version',
                         sp.envelopeCheck(envText, pub2, 'https://waypointvtt.com', wantOf()) === null && driftSaid.every(x => typeof x === 'string' && x.length > 10), j(driftSaid));
                 }
+                /* ---- the review of 2026-11-25: the very six files this build wrote, published as a GitHub release (part G's mock, ghRaw) and read by
+                   the shell's own GitHub reader with no address of the suite's own for them, so release.js's real output is tied to what an install of
+                   1.6.4 takes while updater.js UPDATE_SOURCE is 'github': the check, the apply, and the installer fetched by its signature's address ---- */
+                {
+                    const SIX = ['Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json'], files = {};
+                    for (const n of SIX) { try { files[n] = fs.readFileSync(path.join(dist, n)); } catch (e) {} }
+                    const gApi = typeof ghRaw === 'function' && Object.keys(files).length === 6 ? ghRaw(vNow, files) : null;
+                    let gHot = null, gOld = null, gApplied = null, gFetched = null, gErr = null; const gri = install('0.0.1'), gdir = fs.mkdtempSync(path.join(tmp, 'ghdl-'));
+                    try {
+                        gHot = await within(realUpdater.checkForUpdate({ source: 'github', repo: 'ImmuneMoon/Waypoint', currentVersion: '0.0.1', shellVersion: vNow, apiUrl: gApi, pubKey: pub2, selfInstall: true }), 60000, 'github check (build)');
+                        gOld = await within(realUpdater.checkForUpdate({ source: 'github', repo: 'ImmuneMoon/Waypoint', currentVersion: '0.0.1', shellVersion: '0.0.1', apiUrl: gApi, pubKey: pub2, selfInstall: true }), 60000, 'github check (build, old core)');
+                        gApplied = await within(realUpdater.applyAppUpdate({ source: 'github', repo: 'ImmuneMoon/Waypoint', apiUrl: gApi, systemDir: gri.sys, appZip: gHot.appZip, appZipName: gHot.appZipName, sha256: gHot.sha256, sig: gHot.sig, version: gHot.latest, pubKey: pub2, shellVersion: vNow }), 60000, 'github apply (build)');
+                        gFetched = await within(realUpdater.downloadInstaller({ source: 'github', repo: 'ImmuneMoon/Waypoint', apiUrl: gApi, url: gOld.installer, sigUrl: gOld.installerSig, version: gOld.latest, pubKey: pub2, dir: gdir }), 60000, 'github installer (build)');
+                    } catch (e) { gErr = String(e && e.message || e); }
+                    check('the six files release.js wrote, as a GitHub release, are taken by the shell\'s own GitHub reader (the source 1.6.4 ships with): the latest is this version with a one-click update for a core new enough, the installer offered to an older core and runnable by this copy itself (both signatures there), the zip applied by its .sha256 and .sig addresses (the app the release\'s version), and the installer fetched by its .sig\'s address and checked byte for byte',
+                        !gErr && !!gApi && !!gHot && gHot.latest === vNow && gHot.canHotUpdate === true && gHot.needsInstaller === false && !!gOld && gOld.needsInstaller === true && gOld.canSelfInstall === true
+                        && !!gApplied && gApplied.ok === true && verOf(gri.app) === vNow && !!gFetched && gFetched.sha256 === sha256(setupBytes) && fs.readFileSync(gFetched.file).equals(setupBytes), j([gErr, !!gApi, gHot && [gHot.latest, gHot.canHotUpdate], gOld && [gOld.needsInstaller, gOld.canSelfInstall]]));
+                }
                 // a file the stripper refuses stops the build, naming it, before anything is zipped, compiled or listed (1.6.4)
                 {
                     const br = scratchRepoWith(pub2); put(br, 'system/app/scripts/bad.js', Buffer.from([0x2f, 0x2f, 0x20, 0xff, 0xfe, 0x0a, 0x76, 0x61, 0x72, 0x20, 0x61, 0x3b, 0x0a]));
@@ -1265,7 +1361,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                         [['--publish'], R2OK, /Not built: WAYPOINT_DISPATCH_TOKEN is not set/],
                         [['--publish'], Object.assign({}, R2OK, { WAYPOINT_DISPATCH_TOKEN: 't', WAYPOINT_DISPATCH_REPO: 'not a repository' }), /Not built: WAYPOINT_DISPATCH_REPO is not a repository's name/],
                         [['--publish', '--github'], Object.assign({}, R2OK, { WAYPOINT_DISPATCH_TOKEN: 't' }), /Not built: GITHUB_TOKEN is not set \(--github\)/],
-                        [['--github'], { GITHUB_TOKEN: 'g' }, /Not built: --github goes with --publish/],
+                        [['--github', '--notes-only'], {}, /Not built: --notes-only builds no release to publish/],
                         [['--publish-site'], R2OK, /Not built: --publish-site is no option of this tool .*--publish now puts the release on the site/],
                         [['--publish', '--notes-only'], {}, /Not built: --notes-only builds no release to publish/],
                         [[], { WAYPOINT_RELEASE_TEST_DISPATCH: 'http://127.0.0.1:9' }, /Not built: WAYPOINT_RELEASE_TEST_DISPATCH is set, which only a test reads/],
@@ -1274,7 +1370,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const said = cases.map(c => go(c[0], c[1]));
                     const wr = scratchRepo(pub2); fs.writeFileSync(path.join(wr, 'WHATSNEW.txt'), 'WAYPOINT 0.0.9 — What\'s New' + NL + '====' + NL + '- old notes' + NL);
                     const wRun = node(path.join(wr, 'tools', 'release.js'), [], envOf()), wSaid = String(wRun.stdout) + String(wRun.stderr);
-                    check('release.js refuses before the first thing the build writes (exit 1, one plain line, no dist folder, the README as it was): --publish while the bucket is not named, half named, named by an address that is not https or by one of this machine that no test asked for, while WAYPOINT_DISPATCH_TOKEN is not set or WAYPOINT_DISPATCH_REPO names no repository; --github without GITHUB_TOKEN, and --github alone; the old --publish-site (no option now) and --notes-only with --publish; a test\'s stand-in named without WAYPOINT_RELEASE_TEST=1, one not of this machine, and a test setting it does not know; and a build whose WHATSNEW.txt\'s newest section is not this release\'s',
+                    check('release.js refuses before the first thing the build writes (exit 1, one plain line, no dist folder, the README as it was): --publish while the bucket is not named, half named, named by an address that is not https or by one of this machine that no test asked for, while WAYPOINT_DISPATCH_TOKEN is not set or WAYPOINT_DISPATCH_REPO names no repository; --publish --github without GITHUB_TOKEN; the old --publish-site (no option now) and --notes-only with --publish or with --github; a test\'s stand-in named without WAYPOINT_RELEASE_TEST=1, one not of this machine, and a test setting it does not know; and a build whose WHATSNEW.txt\'s newest section is not this release\'s',
                         said.every((r, i) => r.status === 1 && cases[i][2].test(r.said) && r.said.trim().split('\n').length === 1) && !fs.existsSync(path.join(nr, 'dist')) && fs.readFileSync(path.join(nr, 'README.md'), 'utf8') === nB.readme
                         && wRun.status === 1 && /Not built: WHATSNEW\.txt's newest section is for 0\.0\.9, not for this release/.test(wSaid) && !fs.existsSync(path.join(wr, 'dist')), j(said.map((r, i) => [i, r.status, r.said.slice(0, 160)]).concat([[wRun.status, wSaid.slice(0, 160)]])));
                     // the notes the app itself shows (system/app/assets/whatsnew.txt, in the zip and the installer) begin with the very section
@@ -1289,6 +1385,94 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                         && mRun2.status === 1 && /whatsnew\.txt, the notes the app itself shows, is missing/.test(mSaid2) && !fs.existsSync(path.join(mr2, 'dist'))
                         && spT.topSection('\uFEFF' + oneTop.replace(/\n/g, '\r\n')) === spT.topSection(oneTop + 'WAYPOINT 9.9.7' + NL) && spT.topSection(oneTop) !== spT.topSection(oneTop.replace('- a', '- c'))
                         && spT.topVersion('WAYPOINT 1.6.4: What\'s New\n') === '1.6.4' && spT.topVersion('WAYPOINT VTT 1.6.5 \u2014 What\'s New') === '1.6.5' && spT.topVersion('WAYPOINT 1.6.3') === '1.6.3' && spT.topVersion('Notes') === null /* 1.6.4: the heading's colon is no part of the version */, j([aRun.status, aSaid.slice(0, 200), mRun2.status, mSaid2.slice(0, 200)]));
+                }
+                /* ---- node tools/release.js --github (1.6.4, the review of 2026-11-25): the GitHub-only release while installs read GitHub, made through
+                   the GitHub command line tool. A stand-in gh of the suite's own lies first on PATH (gh.cmd on Windows, beside the stand-ins for Inno
+                   Setup and the archiver): it writes down every call (its arguments and which secrets its environment held) and answers as gh would,
+                   keeping a release's state in a file. gh's config folder is pointed at an empty one and GH_TOKEN is taken away, so a real gh found by
+                   mistake is signed in nowhere and refuses; and before any run the stand-in must answer gh --version in its own words, or nothing runs.
+                   Nothing here reaches GitHub. ---- */
+                {
+                    const ghStand = function () {
+                        const fs = require('fs'), path = require('path'), crypto = require('crypto');
+                        const a = process.argv.slice(2), E = process.env, mode = E.WP_GH_MODE || '', ver = E.WP_GH_VER;
+                        fs.appendFileSync(E.WP_GH_LOG, JSON.stringify({ args: a, env: Object.keys(E).filter(k => /^(GITHUB_TOKEN|WAYPOINT_SIGNING_KEY|WAYPOINT_R2_|WAYPOINT_DISPATCH_TOKEN)/i.test(k)) }) + '\n');
+                        let s = {}; try { s = JSON.parse(fs.readFileSync(E.WP_GH_STATE, 'utf8')); } catch (e) { s = {}; }
+                        const save = () => fs.writeFileSync(E.WP_GH_STATE, JSON.stringify(s));
+                        const say = x => process.stdout.write(typeof x === 'string' ? x : JSON.stringify(x));
+                        const fail = m => { process.stderr.write(m + '\n'); process.exit(1); };
+                        if (a[0] === '--version') return say('gh version 0.0.0-waypoint-stand-in\n');
+                        if (a[0] === 'auth') return mode === 'signedout' ? fail('You are not logged into any GitHub hosts.') : say('');
+                        if (a[0] === 'api' && /\/git\/matching-refs\/tags\//.test(a[1])) { const t = a[1].split('/tags/')[1]; return say((mode === 'tag' && t === ver) || (mode === 'vtag' && t === 'v' + ver) ? [{ ref: 'refs/tags/' + t }] : [{ ref: 'refs/tags/' + t + '1' }]); }
+                        if (a[0] === 'api' && /\/releases\?per_page=100$/.test(a[1])) {
+                            s.relAsks = (s.relAsks || 0) + 1; save();
+                            if (mode === 'eat' && s.relAsks === 2) { try { fs.unlinkSync(path.join(E.WP_GH_DIST, 'manifest.json')); } catch (e) {} }   // after the build, before the assets are looked for
+                            return say(mode === 'draft' ? [{ tag_name: ver, draft: true }] : [{ tag_name: '1.6.3', draft: false }]);
+                        }
+                        if (a[0] === 'release' && a[1] === 'create') { s.created = true; s.draft = a.indexOf('--draft') >= 0; save(); return say(''); }
+                        if (a[0] === 'release' && a[1] === 'upload') { s.assets = a.slice(5).map(f => ({ name: path.basename(f), sha: crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex') })); save(); return say(''); }
+                        if (a[0] === 'release' && a[1] === 'view') return say({ assets: (s.assets || []).map(x => ({ name: x.name })), isDraft: s.draft !== false });
+                        if (a[0] === 'release' && a[1] === 'edit') { if (a.indexOf('--draft=false') >= 0) { s.draft = false; s.published = true; } save(); return say(''); }
+                        fail('the stand-in does not know: ' + a.join(' '));
+                    };
+                    const ghJs = path.join(stub, 'gh.js'); fs.writeFileSync(ghJs, "'use strict';" + NL + '(' + ghStand.toString() + ')();' + NL); exe('gh', ghJs);
+                    const ghCfg = fs.mkdtempSync(path.join(tmp, 'ghcfg-')), noGh = fs.mkdtempSync(path.join(tmp, 'nogh-')), GT = 'github-token-the-suite-set-' + crypto.randomBytes(6).toString('hex'), REPO_GH = 'ImmuneMoon/Waypoint';
+                    let gn = 0;
+                    const ghEnv = (mode, distAt) => {
+                        const e = envOf(); for (const k of Object.keys(e)) if (/^(GH_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_HOST|GH_REPO)$/i.test(k)) delete e[k];
+                        return Object.assign(e, { WP_GH_LOG: path.join(stub, 'gh-log-' + (++gn) + '.jsonl'), WP_GH_STATE: path.join(stub, 'gh-state-' + gn + '.json'), WP_GH_MODE: mode || '', WP_GH_VER: vNow, WP_GH_DIST: distAt || '', GH_CONFIG_DIR: ghCfg, GITHUB_TOKEN: GT });
+                    };
+                    let pre = ''; try { pre = cp.execSync('gh --version', { env: ghEnv(), encoding: 'utf8', timeout: 30000 }); } catch (e) { pre = ''; }
+                    const safe = /waypoint-stand-in/.test(pre);
+                    const lines = f => { try { return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch (e) { return []; } };
+                    const ghRun = (mode, prep, envEdit) => {
+                        if (!safe) return null;
+                        const r = scratchRepoWith(pub2), d = path.join(r, 'dist', vNow); if (prep) prep(r);
+                        const env = ghEnv(mode, d); if (envEdit) envEdit(env);
+                        const ran = node(path.join(r, 'tools', 'release.js'), ['--github'], env);
+                        let st = null; try { st = JSON.parse(fs.readFileSync(env.WP_GH_STATE, 'utf8')); } catch (e) { st = null; }
+                        return { status: ran.status, said: String(ran.stdout) + String(ran.stderr), calls: lines(env.WP_GH_LOG), st, repo: r, dist: d };
+                    };
+                    const good = ghRun('');
+                    const heads = good ? good.calls.map(c => c.args.slice(0, 2).join(' ')) : [];
+                    const pick = (sub) => good ? good.calls.find(c => c.args[0] === 'release' && c.args[1] === sub) : null;
+                    const cr = pick('create'), up = pick('upload'), vw = pick('view'), ed = pick('edit');
+                    const SIX = ['Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', 'waypoint-app-' + vNow + '.zip', 'waypoint-app-' + vNow + '.zip.sha256', 'waypoint-app-' + vNow + '.zip.sig', 'manifest.json'];
+                    const inDist = p => !!good && same(fs.realpathSync(path.dirname(p)), fs.realpathSync(good.dist));
+                    const API3 = ['api repos/' + REPO_GH + '/git/matching-refs/tags/' + vNow, 'api repos/' + REPO_GH + '/git/matching-refs/tags/v' + vNow, 'api repos/' + REPO_GH + '/releases?per_page=100'];
+                    check('release.js --github (a scratch copy, the right key, stand-ins for gh, Inno Setup and the archiver): gh is asked first whether it runs and is signed in and whether GitHub holds the tag (' + 'vX.Y.Z too) or a release of it, then the build runs as a plain build does, then GitHub is asked again and the release is made as 1.6.3\'s was: a DRAFT tagged exactly the version, titled "Waypoint VTT Alpha <version>", not a prerelease, its body dist/<version>/RELEASE_NOTES.md; the six assets uploaded byte for byte from dist/<version>/; the draft\'s assets read back; and only then published',
+                        safe && !!good && good.status === 0 && j(heads) === j(['--version', 'auth status'].concat(API3.map(x => x.split(' ').slice(0, 2).join(' '))).concat(API3.map(x => x.split(' ').slice(0, 2).join(' '))).concat(['release create', 'release upload', 'release view', 'release edit']))
+                        && j(good.calls[1].args) === j(['auth', 'status', '--hostname', 'github.com']) && j(good.calls.slice(2, 5).map(c => c.args.join(' '))) === j(API3) && j(good.calls.slice(5, 8).map(c => c.args.join(' '))) === j(API3)
+                        && !!cr && j(cr.args.slice(0, 9)) === j(['release', 'create', vNow, '--repo', REPO_GH, '--draft', '--title', 'Waypoint VTT Alpha ' + vNow, '--notes-file']) && cr.args.length === 10 && path.basename(cr.args[9]) === 'RELEASE_NOTES.md' && inDist(cr.args[9]) && cr.args.indexOf('--prerelease') < 0
+                        && !!up && j(up.args.slice(0, 5)) === j(['release', 'upload', vNow, '--repo', REPO_GH]) && j(up.args.slice(5).map(p => path.basename(p))) === j(SIX) && up.args.slice(5).every(inDist)
+                        && !!good.st && j(good.st.assets.map(x => x.name)) === j(SIX) && good.st.assets.every(x => x.sha === sha256(fs.readFileSync(path.join(good.dist, x.name))))
+                        && !!vw && j(vw.args) === j(['release', 'view', vNow, '--repo', REPO_GH, '--json', 'assets,isDraft']) && !!ed && j(ed.args) === j(['release', 'edit', vNow, '--repo', REPO_GH, '--draft=false', '--prerelease=false'])
+                        && good.st.published === true && good.st.draft === false && /Published on GitHub: https:\/\/github\.com\/ImmuneMoon\/Waypoint\/releases\/tag\//.test(good.said) && /node tools\/ghlive\.js/.test(good.said),
+                        j([safe, pre.slice(0, 60), good && good.status, good && good.said.slice(-400), heads]));
+                    check('release.js --github never handles a token: gh is handed the environment without GITHUB_TOKEN and the other secrets (CHILD_ENV), though the run was given one, no argument and nothing said holds it; and it touches nothing of the website (no bucket, no dispatch, no word of the download host)',
+                        !!good && good.calls.length > 0 && good.calls.every(c => c.env.length === 0 && !c.args.some(x => String(x).indexOf(GT) >= 0)) && good.said.indexOf(GT) < 0 && !/download host|dispatch|bucket|website was told/i.test(good.said)
+                        && read('tools/release.js').indexOf("env: CHILD_ENV, encoding: 'utf8'") > 0 && read('tools/release.js').split('process.env.GITHUB_TOKEN').length === 4 /* three: the --publish --github path's own check (twice on its line) and its API's token, and none in the gh path */, j(good && good.calls.map(c => c.env)));
+                    // the refusals: each one plain line, exit 1, nothing published (no release create), and none of them builds (no dist folder)
+                    const refuse = (r, re) => !!r && r.status === 1 && re.test(r.said) && !r.calls.some(c => c.args[0] === 'release') && !fs.existsSync(r.dist);
+                    const signedOut = ghRun('signedout'), tagged = ghRun('tag'), vTagged = ghRun('vtag'), drafted = ghRun('draft');
+                    const noGhRun = ghRun('', null, e => { const pk = Object.keys(e).find(k => k.toUpperCase() === 'PATH') || 'PATH'; e[pk] = noGh; });
+                    const siteSrc = ghRun('', r => { const p = path.join(r, 'system/resources/app/updater.js'); fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace("const UPDATE_SOURCE = 'github';", "const UPDATE_SOURCE = 'site';")); });
+                    const staleRec = ghRun('', r => { fs.appendFileSync(path.join(r, 'system/resources/app/main.js'), NL + '// a change to the core after it was recorded' + NL); });
+                    const noKey = ghRun('', null, e => { delete e.WAYPOINT_SIGNING_KEY; });
+                    check('release.js --github refuses, exit 1, in plain words and with no release made: gh not found, gh not signed in, the tag (or v<tag>) already on GitHub, a draft release of it already there, the source not \'github\' (asking gh nothing), a core record that is stale and a signing key that is not at hand, exactly as a plain build refuses (none of them builds)',
+                        refuse(noGhRun, /Not built: --github publishes through the GitHub command line tool \(gh\), which could not be run here/) && noGhRun.calls.length === 0
+                        && refuse(signedOut, /Not built: gh is not signed in to github\.com/) && signedOut.calls.length === 2
+                        && refuse(tagged, new RegExp('Not built: the tag ' + vNow.replace(/\./g, '\\.') + ' is already on GitHub')) && refuse(vTagged, new RegExp('Not built: the tag v' + vNow.replace(/\./g, '\\.') + ' is already on GitHub'))
+                        && refuse(drafted, /Not built: a draft release of .* is on GitHub already/)
+                        && refuse(siteSrc, /Not built: --github alone publishes to GitHub only, and installs now read Waypoint's website \(updater\.js UPDATE_SOURCE is 'site'\): use --publish --github\./) && siteSrc.calls.length === 0
+                        && refuse(staleRec, /Not built: the core changed since tools\/shellrev\.json was recorded: run node tools\/shellrev\.js/)
+                        && refuse(noKey, /Not built: .*signkey|WAYPOINT_SIGNING_KEY/) && noKey.calls.length === 0,
+                        j([noGhRun, signedOut, tagged, vTagged, drafted, siteSrc, staleRec, noKey].map(r => r && [r.status, r.said.slice(0, 200), r.calls.length])));
+                    const eaten = ghRun('eat');
+                    check('release.js --github refuses where any of the six assets is missing from dist/<version>/ when the release is to be made (here manifest.json, taken away after the build): exit 1, the missing file named, no draft made',
+                        !!eaten && eaten.status === 1 && /Not published to GitHub: manifest\.json missing from /.test(eaten.said) && !eaten.calls.some(c => c.args[0] === 'release'), j(eaten && [eaten.status, eaten.said.slice(-300)]));
+                    check('release.js names the very repository the shell reads (REPO === updater.js UPDATE_REPO), and the plain build\'s closing words name node tools/release.js --github for the release while installs read GitHub',
+                        new RegExp("const REPO = '" + realUpdater.UPDATE_REPO + "';").test(read('tools/release.js')) && /run node tools\/release\.js --github/.test(said), said.slice(-400));
                 }
                 // and run to its end against stand-ins of the suite's own (WAYPOINT_RELEASE_TEST=1): a bucket speaking Cloudflare R2's S3 API on
                 // loopback (every request's AWS Signature Version 4 checked here, with the token's secret, over what arrived; ETags as R2 gives them,

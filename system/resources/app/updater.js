@@ -14,7 +14,11 @@
      Waypoint_Setup.exe.sig              the installer's signature: the same three lines, its name the first
    and nothing is fetched from any host but GitHub's own (githubUrlOk), a redirect included. With 'site' the shell reads
    Waypoint's website, as follows. Flip the constant to 'site' once the website answers its signed list and the download
-   host holds the files; nothing else needs to change.
+   host holds the files. Flipping it is a change to the core, like any change under system/resources/app: run
+   node tools/shellrev.js and commit tools/shellrev.json, raise the version in package.json first, and move
+   tools/shellrev.json's since and settings.js SHELL_WANTED with it (CLAUDE.md, Editing rules). And while any install
+   still reads GitHub (every 1.6.4 and older does, since a shell reads the source its own updater.js names), every
+   release must ALSO be published to GitHub (node tools/release.js --github), or those installs never see it.
 
    Where an update comes from with 'site' (1.6.4; the owner, 2026-11-16: "Private, updates from waypointvtt.com"). The shell asks
    Waypoint's own website for the newest release and fetches its files from Waypoint's own download host, and from no
@@ -87,40 +91,67 @@ const FILES_MAX = 64;               // the most entries of the manifest's file l
 const MANIFEST_PREFIX = 'waypoint-manifest\n';   // the words the list's signature begins with: never the start of a file's signed words
 const LIST_UNSIGNED = 'the update list is not signed by Waypoint, no update offered';
 const LIST_BAD = 'the update list could not be read, no update offered';
-const NOT_OURS = "that address is not Waypoint's update site, refused";
+// Said for any address, or redirect, that is not where this source's updates come from. Neutral on purpose: it is said for
+// the website and for GitHub alike. settings.js reads the word "refused" in it to say a refusal in full, so keep that word.
+const NOT_OURS = "that address is not where Waypoint's updates come from, refused";
 const NOT_LISTED = 'the download is not the file the update list names, refused';   // its length or its digest is not the list's
 
 /* The one switch: where this shell takes its updates from. 'github' reads the latest GitHub release of UPDATE_REPO, as
    1.6.3 did; 'site' reads Waypoint's website and its download host, as described above. 1.6.4 ships with 'github'
    (Fulllion, 2026-11-25: "like we have been until i can get the certificate ... based off github releases"), because the
    website's update list and its download host are not live yet. Flip it to 'site' once they are: main.js, the dev server
-   and the walk-through's link all follow it. A caller of this module may pass opts.source to pick one for a single call
-   (the suite does, to run both paths); the shell passes none, so the constant decides. */
+   and the walk-through's link all follow it. Flipping it is a change to the core: re-record tools/shellrev.json (node
+   tools/shellrev.js), raise the version, and move since and settings.js SHELL_WANTED to it. While any install still reads
+   GitHub, every release must also be published there (node tools/release.js --github), whatever this constant says.
+   A caller of this module may pass opts.source to pick one for a single call (the suite does, to run both paths); the
+   shell passes none, so the constant decides. */
 const UPDATE_SOURCE = 'github';
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo>: main.js names the same and hands it in as cfg.repo
 function sourceOf(opts) {
     const s = opts && opts.source !== undefined && opts.source !== null ? opts.source : UPDATE_SOURCE;
     return s === 'site' ? 'site' : 'github';   // anything else is GitHub, the source that works today
 }
-/* The hosts a GitHub release is read from, and nothing else: the API that answers the release, the release's own
-   download links on github.com, and the two hosts GitHub sends those links on to. Over https only, with no port, user
-   name or password; asked of the first address and of every redirect (githubUrlOk), so a redirect off GitHub is refused
-   before a byte is read. opts.apiUrl, the suite's and the dev server's dry run only (never a request), stands in for the
-   release's address: then that address's own origin is the one other place allowed, so a mock on this machine works and a
-   redirect from it to anywhere else is still refused. */
-const GITHUB_HOSTS = ['api.github.com', 'github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'];
+/* Where a GitHub release is read from (githubUrlOk), in two rules (the review of 2026-11-25):
+   - The FIRST address of every fetch is held strictly: the API's answer for this very repository,
+     https://api.github.com/repos/<repo>/releases/latest, or one of this repository's own release files,
+     https://github.com/<repo>/releases/download/... (the repository compared in any letter case, as GitHub reads it). So the
+     release's API answer can never point a fetch at another repository's release, or anywhere else on github.com.
+   - A REDIRECT may go to any https host that is github.com, api.github.com (a renamed repository's API answer is a redirect
+     there) or ends in ".githubusercontent.com". That last is a SUFFIX on purpose: GitHub has moved the host its release
+     downloads are sent on to twice already (github-releases.githubusercontent.com, then objects.githubusercontent.com,
+     then release-assets.githubusercontent.com), and every install of 1.6.4 reads GitHub alone, so a list frozen today
+     would strand them all the next time it moves. The suffix keeps the leading dot, so a host that merely contains the
+     name (xgithubusercontent.com, githubusercontent.com.evil.example) never passes.
+   Both rules ask for https with no port, user name or password. The host rule is defense in depth: what really guards an
+   update is its signature, checked with the key this shell carries before anything is taken (verifyUpdate).
+   opts.apiUrl, the suite's and the dev server's dry run only (never a request), stands in for the release's address:
+   then that address's own origin is the one other place allowed, for a first address and a redirect alike, so a mock on
+   this machine works and a redirect from it to anywhere else is still refused. */
+const GITHUB_HOP_HOSTS = ['github.com', 'api.github.com'];       // where a redirect may go by name
+const GITHUB_HOP_SUFFIX = '.githubusercontent.com';              // and any host that ends in this, the dot included
 function githubHosts(opts) {
     opts = opts || {};
     const repo = typeof opts.repo === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(opts.repo) ? opts.repo : UPDATE_REPO;
     const given = opts.apiUrl !== undefined && opts.apiUrl !== null;
     return { repo: repo, test: given ? originOf(opts.apiUrl) : null, apiUrl: given ? String(opts.apiUrl) : 'https://api.github.com/repos/' + repo + '/releases/latest' };
 }
-function githubUrlOk(u, h) {
+/* May the shell fetch this address of a GitHub release? u: the address; h: githubHosts(opts); hop: true where u is where a
+   redirect sends the fetch, else u is the first address. fetchBuffer and fetchToFile pass hop as true for a redirect. */
+function githubUrlOk(u, h, hop) {
     if (!h) return false;
     if (!(u instanceof URL)) { try { u = new URL(String(u)); } catch (e) { return false; } }
     if (u.username || u.password) return false;
     if (h.test && u.origin === h.test) return true;   // the suite's own mock, named by its caller
-    return u.protocol === 'https:' && !u.port && GITHUB_HOSTS.indexOf(u.hostname) >= 0;   // GitHub's own; a signed asset link carries a query, which is kept
+    if (u.protocol !== 'https:' || u.port) return false;
+    const host = u.hostname;
+    // a redirect: GitHub's own hosts by name, or any host under githubusercontent.com (a signed download link's query is kept)
+    if (hop === true) return GITHUB_HOP_HOSTS.indexOf(host) >= 0 || (host.length > GITHUB_HOP_SUFFIX.length && host.slice(-GITHUB_HOP_SUFFIX.length) === GITHUB_HOP_SUFFIX);
+    // a first address: this repository's own API answer, or one of its own release files, and nothing else
+    if (u.search || u.hash) return false;
+    const repo = h.repo.toLowerCase(), p = u.pathname;
+    if (host === 'api.github.com') return p.toLowerCase() === '/repos/' + repo + '/releases/latest';
+    if (host === 'github.com') return p.toLowerCase().indexOf('/' + repo + '/releases/download/') === 0 && p.length > ('/' + repo + '/releases/download/').length;
+    return false;
 }
 
 /* The two addresses this shell may fetch from, as origins: { site, siteHost, api, files, apiUrl }. By default they are
@@ -194,8 +225,9 @@ function cmpVersion(a, b) {
 }
 
 /* GET with redirects. Resolves a Buffer. max: the most bytes taken (200 MB unless a smaller cap is given).
-   ok (a function of a URL): where it is given, the first address and every redirect must pass it, or nothing is fetched
-   and the answer is a refusal (NOT_OURS). Every fetch of an update passes updateUrlOk with the update hosts. */
+   ok (a function of a URL, and true as its second argument for a redirect): where it is given, the first address and every
+   redirect must pass it, or nothing is fetched and the answer is a refusal (NOT_OURS). Every fetch of an update passes
+   updateUrlOk with the update hosts, or githubUrlOk with GitHub's (which holds a first address more strictly than a redirect). */
 function fetchBuffer(url, headers, redirects, max, ok) {
     redirects = redirects == null ? 5 : redirects;
     const cap = (typeof max === 'number' && max > 0) ? max : 200 * 1024 * 1024;
@@ -207,8 +239,8 @@ function fetchBuffer(url, headers, redirects, max, ok) {
             if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
                 res.resume();
                 let next; try { next = new URL(res.headers.location, url); } catch (e) { return reject(new Error('a redirect to no address for ' + url)); }
-                if (typeof ok === 'function' && !ok(next)) return reject(new Error(NOT_OURS));   // a redirect never leaves the update hosts
-                return resolve(fetchBuffer(next.href, headers, redirects - 1, max, ok));
+                if (typeof ok === 'function' && !ok(next, true)) return reject(new Error(NOT_OURS));   // a redirect never leaves the update hosts
+                return resolve(fetchBuffer(next.href, headers, redirects - 1, max, x => ok(x, true)));   // what a redirect fetches next is judged as a redirect
             }
             if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode + ' for ' + url)); }
             const chunks = []; let size = 0;
@@ -251,8 +283,8 @@ function fetchToFile(url, file, o) {
             if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
                 res.resume(); done = true;
                 let next; try { next = new URL(res.headers.location, url); } catch (e) { return reject(new Error('a redirect to no address for ' + url)); }
-                if (typeof o.ok === 'function' && !o.ok(next)) return reject(new Error(NOT_OURS));   // a redirect never leaves the update hosts: nothing was made
-                return resolve(fetchToFile(next.href, file, Object.assign({}, o, { redirects: redirects - 1 })));
+                if (typeof o.ok === 'function' && !o.ok(next, true)) return reject(new Error(NOT_OURS));   // a redirect never leaves the update hosts: nothing was made
+                return resolve(fetchToFile(next.href, file, Object.assign({}, o, { redirects: redirects - 1, ok: typeof o.ok === 'function' ? (x => o.ok(x, true)) : o.ok })));   // judged as a redirect from here on
             }
             if (res.statusCode !== 200) { res.resume(); return fail(new Error('HTTP ' + res.statusCode + ' for ' + url)); }
             const stated = /^[0-9]{1,15}$/.test(String(res.headers['content-length'] || '')) ? parseInt(res.headers['content-length'], 10) : null;
@@ -404,7 +436,7 @@ async function checkForUpdate(opts) {
    signed, so its minShell only decides which button is offered: the signed archive's own version.json holds the core it
    needs, and applyAppUpdate refuses an app for a core older than that. */
 async function checkGithub(opts) {
-    const h = githubHosts(opts), ok = u => githubUrlOk(u, h);
+    const h = githubHosts(opts), ok = (u, hop) => githubUrlOk(u, h, hop);
     const rel = JSON.parse((await fetchBuffer(h.apiUrl, { 'Accept': 'application/vnd.github+json' }, null, ENVELOPE_CAP, ok)).toString('utf8'));
     const latest = String(rel.tag_name || rel.name || '').replace(/^v/i, '');
     const assets = Array.isArray(rel.assets) ? rel.assets : [];
@@ -544,7 +576,7 @@ async function applyAppUpdate(opts) {
     const pubKey = opts.pubKey !== undefined ? opts.pubKey : UPDATE_PUBKEY;
     const gh = sourceOf(opts) === 'github';
     // the hosts every fetch of this update must stay on: GitHub's own, or the site and its download host
-    const allowed = gh ? (h => u => githubUrlOk(u, h))(githubHosts(opts)) : (h => u => updateUrlOk(u, h))(updateHosts(opts));
+    const allowed = gh ? (h => (u, hop) => githubUrlOk(u, h, hop))(githubHosts(opts)) : (h => u => updateUrlOk(u, h))(updateHosts(opts));
     // a hot update replaces the app: never without the release's signature, checked with the key this shell carries
     if (typeof pubKey !== 'string' || !pubKey.trim()) throw new Error(UNSIGNED);   // no key configured: nothing can be vouched for
     if (!opts.sig) throw new Error(UNSIGNED);
@@ -694,7 +726,7 @@ async function downloadGithubInstaller(opts, pubKey) {
     if (!version || !opts.url || !opts.sigUrl) throw new Error(UNSIGNED);
     if (typeof opts.dir !== 'string' || !path.isAbsolute(opts.dir) || !fs.statSync(opts.dir).isDirectory()) throw new Error('no folder to download into');
     const file = path.join(opts.dir, 'Waypoint_Setup-' + version + '.exe'), part = file + '.part';
-    const h = githubHosts(opts), ok = u => githubUrlOk(u, h);
+    const h = githubHosts(opts), ok = (u, hop) => githubUrlOk(u, h, hop);
     // the signature first: a release without one that could be a signature costs no download
     const sigText = (await fetchBuffer(opts.sigUrl, null, null, SMALL, ok)).toString('utf8').trim();
     if (!SIG_OK.test(sigText)) throw new Error(UNSIGNED);
@@ -905,4 +937,4 @@ function makeHandler(cfg) {
 
 module.exports = { cmpVersion, checkForUpdate, applyAppUpdate, rollbackAppUpdate, prevInfo, signedText, verifyUpdate, readZip, makeHandler, fetchBuffer, PRIVATE_FILES, PRIVATE_BYTES,
     fetchToFile, downloadInstaller, runInstaller, sweepInstallerDirs, installFailed, UPDATE_ROUTES, INSTALLER_NAME, INSTALLER_ARGS,
-    UPDATE_SITE, UPDATE_SOURCE, UPDATE_REPO, GITHUB_HOSTS, sourceOf, githubHosts, githubUrlOk, MANIFEST_PREFIX, NOTES_MAX, LIST_UNSIGNED, LIST_BAD, NOT_OURS, NOT_LISTED, INSTALLER_CAP, updateHosts, updateUrlOk, sitePage, verifyManifest, readEnvelope, cleanManifest };
+    UPDATE_SITE, UPDATE_SOURCE, UPDATE_REPO, GITHUB_HOP_HOSTS, GITHUB_HOP_SUFFIX, sourceOf, githubHosts, githubUrlOk, MANIFEST_PREFIX, NOTES_MAX, LIST_UNSIGNED, LIST_BAD, NOT_OURS, NOT_LISTED, INSTALLER_CAP, updateHosts, updateUrlOk, sitePage, verifyManifest, readEnvelope, cleanManifest };

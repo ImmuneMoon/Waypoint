@@ -125,19 +125,28 @@ To cut a release:
    node tools/release.js
    ```
 
-   The build needs `WAYPOINT_SIGNING_KEY`, naming the update signing key's private half, which is kept outside this repository (`node tools/signkey.js --check <path>` says whether a file is the right one). `WAYPOINT_SIGNTOOL` is the command that code-signs the installer, with `{file}` where the installer's path goes. Without it a build that is not published leaves the installer unsigned and says so, and `--publish` refuses to start. `ISCC` names [Inno Setup 6](https://jrsoftware.org/isinfo.php) if it isn't at the path release.js names.
+   The build needs `WAYPOINT_SIGNING_KEY`, naming the update signing key's private half, which is kept outside this repository (`node tools/signkey.js --check <path>` says whether a file is the right one). Every install checks a release against that key before it takes it. `ISCC` names [Inno Setup 6](https://jrsoftware.org/isinfo.php) if it isn't at the path release.js names. `WAYPOINT_SIGNTOOL` is the command that code-signs the installer, with `{file}` where the installer's path goes. There is no code-signing certificate yet, so for now leave it unset: the build says the installer is not code-signed and goes on.
 
    The build writes `system/app/version.json` and the "Current release" line at the top of this README, copies what an install needs and nothing else into `dist/<version>/stage`, strips comments from that copy, and zips it as `waypoint-app-<version>.zip` with its `.sha256` and `.sig`. It compiles the installer from the stage, signs it, and writes `manifest.json`, `envelope.json` (the signed list the website serves) and the release notes, all under `dist/<version>/`. `--notes-only` makes just the notes.
-3. Publish:
+3. Publish to GitHub, then check it as an install reads it:
+
+   ```bash
+   node tools/release.js --github
+   node tools/ghlive.js
+   ```
+
+   `--github` builds as step 2 does and then makes the GitHub Release with the [GitHub command line tool](https://cli.github.com) (`gh`), signed in on this machine with `gh auth login`. The release is tagged with the version, made as a draft first, given its six files (`waypoint-app-<version>.zip` with its `.sha256` and `.sig`, `manifest.json`, `Waypoint_Setup.exe` and its `.sig`), and only then published. It refuses before it builds where `gh` is missing or not signed in, or where GitHub already holds that version. `tools/ghlive.js` reads the latest release exactly as an install of 1.6.3 does, needs no token and writes nothing: it says whether the release is this version, whether older installs are sent to the installer and can run it by themselves, and whether both signatures are there.
+
+Where the app looks for updates is the `UPDATE_SOURCE` constant near the top of `system/resources/app/updater.js`: `'github'` reads the repository named by `UPDATE_REPO` at the top of `system/resources/app/main.js`, and `'site'` reads the website named by `UPDATE_SITE` beside it. 1.6.4 ships with `'github'`, which is why a release goes to GitHub. Changing the constant is a change to the core (step 1). Every install keeps reading the source its own copy names, so while any install still reads GitHub, every release must go to GitHub too.
+
+Later, once the source is `'site'` and there is a code-signing certificate, a release goes to the website as well:
 
    ```bash
    node tools/release.js --publish --github
    node tools/sitepub.js --check
    ```
 
-   `--publish` puts the files and the signed list on Waypoint's download host and tells the website a release is there. It needs the download host's `WAYPOINT_R2_*` settings, `WAYPOINT_DISPATCH_TOKEN` and `WAYPOINT_SIGNTOOL`. `--github` also makes the GitHub Release, with a `GITHUB_TOKEN` that can write releases, for the installs that still read GitHub. If a run stops partway, run the same command again and it finishes what's missing without rebuilding. `tools/sitepub.js --check` then confirms the live site names the new version, before the release is announced.
-
-Where the app looks for updates is the `UPDATE_SOURCE` constant near the top of `system/resources/app/updater.js`: `'github'` reads the repository named by `UPDATE_REPO` at the top of `system/resources/app/main.js`, and `'site'` reads the website named by `UPDATE_SITE` beside it. 1.6.4 ships with `'github'`, so for now a release is published as a GitHub Release carrying the six files a plain build writes (`waypoint-app-<version>.zip` with its `.sha256` and `.sig`, `manifest.json`, `Waypoint_Setup.exe` and its `.sig`).
+   `--publish` puts the files and the signed list on Waypoint's download host and tells the website a release is there. It needs the download host's `WAYPOINT_R2_*` settings, `WAYPOINT_DISPATCH_TOKEN` and `WAYPOINT_SIGNTOOL`. With it, `--github` also makes the GitHub Release, with a `GITHUB_TOKEN` that can write releases, for the installs that still read GitHub. If a run stops partway, run the same command again and it finishes what's missing without rebuilding. `tools/sitepub.js --check` then confirms the live site names the new version, before the release is announced.
 
 ## Repository layout
 
@@ -146,6 +155,7 @@ system/app/               the application: index.html, style.css, scripts/, asse
 system/resources/app/     the Electron shell: main.js, updater.js, account.js, cloudsync.js and the rest of the local server
 tools/dev-server.js       run the app from source in a browser
 tools/release.js          build and publish a release (with sitepub.js, signkey.js, shellrev.js, stripcore.js)
+tools/ghlive.js           read only: is the latest GitHub release one an install takes?
 tools/*check.js           the test suites
 installer.iss             Inno Setup script
 CAMPAIGN_INTEGRATION.md   the save-file schema and authoring rules for generated content

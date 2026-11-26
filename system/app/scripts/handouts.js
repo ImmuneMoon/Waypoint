@@ -10,7 +10,8 @@
 import { state } from './state.js';
 import { net } from './net.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
-import { save, toast, toastAction, historyBarrier, downloadBlob } from './io.js';
+import { save, toast, toastAction, historyBarrier } from './io.js';
+import { saveStart, saved } from './savefile.js';   // 1.6.4: the journal is said saved only once it was (the save dialog where the window has one)
 import { esc } from './inspector.js';
 import { picRef } from './safecore.js';   // a handout's picture is the app's own (a web address from a file never loads)
 import { fillLinked } from './linkgate.js';
@@ -1193,6 +1194,19 @@ function jdlName(name, title, at) {
     return ['Journal', clean(name), clean(title), day].filter(Boolean).join(' - ') + '.html';
 }
 // [sinkcheck:journaldl-end]
+// The name the save dialog suggests at the press (1.6.4), worked out before any index is read from what the window shows: the journal's name
+// as the window drew it and, for one page, the title its row shows. Where there is no dialog the download takes the file's own name, made
+// from the index's words once it is read (jdlName in journalDownload)
+function jdlNameNow(only, at) {
+    var key = only ? String(only.camp || '') : (journalAt || 'personal');
+    var dj = journalShown.filter(function(j) { return j && j.campId === key; })[0] || null;
+    var nm = !only && key === 'personal' ? 'Personal notes' : journalName(dj || { campId: key, campaign: '' }), title = '';
+    if (only && _jList) Array.prototype.some.call(_jList.querySelectorAll('.journal-entry'), function(row) {
+        if (!row.dataset || row.dataset.camp !== only.camp || row.dataset.id !== only.id) return false;
+        title = ((row.querySelector('.journal-title') || {}).textContent || '').replace(/\s*\u00d7\s*$/, '').trim(); return true;
+    });
+    return jdlName(nm, title, at);
+}
 // The rows of a download, read as the window reads them (backlog of 2026-11-15). only: null for the journal shown with its Personal notes,
 // or { camp, id } for the one page a row's save button stands on. What was typed in the last half second is saved first, then each index is
 // read with readIndex, as the window reads it: its file in the saves folder, else the browser's own storage (a website's Player plan keeps
@@ -1247,12 +1261,16 @@ function jdlBusy(on) {
 }
 async function journalDownload(only) {
     if (_jdlBusy) { toast('The journal is still being saved.'); return; }
+    // 1.6.4 (Fulllion: "Yes, wait for the save"): the save dialog opens at the press, before anything is read (savefile.js), and the words
+    // that the journal was saved come only once it was; a cancel says nothing
+    var at0 = Date.now(), ticket = saveStart({ name: jdlNameNow(only, at0), type: 'text/html', desc: 'Web page', fail: 'The journal could not be saved.' });
     jdlBusy(true);
     var at = 'read';
     jdlLog('download-start', { one: !!only });
     try {
         var doc = await journalDocOf(only);
-        if (!doc || doc.why) { jdlLog('download-none', { one: !!only }); toast(doc && doc.why || 'That page is no longer in your journal.'); return; }
+        if (!doc || doc.why) { ticket.drop(); jdlLog('download-none', { one: !!only }); toast(doc && doc.why || 'That page is no longer in your journal.'); return; }
+        if ((await ticket.ready) === 'cancel') { jdlLog('download-cancel', { one: !!only }); return; }
         at = 'pictures';
         var n = 0, pics = 0, missing = 0, used = 0, want = 0;
         doc.sections.forEach(function(sc) { sc.rows.forEach(function(r) { if (r.src) want++; }); });
@@ -1270,16 +1288,20 @@ async function journalDownload(only) {
         }
         jdlLog('download-read', { entries: n, pics: pics, missing: missing });
         at = 'build';
-        doc.at = Date.now();
+        doc.at = at0;   // the moment of the press, which the dialog's name was made with
         var parts = jdlParts(doc), name = jdlName(doc.name, doc.title, doc.at), chars = 0;
         parts.forEach(function(x) { chars += x.length; });
         var blob = new Blob(parts, { type: 'text/html' });
         parts = null; doc = null;   // the Blob holds the file now
         at = 'save';
-        if (downloadBlob(name, blob) === false) { jdlLog('download-fail', { at: at }); return; }   // downloadBlob has said that it failed
+        var how = await ticket.save(blob, name);
+        if (how === 'cancel') { jdlLog('download-cancel', { one: !!only }); return; }
+        if (!saved(how)) { jdlLog('download-fail', { at: at }); return; }   // savefile.js has said that it failed
+        if (how === 'saved' && ticket.handle && ticket.handle.name) name = ticket.handle.name;   // the file as the person named it
         jdlLog('download-done', { entries: n, pics: pics, missing: missing, chars: chars });
         toast('Saved ' + name + (missing ? '. ' + missing + ' picture' + (missing === 1 ? '' : 's') + ' could not be put in, and the page says so.' : '.'));
     } catch (e) {
+        ticket.drop();
         jdlLog('download-fail', { at: at });
         toast('The journal could not be saved.');
     } finally { jdlBusy(false); }

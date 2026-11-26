@@ -55,6 +55,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js';
 import { webReady } from './webmode.js';
+import { saveStart, saved as saveDone, downloadNow, saySet } from './savefile.js';   // 1.6.4: the one rule for saving a file the person names (a save dialog where the window has one), which says a failure through this module's notice
+saySet(toast);
 import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counter and a slider with a value you type in)   // 1.5.5: what a website's plan allows, read once before load() decides anything
 
 
@@ -2063,24 +2065,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
   });
 
+  // A text file handed to the browser as a download (savefile.js downloadNow), with the words it always said: exportScope's way where the
+  // window has no save dialog
   function download(name, text){
-
-    try{
-
-      var blob=new Blob([text],{type:'application/json'});
-
-      var url=URL.createObjectURL(blob);
-
-      var a=document.createElement('a'); a.href=url; a.download=name;
-
-      document.body.appendChild(a); a.click(); a.remove();
-
-      setTimeout(function(){URL.revokeObjectURL(url);},1000);
-
-      toast('Exported '+name);
-
-    }catch(e){ toast('Export blocked here.'); }
-
+    if (downloadNow(name, new Blob([text],{type:'application/json'}))) toast('Exported '+name);
+    else toast('Export blocked here.');
   }
 
   
@@ -2090,16 +2079,12 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
      so anything exported here round-trips through Import → Merge. Exports
      that reference images become a .zip bundling data.json + the images. */
 
-  // Hands a file to the browser to save. It says a failure itself ('Export failed.') and answers false then, true once the file was
-  // handed over, so a caller that says more (handouts.js journalDownload) can tell the two apart; the export callers read no answer
+  // Hands a file to the browser as a download (savefile.js downloadNow, the one rule, which keeps a large archive's address while it is still
+  // being written). It says a failure itself ('Export failed.') and answers false then, true once the file was handed over. exportScope asks
+  // it where no save dialog was had
   function downloadBlob(name, blob) {
-      try {
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement('a'); a.href = url; a.download = name;
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function() { URL.revokeObjectURL(url); }, blob && blob.size > 50 * 1024 * 1024 ? 600000 : 1000);   // a large archive is still being written a second later
-          return true;
-      } catch(e) { toast('Export failed.'); return false; }
+      if (downloadNow(name, blob)) return true;
+      toast('Export failed.'); return false;
   }
 
   function slugName(s) {
@@ -2244,13 +2229,15 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       return { payload: payload, paths: paths, sizes: sizes, unlisted: !ok, campId: camp.id, name: scope === 'all' ? '' : String(camp.name || ''), camps: Object.keys(payload.campaigns || {}).length };
   }
   window.wpExportPlan = exportPlan;
-  // handle (optional): a file to write the archive straight to (exportScope asks for one when the export is large); without it
-  // the archive is a Blob, as ever. share (optional, 1.6.0 backlog 34): the share sheet's { card, cover, leave, sizes }: the kinds it leaves
-  // out go before anything is counted, and its card is written as share.json beside data.json. A sheet left as it came hands none
-  async function buildExport(scope, handle, share) {
-      if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
+  // What an export of this scope holds, made at once with nothing waited for (1.6.4): exportScope asks it at the press, so that it knows
+  // whether the file will be a .json or a .zip before the save dialog opens, and hands it to buildExport, which asks it itself where it was
+  // handed none. share (optional, 1.6.0 backlog 34): the share sheet's { card, cover, leave, sizes }: the kinds it leaves out go before
+  // anything is counted. Answers { camp, payload, base, shareSets }, { say: the words for why there is nothing to export }, or null for a
+  // scope that is none. It says nothing itself: buildExport says the words
+  function exportPayload(scope, share) {
+      if (!canPersistLocal()) return { say: 'Not while you\'re at someone else\'s table.' };
       var camp = getActiveCampaign();
-      if (!camp) { toast('No campaign selected.'); return null; }
+      if (!camp) return { say: 'No campaign selected.' };
       function mergeShell(items) {
           var c = {}; c[camp.id] = { id: camp.id, name: camp.name, items: items };
           var bxS = window.wpBoxCore && window.wpBoxCore.boxesOf ? window.wpBoxCore.boxesOf(camp.boxes, items) : null; if (bxS && Object.keys(bxS).length) c[camp.id].boxes = bxS;   // 1.6.2 (backlog 42): what its containers hold comes with them
@@ -2267,7 +2254,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
           base = slugName(camp.name) + '-campaign';
       } else if (scope === 'item') {
           var it = camp.items[camp.activeItemId];
-          if (!it) { toast('Nothing is open.'); return null; }
+          if (!it) return { say: 'Nothing is open.' };
           var one = {}; one[it.id] = clone(it);
           payload = mergeShell(one);
           base = slugName(it.meta && it.meta.title);
@@ -2275,7 +2262,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
           var t = scope === 'maps' ? 'map' : scope === 'planners' ? 'planner' : 'doc';
           var items = {};
           Object.values(camp.items).forEach(function(i) { if (i.type === t) items[i.id] = clone(i); });
-          if (!Object.keys(items).length) { toast('This campaign has no ' + (scope === 'docs' ? 'handbook pages' : scope) + '.'); return null; }
+          if (!Object.keys(items).length) return { say: 'This campaign has no ' + (scope === 'docs' ? 'handbook pages' : scope) + '.' };
           payload = mergeShell(items);
           base = slugName(camp.name) + '-' + (scope === 'docs' ? 'handbook' : scope);
       } else if (scope === 'whiteboards') {
@@ -2297,7 +2284,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
               (m.whiteboard || []).forEach(function(w) { delete w.nodeId; });
               wbs[m.id] = m;
           });
-          if (!Object.keys(wbs).length) { toast('This campaign has no play maps.'); return null; }
+          if (!Object.keys(wbs).length) return { say: 'This campaign has no play maps.' };
           payload = mergeShell(wbs);
           base = slugName(camp.name) + '-whiteboards';
       } else return null;
@@ -2311,6 +2298,16 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       // the private tags and their marks, and which pictures wore them, leave data.json (sharecore stripPrivate). A backup export keeps them
       if (share && share.full === true && typeof Share.stripPrivate === 'function') Share.stripPrivate(payload, [state.appState && state.appState.imageCats]);
       if (share && typeof Share.stripTable === 'function') Share.stripTable(payload);   // the review of 1.6.3 (finding 13): the players' explored ground is this table's, never in a share or a Full export (sharecore stripTable)
+      return { camp: camp, payload: payload, base: base, shareSets: shareSets };
+  }
+  // handle (optional): a file to write the archive straight to (exportScope hands one when a .zip's file was picked in the save dialog); without
+  // it the archive is a Blob, as ever. share (optional, 1.6.0 backlog 34): the share sheet's { card, cover, leave, sizes }: its card is written
+  // as share.json beside data.json. A sheet left as it came hands none. pre (optional, 1.6.4): what exportPayload made at the press
+  async function buildExport(scope, handle, share, pre) {
+      var pl = pre || exportPayload(scope, share);
+      if (!pl) return null;
+      if (pl.say) { toast(pl.say); return null; }
+      var payload = pl.payload, base = pl.base, shareSets = pl.shareSets;
 
       var json = JSON.stringify(payload, null, 2);
       var libMissing = 0, unlisted = false;   // what could not be read is said at the end, never passed over (the owed review, 2026-10-09)
@@ -2402,21 +2399,48 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       return { name: base + '.zip', blob: zblob, images: tallyB.images, videos: tallyB.videos, library: libFiles.length, missing: tallyB.missing, libMissing: libMissing, unlisted: unlisted };
   }
   window.wpBuildExport = buildExport;
+  // Whether an export will be a .zip or a .json, told at the press from what exportPayload made (1.6.4), so the save dialog suggests the
+  // right file before anything is waited for, by buildExport's own rule: a share card, a big export (its videos and music past EXPORT_BIG), a
+  // picture or a video it names, or a campaign's library pack makes a .zip. A campaign's own pictures that nothing names are known only from
+  // the share sheet's count of the files it would carry (files, a number: exportPlan's paths); without that count the answer is '' (not known
+  // now: no dialog, and the file goes as a download, as before)
+  function exportKindNow(scope, share, pl, files) {
+      if (!pl || !pl.payload) return '';
+      if (share && share.card) return '.zip';
+      if (exportMediaBytes(scope, share && share.leave) > EXPORT_BIG) return '.zip';
+      if (collectImagePaths(pl.payload).length) return '.zip';
+      if (scope !== 'campaign' && scope !== 'all') return '.json';
+      var packs = Object.values(pl.payload.campaigns || {}).some(function(c) { return c && c.library && typeof c.library.dir === 'string' && Array.isArray(c.library.packs) && c.library.packs.some(function(pk) { return pk && pk.rev; }); });
+      if (packs) return '.zip';
+      if (typeof files === 'number' && isFinite(files)) return files > 0 ? '.zip' : '.json';
+      return '';
+  }
 
-  async function exportScope(scope, share) {
+  // files (optional): the share sheet's count of the files the export would carry (exportKindNow)
+  async function exportScope(scope, share, files) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
-      // a large export (its videos and music past 1 GB) is written straight to a file you pick, never held in this window's memory; the
-      // picker must open while the click still counts, so the size is judged first, from the library's own numbers
-      var handle = null;
-      if (typeof window.showSaveFilePicker === 'function' && exportMediaBytes(scope, share && share.leave) > EXPORT_BIG) {
-          try { handle = await window.showSaveFilePicker({ suggestedName: exportBaseName(scope) + '.zip', types: [{ description: 'Waypoint export', accept: { 'application/zip': ['.zip'] } }] }); }
-          catch (e) { if (e && e.name === 'AbortError') return; handle = null; }   // canceled: no export; a window that cannot ask: the archive as a download, as ever
+      // 1.6.4 (Fulllion: "Yes, wait for the save"): the export's contents are made at once and the save dialog opens while the press still
+      // counts (savefile.js), naming a .json or a .zip as the export will be. A .zip whose file was picked is written straight to it, never
+      // held in this window's memory (a large export's videos and music past 1 GB always were); a .json is written once it is made. It says
+      // it was exported only once it was: a cancel says nothing. Where no dialog can be had the file goes as a download, as ever
+      var pl = exportPayload(scope, share), kind = exportKindNow(scope, share, pl, files);
+      var ticket = kind ? saveStart({ name: pl.base + kind, type: kind === '.zip' ? 'application/zip' : 'application/json', desc: 'Waypoint export', fail: 'Export failed.' }) : null;
+      var st = ticket ? await ticket.ready : 'none';
+      if (st === 'cancel') return;   // canceled: no export
+      var handle = st === 'picked' && kind === '.zip' ? ticket.handle : null;
+      var r = await buildExport(scope, handle, share, pl);
+      if (!r) { if (ticket) ticket.drop(); return null; }
+      if (r.text) {
+          if (st === 'picked') {
+              var how = await ticket.save(new Blob([r.text], { type: 'application/json' }));
+              if (!saveDone(how)) return null;
+              r.name = ticket.handle.name || r.name;
+              toast('Exported ' + r.name);
+          } else download(r.name, r.text);
+          toast('Exported ' + r.name + '.' + exportLeftWords(r));
       }
-      var r = await buildExport(scope, handle, share);
-      if (!r) return null;
-      if (r.text) { download(r.name, r.text); toast('Exported ' + r.name + '.' + exportLeftWords(r)); }
       else {
-          if (!r.saved) downloadBlob(r.name, r.blob);
+          if (!r.saved) downloadBlob(r.name, r.blob);   // no dialog, or a .json picked for what turned out a .zip (a picture added meanwhile): a download, as ever
           toast(exportDoneWords(r));
       }
       return r;

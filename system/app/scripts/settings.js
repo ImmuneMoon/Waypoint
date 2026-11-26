@@ -4,6 +4,7 @@
 
 import { state } from './state.js';
 import { toast } from './io.js';
+import { saveStart, saved as saveDone } from './savefile.js';   // 1.6.4: the profile is said saved only once it was (the save dialog where the window has one)
 import { FONTS as TF_FONTS, fontKnown as tfKnown, fontCss as tfCss } from './textfmt.js';   // 1.6.2 (backlog 44 (c)): the app font
 import './profilecore.js';   // 1.6.0: a profile carried to another computer (window.wpProfileCore)
 
@@ -1488,11 +1489,13 @@ function profWire() {
         var PC = window.wpProfileCore, pack = profPack(); if (!PC || !pack) { toast('There is no profile here to save yet.'); profStep('save-none', {}); return; }
         var nm = String(pack.profile.name || 'player').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 40) || 'player';
         try {
-            var url = URL.createObjectURL(new Blob([PC.fileText(pack)], { type: 'application/json' })), a = document.createElement('a');
-            a.href = url; a.download = 'Waypoint profile - ' + nm + '.json'; document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-            toast('Profile saved. Keep the file private: it lets someone join as you.');
-            profStep('saved', { tables: Object.keys(pack.tableKeys).length });
+            var blobP = new Blob([PC.fileText(pack)], { type: 'application/json' });
+            saveStart({ name: 'Waypoint profile - ' + nm + '.json', type: 'application/json', desc: 'Waypoint profile', fail: 'The profile could not be saved.' }).save(blobP).then(function(how) {
+                if (how === 'cancel') { profStep('save-canceled', {}); return; }
+                if (!saveDone(how)) { profStep('failed', { at: 'save' }); return; }   // savefile.js has said it in the profile's words
+                toast('Profile saved. Keep the file private: it lets someone join as you.');
+                profStep('saved', { tables: Object.keys(pack.tableKeys).length });
+            });
         } catch (e) { toast('The profile could not be saved.'); profStep('failed', { at: 'save' }); }
     });
     if (open && file) {

@@ -13,6 +13,7 @@ import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another li
 import { lastsSays } from './systemcore.js';   // 1.6.3 (the review of the System editor, finding 21): an effect's Duration note in words, under its box
 import { lazyVars } from './systemcore.js';   // 1.6.3 (the combat review, findings 5 and 19): a sheet's names worked out as they are read
 import { picRef, cssColor } from './safecore.js';
+import { saveStart, saved as saveDone } from './savefile.js';   // 1.6.4: a file is said saved only once it was (the save dialog where the window has one)
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, CUR_MAX, priceCurOf, priceColOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, buyOffCost, buyOffSays, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, rollNeedsFails, cleanNeedsWhy, NEEDS_WHY, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, hudOf, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { cleanFormulaText } from './systemcore.js';   // 1.6.2: refreshErrors reads a rule's needs as the cleaner does
@@ -8365,9 +8366,18 @@ function exportView(charId, gmAll) {
     var readTok = !!(gm || isClient() || (c0.ownerId && !c0.npc)), tctx = readTok ? tokenCtxFor(c0.id, camp) : null;   // the players' view of an NPC or an unassigned character reads no token (the GM's pick could be a hidden one)
     return { camp: camp, sys: sys, view: view, gm: gm, tctx: tctx, noToken: !readTok, npc: !!c0.npc, ownerId: c0.ownerId || '', all: resolveAll(sys, view, F(), tctx) };   // the numbers on that same view: nothing worked out from what it hides
 }
-function saveTextFile(name, text, type) {   // the anchor download every export uses (a save dialog in the app)
-    try { var url = URL.createObjectURL(new Blob([text], { type: type })), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function() { URL.revokeObjectURL(url); }, 1000); return true; }
-    catch (e) { toast('The file could not be saved here.'); return false; }
+// The save dialog for a sheet's file, opened at the press, before anything it waits for (savefile.js; 1.6.4, Fulllion: "Yes, wait for the
+// save"). Asked by downloadChar and outFile, and by saveTextFile where it is handed none
+function saveTextStart(name, type) { return saveStart({ name: name, type: type, fail: 'The file could not be saved here.' }); }
+// A sheet's file, saved: written to the file picked in the save dialog, or handed over as a download where the window has none (the file
+// then takes name, which may be known only now). Answers a promise of the name it was saved under, or false where it was not (a cancel,
+// which says nothing, or a failure, which savefile.js has said). ticket: the dialog opened at the press (saveTextStart)
+function saveTextFile(name, text, type, ticket) {
+    var t = ticket || saveTextStart(name, type);
+    return t.save(new Blob([text], { type: type }), name).then(function(how) {
+        if (!saveDone(how)) return false;
+        return how === 'saved' && t.handle && t.handle.name ? t.handle.name : name;
+    });
 }
 // The portrait for the file: a square of at most 256 pixels (a JPEG when a PNG runs past 200,000 characters); '' when there is none, or a
 // player's copy of it has not arrived within four seconds
@@ -8404,12 +8414,13 @@ function downloadChar(charId, kind, gmAll) {
     var base = fileBase(X.view.name) + (X.gm ? '-gm' : '');
     if (kind === 'md') {
         var md = sheetToMarkdown(X.sys, X.view, X.all, { F: F(), gm: X.gm, sub: String(X.sys.name || ''), tctx: X.tctx, metric: typeof unitsMetric === 'function' ? unitsMetric() : undefined, pageTitle: function(id) { var r = pageRef(id); return r && (X.gm || !r.gmOnly) ? r.title : null; } });
-        if (saveTextFile(base + '.md', md, 'text/markdown')) toast('Saved ' + base + '.md');
+        saveTextFile(base + '.md', md, 'text/markdown').then(function(nm) { if (nm) toast('Saved ' + nm); });
         return;
     }
+    var ticket = saveTextStart(base + '.wpchar.json', 'application/json');   // the save dialog opens at the press, before the portrait is drawn
     pictureData(X.view.portrait).then(function(pic) {
         var j = charToJson(X.sys, X.view, X.all, { exported: new Date().toISOString(), gm: X.gm, picture: pic });
-        if (saveTextFile(base + '.wpchar.json', JSON.stringify(j, null, 1), 'application/json')) toast('Saved ' + base + '.wpchar.json');
+        saveTextFile(base + '.wpchar.json', JSON.stringify(j, null, 1), 'application/json', ticket).then(function(nm) { if (nm) toast('Saved ' + nm); });
     });
 }
 // Onboarding F2b (D7 = (c), print exactly as on screen): the sheet as the panel draws it — its look, palette and background picture (on every
@@ -8471,8 +8482,11 @@ function dlKey(e) { if (_dlPop && e.key === 'Escape') { e.preventDefault(); e.st
 var OUT_SAYS = { off: 'Character sheets are switched off at this table.', slow: 'Wait a few seconds, then ask again.', owner: 'That file is only for your own character.', none: 'This table no longer offers that file.', unread: 'The GM\u2019s Waypoint could not write that file.', wait: 'No answer from the GM\u2019s Waypoint. Try again.' };
 function outFile(id, cid) {
     var n = net(); if (!n || typeof n.sheetOut !== 'function') return;
+    // 1.6.4: the save dialog opens at the press, before the host is asked; the file's own name comes with the host's answer, so the dialog
+    // suggests the character's name (a download, where there is no dialog, takes the host's name). Words that it was saved come only once it was
+    var cO = charById(cid), ticket = saveTextStart(fileBase(cO && cO.name) + '.json', 'application/json');
     toast('Asking the GM\u2019s Waypoint for your sheet\u2026');
-    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json'); toast('Saved ' + file.name + '.' + (file.note ? ' ' + file.note : '')); return; } toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
+    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json', ticket).then(function(nm) { if (nm) toast('Saved ' + nm + '.' + (file.note ? ' ' + file.note : '')); }); return; } ticket.drop(); toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
 }
 // [netcheck:sheetoutgo-end]
 function openDownloadMenu(anchor) {

@@ -155,14 +155,16 @@ pending.push((async function() {
     const exportSrc = tabs.slice(tabs.indexOf('function exportSystem() {'), tabs.indexOf('// [syszipcheck:export-end]')), importSrc = slice(tabs, 'syszipcheck:import');
     const aloneSrc = tabs.slice(tabs.indexOf('// The system alone, as a .wpsystem.json'), tabs.indexOf('function importFile(file) {'));
     const fileSrc = tabs.slice(tabs.indexOf('function importFile(file) {'), tabs.indexOf('// [syszipcheck:import-start]'));
-    check('pinned: System alone is the body Export always had, unchanged', aloneSrc.includes("function exportAlone(clean) {\n    var blob = new Blob([JSON.stringify(clean, null, 1)], { type: 'application/json' });\n    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (clean.name || 'system').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) + '.wpsystem.json';\n    document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);\n    toast('System exported.');\n}"));
+    // moved on purpose (1.6.4, Fulllion: "Yes, wait for the save"): the same file under the same name, now through the save dialog opened at
+    // the press (savefile.js), and System exported. said only once it was saved
+    check('pinned: System alone is the file Export always wrote, under the same name, said exported only once it was saved', aloneSrc.includes("function exportAlone(clean) {\n    var blob = new Blob([JSON.stringify(clean, null, 1)], { type: 'application/json' });\n    var name = (clean.name || 'system').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) + '.wpsystem.json';\n    sysDownload(sysSaveStart(name, 'application/json'), blob, function() { toast('System exported.'); });"));
     check('pinned: Export cleans the draft and names it first, as before, then goes on to the question', kit.part('sysedtabs.js').includes("function exportSystem() {\n    if (!draft) return;\n    var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return;\n    clean.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name) || clean.name;\n    // [syszipcheck:export-start]"));
     function editor(o) {
-        const W = { toasts: [], asks: [], downloads: [], alone: [], waiting: undefined, renders: 0, puts: [], ans: o.ans, zip: o.zip, camp: o.camp, starterPacks: o.starterPacks, draft: o.draft || null };
+        const W = { opened: [], dropped: 0, pick: o.pick, toasts: [], asks: [], downloads: [], alone: [], waiting: undefined, renders: 0, puts: [], ans: o.ans, zip: o.zip, camp: o.camp, starterPacks: o.starterPacks, draft: o.draft || null };
         const body = 'var draft = W.draft, LIMITS = { name: 60 }; function ui() { return { value: W.draft && W.draft.name || "" }; } function getActiveCampaign() { return W.camp; } function cleanSystem(x) { return W.cleanSys ? W.cleanSys(x) : JSON.parse(JSON.stringify(x)); } function F() { return W.F; }\n'
             + 'function toast(t) { W.toasts.push(t); } function showConfirm(t, cb, op) { W.asks.push([t, op]); cb(W.ans); } function exportAlone(c) { W.alone.push(c); } function starterPacksSet(v) { W.waiting = v; } function renderAll() { W.renders++; }\n'
             + 'function importAsk(jj, c, whole) { W.puts.push([jj, c, whole]); if (whole) { if (whole.waiting) starterPacksSet(whole.waiting); if (whole.says) toast(whole.says); } }\n'
-            + 'var state = { appState: { imageCats: W.shared } }; var window = { wpLibrary: W.camp && W.lib, wpStepLog: function() {} }; if (W.starterPacks) window.wpLibrary = { starterPacks: W.starterPacks };\n'
+            + 'var state = { appState: { imageCats: W.shared } }; var window = { wpLibrary: W.camp && W.lib, wpStepLog: function() {}, wpSaveFile: { start: function(op) { W.opened.push(op); return { save: function(b) { if (W.pick === "cancel") return Promise.resolve("cancel"); W.downloads.push([op.name, b]); return Promise.resolve("download"); }, drop: function() { W.dropped++; } }; }, saved: function(h) { return h === "saved" || h === "download"; }, saveTo: function(t, b) { return t.save(b); } } }; if (W.starterPacks) window.wpLibrary = { starterPacks: W.starterPacks };\n'
             + 'var document = { createElement: function() { return { click: function() {}, remove: function() {} }; }, body: { appendChild: function() {} } }; var URL = { createObjectURL: function() { return "blob:x"; }, revokeObjectURL: function() {} }; function setTimeout() {}\n'
             + 'function fetch() { return Promise.reject(new Error("no")); } var console = { error: function() {} };\n'
             + exportSrc.replace("function sysZip() { return import('./syszip.js'); }", 'function sysZip() { return Promise.resolve(W.zip); }').replace('document.body.appendChild(a); a.click();', 'W.downloads.push([name, blob]); document.body.appendChild(a); a.click();')
@@ -182,12 +184,17 @@ pending.push((async function() {
     const E3 = editor({ zip: Object.assign({}, Z, { buildWhole: (c, d) => Z.buildWhole(c, Object.assign({}, d, { fetch: srvFetch })) }), camp: Object.assign({}, camp, { system: sys }), ans: true, draft: clean });
     E3.api.exportIt(); await tick(); await tick();
     check('Whole system downloads one .wpsystem.zip and says what went and what stayed home', E3.downloads.length === 1 && E3.downloads[0][0] === 'Tinker_Tactics.wpsystem.zip' && E3.toasts[E3.toasts.length - 1] === Z.exportWords(built) && E3.alone.length === 0, j(E3.toasts));
+    // 1.6.4 (Fulllion: "Yes, wait for the save"): the save dialog opens at the press of Whole system, before the archive is made; a cancel says nothing
+    const E3c = editor({ pick: 'cancel', zip: Object.assign({}, Z, { buildWhole: (c, d) => Z.buildWhole(c, Object.assign({}, d, { fetch: srvFetch })) }), camp: Object.assign({}, camp, { system: sys }), ans: true, draft: clean });
+    E3c.api.exportIt(); await tick(); await tick();
+    check('Whole system opens its save dialog at the press, naming the .wpsystem.zip; canceled, nothing is downloaded and no words say it was exported',
+        E3.opened.length === 1 && E3.opened[0].name === 'Tinker_Tactics.wpsystem.zip' && E3.opened[0].type === 'application/zip' && E3c.opened.length === 1 && E3c.downloads.length === 0 && j(E3c.toasts) === j(['Making the export…']), j([E3.opened, E3c.toasts]));
     const E4 = editor({ zip: Z, camp: Object.assign({}, camp, { system: sys }), ans: false, draft: clean });
     E4.api.exportIt(); await tick();
     check('Cancel at the question writes nothing', E4.alone.length === 0 && E4.downloads.length === 0);
     const E5 = editor({ zip: Object.assign({}, Z, { buildWhole: async () => { throw new Error('the archive came out wrong'); } }), camp: Object.assign({}, camp, { system: sys }), ans: true, draft: clean });
     E5.api.exportIt(); await tick();
-    check('an export that fails says so and saves nothing', E5.downloads.length === 0 && E5.toasts.includes('The export could not be made. Nothing was saved.'));
+    check('an export that fails says so and saves nothing', E5.downloads.length === 0 && E5.toasts.includes('The export could not be made. Nothing was saved.') && E5.dropped === 1);
     const deps = E3.api.deps(camp);
     check('what syszip.js is handed: the campaign, the library, the formula module, both tag stores', deps.camp === camp && deps.F === F && deps.stores[0] === stores[0] && deps.stores[1] === camp.imageCats && typeof deps.fetch === 'function' && typeof deps.log === 'function');
 

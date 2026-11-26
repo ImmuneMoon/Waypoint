@@ -5,6 +5,7 @@
    machine that hosts: no line is sent to anyone. Lines are words as the GM may read them, drawn as text nodes. */
 import { CHIPS, ICON, cleanLine, parseFile, filter, shown, sessionWords, plays, fieldLines, asText, oldSessions } from './reccore.js';
 import { stepLine } from './steplog.js';
+import { saveStart } from './savefile.js';   // 1.6.4: the one rule for saving a file (the save dialog where the window has one)
 import { getActiveCampaign } from './models.js';
 
 var FLUSH_MS = 2500, BEAT_MS = 60000, SHOW = 1500, KEEP = 40000;
@@ -180,9 +181,8 @@ function close() { var m = ui('sessionLogModal'); if (m) m.style.display = 'none
 function saveText() {
     var s = W.list.find(function(x) { return x.id === W.at; }); if (!s || !W.lines.length) return;
     var c = getActiveCampaign(), name = c && c.name || 'Campaign';
-    var blob = new Blob([asText(name + ': game record', s.words.day + ', ' + s.words.span, W.lines, FMT)], { type: 'text/plain' }), a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = String(name).replace(/[^A-Za-z0-9]+/g, '-').toLowerCase() + '-game-record.txt';
-    document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    var blob = new Blob([asText(name + ': game record', s.words.day + ', ' + s.words.span, W.lines, FMT)], { type: 'text/plain' });
+    saveStart({ name: String(name).replace(/[^A-Za-z0-9]+/g, '-').toLowerCase() + '-game-record.txt', type: 'text/plain', desc: 'Text' }).save(blob);   // it said nothing before, and says nothing now
 }
 function delSession() {
     var s = W.list.find(function(x) { return x.id === W.at; }); if (!s || !s.file || s.id === liveId()) return;

@@ -2416,6 +2416,18 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       return '';
   }
 
+  // The .zip an export turned out to be after a .json was picked at the press (the review of a92c0d93, finding 1): saved only from a press of
+  // its own, the notice's button, which may open the save dialog again. Never a second dialog that comes up by itself. exportScope's notice
+  // calls it
+  function exportSaveZip(r) {
+      var t = saveStart({ name: r.name, type: 'application/zip', desc: 'Waypoint export', fail: 'Export failed.' });
+      return t.save(r.blob).then(function(how) { if (saveDone(how)) toast(exportDoneWords(r)); return how; });
+  }
+  // The words said where a .json was picked and the export came out a .zip (a picture listed or added since the share sheet counted). empty:
+  // the picked file could not be taken away and stays empty
+  function exportZipWords(empty) {
+      return 'This export holds pictures, so it is a .zip file. Nothing was saved yet.' + (empty ? ' The .json file you named was left empty.' : '');
+  }
   // files (optional): the share sheet's count of the files the export would carry (exportKindNow)
   async function exportScope(scope, share, files) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
@@ -2435,12 +2447,17 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
               var how = await ticket.save(new Blob([r.text], { type: 'application/json' }));
               if (!saveDone(how)) return null;
               r.name = ticket.handle.name || r.name;
-              toast('Exported ' + r.name);
           } else download(r.name, r.text);
           toast('Exported ' + r.name + '.' + exportLeftWords(r));
       }
+      else if (st === 'picked' && !r.saved) {
+          // a .json was picked for what turned out a .zip: the picked file is taken away where it is still empty, and the .zip waits for a
+          // press of the notice's button, where the dialog may open again for it
+          var dropped = await ticket.drop({ quiet: true });
+          toastAction(exportZipWords(dropped === 'empty'), 'Save the .zip', function() { exportSaveZip(r); }, 20000);
+      }
       else {
-          if (!r.saved) downloadBlob(r.name, r.blob);   // no dialog, or a .json picked for what turned out a .zip (a picture added meanwhile): a download, as ever
+          if (!r.saved) downloadBlob(r.name, r.blob);   // no dialog in this window: a download, as ever
           toast(exportDoneWords(r));
       }
       return r;
@@ -2577,7 +2594,7 @@ export {
 
     takeSafetyCopy,
 
-    downloadBlob,   // handouts.js: the Journal saved as one page to read offline goes out as every export does
+    downloadBlob,   // a file handed to the browser as a download (savefile.js downloadNow), with the words exports always said
 
     migrateAppState   // main.js: an import is shaped by the load's own normaliser (cleanup.js cleanImport)
 

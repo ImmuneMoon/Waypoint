@@ -106,6 +106,7 @@ function saveStart(opts) {
         return t.ready.then(function(st) {
             if (st === 'cancel') return 'cancel';
             if (st === 'picked') {
+                t.written = true;   // drop() never takes away a file this save wrote to, whatever the write came to
                 return writeTo(t.handle, blob).then(function(ok) {
                     if (ok) { saveLog('saved', { ext: ext, kb: Math.round((blob && blob.size || 0) / 1024) }); return 'saved'; }
                     saveLog('write-failed', { ext: ext });
@@ -118,10 +119,37 @@ function saveStart(opts) {
             return 'failed';
         });
     };
-    // The file will not be made after all (the export failed, or the host said no): nothing is written. A file the dialog made is left as
-    // it is, since the person may have picked last week's file to replace, and that is never taken away for a file that was not made
-    t.drop = function() { t.ready.then(function(st) { if (st === 'picked') saveLog('dropped', { ext: ext }); }); };
+    // The file will not be made after all (the export failed, or the host said no): nothing is written to it. Chromium makes the picked file
+    // (or empties last week's file of that name) the moment the person confirms the dialog, so an empty file under the export's name would
+    // otherwise stay on disk and look like a saved one (the review of a92c0d93, finding 2). drop() looks at the file: one that holds
+    // anything is left exactly as it is; an empty one is taken away where the window can remove a file it was handed (handle.remove), and
+    // where it cannot, one line says the file was left empty. Answers a promise of what it did: 'none' (no file was picked, or this save
+    // already wrote to it), 'kept', 'removed' or 'empty'. opts.quiet: the caller says the empty file itself, in its own words
+    t.drop = function(dopts) { return dropPicked(t, ext, dopts || {}); };
     return t;
+}
+
+// What a ticket's drop() does (above): the picked file's size read through the handle, then the file taken away where it is empty. A step
+// that fails (the file cannot be read, or cannot be removed) is logged, never thrown; a file that cannot be read is left alone
+function dropPicked(t, ext, dopts) {
+    return t.ready.then(function(st) {
+        if (st !== 'picked' || t.written || t.dropped) return 'none';
+        t.dropped = true;
+        var h = t.handle;
+        var leftEmpty = function() {
+            saveLog('dropped-empty', { ext: ext });
+            if (!dopts.quiet) say(t.name + ' was left empty. Nothing was written to it.');
+            return 'empty';
+        };
+        return Promise.resolve().then(function() { return typeof h.getFile === 'function' ? h.getFile() : null; }).then(function(f) {
+            if (!f || typeof f.size !== 'number') { saveLog('dropped', { ext: ext, read: 0 }); return 'kept'; }
+            if (f.size > 0) { saveLog('dropped', { ext: ext, kept: 1 }); return 'kept'; }   // it holds something: never taken away
+            if (typeof h.remove !== 'function') return leftEmpty();
+            return Promise.resolve().then(function() { return h.remove(); }).then(function() {
+                saveLog('dropped', { ext: ext, removed: 1 }); return 'removed';
+            }, function(e) { saveLog('remove-failed', { ext: ext, why: e && typeof e.name === 'string' ? e.name : 'error' }); return leftEmpty(); });
+        }, function(e) { saveLog('dropped', { ext: ext, read: 0, why: e && typeof e.name === 'string' ? e.name : 'error' }); return 'kept'; });
+    });
 }
 
 // Whether a notice may say the file was saved: written to the file picked, or handed over as a download (what a window with no dialog

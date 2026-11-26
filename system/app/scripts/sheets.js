@@ -8482,11 +8482,12 @@ function dlKey(e) { if (_dlPop && e.key === 'Escape') { e.preventDefault(); e.st
 var OUT_SAYS = { off: 'Character sheets are switched off at this table.', slow: 'Wait a few seconds, then ask again.', owner: 'That file is only for your own character.', none: 'This table no longer offers that file.', unread: 'The GM\u2019s Waypoint could not write that file.', wait: 'No answer from the GM\u2019s Waypoint. Try again.' };
 function outFile(id, cid) {
     var n = net(); if (!n || typeof n.sheetOut !== 'function') return;
-    // 1.6.4: the save dialog opens at the press, before the host is asked; the file's own name comes with the host's answer, so the dialog
-    // suggests the character's name (a download, where there is no dialog, takes the host's name). Words that it was saved come only once it was
-    var cO = charById(cid), ticket = saveTextStart(fileBase(cO && cO.name) + '.json', 'application/json');
+    // 1.6.4: the host is asked first, and the save dialog opens only once the file has come back, under the host's own name for it. A
+    // dialog opened at the press could be confirmed after the host said no, and the file it made would stay on disk, empty (the review of
+    // a92c0d93, finding 2). Where the answer came after the press stopped counting, the dialog will not open and the file goes as a
+    // download (savefile.js). Words that it was saved come only once it was
     toast('Asking the GM\u2019s Waypoint for your sheet\u2026');
-    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json', ticket).then(function(nm) { if (nm) toast('Saved ' + nm + '.' + (file.note ? ' ' + file.note : '')); }); return; } ticket.drop(); toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
+    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json').then(function(nm) { if (nm) toast('Saved ' + nm + '.' + (file.note ? ' ' + file.note : '')); }); return; } toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
 }
 // [netcheck:sheetoutgo-end]
 function openDownloadMenu(anchor) {

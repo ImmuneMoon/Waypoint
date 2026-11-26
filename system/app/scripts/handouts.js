@@ -1243,7 +1243,7 @@ async function journalDocOf(only) {
     sections.push({ head: 'Personal notes', rows: pIdx.entries.filter(function(e) { return e && e.kind === 'note'; }).sort(newest).map(function(e) { return jdlRow(e, { gmId: '' }, pIdx.sentNotes); }).filter(Boolean) });
     return { name: key === 'personal' ? 'Personal notes' : journalName(m), heading: key === 'personal' ? 'Personal notes' : 'Journal of ' + journalName(m), gm: key === 'personal' ? '' : gmOf(m), title: '', sections: sections };
 }
-// Download: the journal shown, or one page, as one page to read offline, handed over as the app's other exports are (io.js downloadBlob).
+// Download: the journal shown, or one page, as one page to read offline, saved as the app's other exports are (savefile.js).
 // The file is made as a Blob from jdlParts' list of strings, so no one string holds it, and the pictures put in one file are held to
 // JDL_BUDGET characters of their data addresses: past it a picture is said in words ('full') and never read
 var _jdlBusy = false;

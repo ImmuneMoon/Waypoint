@@ -37,14 +37,16 @@ global.setTimeout = function(fn) { return 0; };   // a link's address is let go 
 
 // A save dialog of the suite's own: how it answers, and what is written through the file it gives
 function dialog(how) {
-    const D = { asked: [], writes: [], closed: 0, aborted: 0, order: [] };
+    const D = { asked: [], writes: [], closed: 0, aborted: 0, order: [], removed: 0, size: 0 };
     window.showSaveFilePicker = function(o) {
         D.asked.push(o); D.order.push('asked');
         if (how === 'throw-now') throw Object.assign(new Error('no press'), { name: 'SecurityError' });
         if (how === 'cancel') return Promise.reject(Object.assign(new Error('canceled'), { name: 'AbortError' }));
         if (how === 'refuse') return Promise.reject(Object.assign(new Error('no press'), { name: 'SecurityError' }));
         if (how === 'odd') return Promise.resolve({ name: 'x' });
-        return Promise.resolve({ name: 'Picked name.md', createWritable: async function() {
+        return Promise.resolve({ name: 'Picked name.md', getFile: async function() { if (how === 'unreadable') throw Object.assign(new Error('gone'), { name: 'NotFoundError' }); return { size: D.size || 0 }; },
+            remove: how === 'no-remove' ? undefined : async function() { if (how === 'remove-fails') throw Object.assign(new Error('locked'), { name: 'NoModificationAllowedError' }); D.removed++; },
+            createWritable: async function() {
             return { write: async function(b) { if (how === 'write-fails') throw new Error('disk full'); D.writes.push(b); D.order.push('write'); },
                 close: async function() { D.closed++; D.order.push('close'); }, abort: async function() { D.aborted++; } };
         } });
@@ -126,10 +128,35 @@ pending.push((async function() {
     const dlNow = (W.linkThrows = true, SF.downloadNow('x.md', blob));
     check('a download the window refuses answers "failed" and says so in plain words; downloadNow answers false', how6 === 'failed' && j(W.said) === j(['Notes.md could not be saved.']) && dlNow === false, j([how6, W.said]));
 
-    /* drop: nothing is written or removed */
+    /* drop (the review of a92c0d93, finding 2): the dialog made the picked file empty the moment the person confirmed it, so a file that will
+       not be made after all takes that empty file away, never one that holds anything, and says so in one line where it cannot */
     reset(); D = dialog('save');
-    t = SF.saveStart({ name: 'Template.zip', type: 'application/zip' }); t.drop(); await t.ready; await new Promise(r => setImmediate(r));
-    check('a file that will not be made after all (the export failed) is dropped: nothing written to the file picked, nothing downloaded, nothing taken away', D.writes.length === 0 && D.closed === 0 && W.clicks.length === 0 && W.said.length === 0);
+    t = SF.saveStart({ name: 'Template.zip', type: 'application/zip' }); const dr1 = await t.drop();
+    check('a file that will not be made after all (the export failed, or the host said no) is dropped: nothing written, nothing downloaded, and the empty file the dialog made is taken away so no empty file looks like a saved one',
+        dr1 === 'removed' && D.removed === 1 && D.writes.length === 0 && D.closed === 0 && W.clicks.length === 0 && W.said.length === 0, j([dr1, D.removed, W.said]));
+    const dr1b = await t.drop();
+    check('a second drop of the same ticket does nothing more', dr1b === 'none' && D.removed === 1, j([dr1b, D.removed]));
+    reset(); D = dialog('save'); D.size = 42;
+    const dr2 = await SF.saveStart({ name: 'Old.zip', type: 'application/zip' }).drop();
+    check('a picked file that holds anything is never taken away by a drop', dr2 === 'kept' && D.removed === 0 && W.said.length === 0, j([dr2, D.removed]));
+    reset(); D = dialog('no-remove');
+    const dr3 = await SF.saveStart({ name: 'Kael.json', type: 'application/json' }).drop();
+    reset(); D = dialog('remove-fails');
+    const dr4 = await SF.saveStart({ name: 'Kael.json', type: 'application/json' }).drop();
+    const said4 = W.said.slice(), logs4 = W.logs.slice();
+    check('where the window cannot take the empty file away (no remove, or a remove that fails), one plain line says it was left empty, and the step log names no file',
+        dr3 === 'empty' && dr4 === 'empty' && j(said4) === j(['Kael.json was left empty. Nothing was written to it.']) && logs4.some(l => /^savefile v1 remove-failed ext=json why=NoModificationAllowedError$/.test(l)) && !logs4.some(l => /Kael/.test(l)), j([dr3, dr4, said4, logs4]));
+    reset(); D = dialog('no-remove');
+    const dr5 = await SF.saveStart({ name: 'Kael.json', type: 'application/json' }).drop({ quiet: true });
+    check('a quiet drop says nothing itself (its caller folds the empty file into its own words)', dr5 === 'empty' && W.said.length === 0, j([dr5, W.said]));
+    reset(); D = dialog('unreadable');
+    const dr6 = await SF.saveStart({ name: 'Kael.json', type: 'application/json' }).drop();
+    check('a picked file that cannot be read is left alone', dr6 === 'kept' && D.removed === 0 && W.said.length === 0, j([dr6]));
+    reset(); D = dialog('save');
+    t = SF.saveStart({ name: 'Kael.json', type: 'application/json' }); await t.save(blob); const dr7 = await t.drop();
+    reset(); D = dialog('cancel'); const dr8 = await SF.saveStart({ name: 'Kael.json', type: 'application/json' }).drop();
+    reset(); const dr9 = await SF.saveStart({ name: 'Kael.json', type: 'application/json' }).drop();
+    check('a drop after the save wrote to the file, after a cancel, or in a window with no dialog takes nothing away', dr7 === 'none' && dr8 === 'none' && dr9 === 'none' && D.removed === 0, j([dr7, dr8, dr9]));
 
     /* the kinds the dialog offers, and what it never is handed */
     check('the dialog is offered the file\'s kind from its last extension and type alone, parameters taken off; a type it would not take, or a name with no extension, offers no kind (the dialog then offers any file) rather than a dialog that throws',
@@ -162,10 +189,10 @@ const SITES = [
     ['docimport.js', 'the handbook template (Help)', "var b5 = ui('helpMdTemplateBtn');", '\n', /saveStart\(/, null, ["toast('Template saved.')"]],
     ['furnpack.js', 'a pack as one file (Export a file)', 'async function exportFile(p) {', '\n', /looksTicket\(/, null, []],
     ['furnpack.js', 'the pack maker\'s file (Export a folder picks its own folder, before this)', '    var ticket = looksTicket(nm);', '\nfunction ', /looksTicket\(/, /await makerLooks\(\)/, []],
-    ['furnpack.js', 'a pack\'s one file written', 'function exportLooksFile(name, looks, ticket) {', '\nasync function exportLooksFolder', /looksTicket\(|ticket/, null, ["toast('Exported ' + name + ' as one file"]],
+    ['furnpack.js', 'a pack\'s one file written', 'function exportLooksFile(name, looks, ticket) {', '\nasync function exportLooksFolder', /looksTicket\(/, null, ["toast('Exported ' + name + ' as one file"]],
     ['furnpack.js', 'the furnishing template', 'async function template() {', '\n// ---- the pack maker', /saveStart\(/, null, ["toast('The template is downloaded"]],
     ['handouts.js', 'the Journal saved as one page', 'async function journalDownload(only) {', '\n// The app\'s own question', /saveStart\(/, null, ["toast('Saved ' + name"]],
-    ['io.js', 'Export (exportScope)', '  async function exportScope(scope, share, files) {', '\n  window.wpExportScope', /saveStart\(/, null, ["toast('Exported ' + r.name);"]],
+    ['io.js', 'Export (exportScope)', '  async function exportScope(scope, share, files) {', '\n  window.wpExportScope', /saveStart\(/, null, ["toast('Exported ' + r.name + '.' + exportLeftWords(r));"]],
     ['librarywin.js', 'a library pack', 'function exportPack(which) {', '\n/* ---- import', /saveStart\(/, null, ["exported: ' + plural("]],
     ['main.js', 'Save HTML', "askK(activeMap, showConfirm, function(players) {", "_el_exportImgBtn", /saveStart\(/, /run\(function|fetch\(/, ["toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.')"]],
     ['main.js', 'Save as Image', "var title = exportTitle();\n\n      var opts", "var _el_", /saveStart\(/, /html2canvas\(/, ["toast('Image exported.')"]],
@@ -173,18 +200,35 @@ const SITES = [
     ['record.js', 'the Game Record as text', 'function saveText() {', '\nfunction delSession', /saveStart\(/, null, []],
     ['settings.js', 'Save profile to a file', "if (save) save.addEventListener('click', function() {", '\n    if (open && file)', /saveStart\(/, null, ["toast('Profile saved."]],
     ['sheets.js', 'a sheet\'s file (Download)', 'function downloadChar(charId, kind, gmAll) {', '\n// Onboarding F2b', /saveTextStart\(|saveTextFile\(/, /pictureData\(/, ["toast('Saved ' + nm)"]],
-    ['sheets.js', 'a file the host\'s reader writes (outFile)', 'function outFile(id, cid) {', '\n// [netcheck:sheetoutgo-end]', /saveTextStart\(/, /n\.sheetOut\(/, ["toast('Saved ' + nm + '.'"]],
     ['sysedtabs.js', 'a system alone', 'function exportAlone(clean) {', '\nfunction importFile', /sysSaveStart\(/, null, ["toast('System exported.')"]],
     ['sysedtabs.js', 'a whole system', "if (ans !== true) return;", "}, { noEnter: true, yes: 'Whole system'", /sysSaveStart\(/, /Z\.buildWhole\(/, ['toast(Z.exportWords(r))']],
 ];
-SITES.forEach(function(s) {
-    const src = read(s[0]), b = body(src, s[2], s[3]);
+// One site's check on a text: the dialog opened before the first wait, no download link of its own, its notices after the save
+function siteOk(b, s) {
     const m = s[4].exec(b), open = m ? m.index : -1, wait = firstWait(b, s[5] ? [s[5]] : []);
     const save = b.search(/\.save\(|saveExport\(|shotSave\(|sysDownload\(|saveTextFile\(/);
     const notices = s[6].map(n => b.indexOf(n));
     const ok = !!b && open >= 0 && open < wait && notices.every(n => n > save && save >= 0 && n >= 0) && b.indexOf('.download') < 0 && b.indexOf('createObjectURL') < 0;
-    check('pinned, ' + s[0] + ': ' + s[1] + ' opens the save dialog at its press, before the first thing it waits for, makes no download link of its own, and says it was saved only after the save', ok, j({ found: !!b, open, wait, save, notices }));
+    return { ok, found: !!b, open, wait, save, notices };
+}
+SITES.forEach(function(s) {
+    const r = siteOk(body(read(s[0]), s[2], s[3]), s);
+    check('pinned, ' + s[0] + ': ' + s[1] + ' opens the save dialog at its press, before the first thing it waits for, makes no download link of its own, and says it was saved only after the save', r.ok, j(r));
 });
+// (the review of a92c0d93, finding 3) exportLooksFile is handed the ticket its callers opened at their press (exportFile and makerExport,
+// pinned above), and opens one itself only where none was handed: it must wait for nothing at all, so its fallback dialog is still opened
+// at the press. Tried first on broken texts of the suite's own, each of which the pin must refuse
+(function() {
+    const s = SITES.filter(x => x[2] === 'function exportLooksFile(name, looks, ticket) {')[0];
+    const src = read('furnpack.js'), b = body(src, s[2], s[3]);
+    const elfOk = function(t, whole) { const inner = t.slice(t.indexOf('\n')); return siteOk(t, s).ok && !/\bawait\b/.test(inner) && !new RegExp('async ' + s[2].replace(/[()]/g, '\\$&')).test(whole) && inner.indexOf('(ticket || looksTicket(name)).save(') >= 0 && inner.indexOf('(ticket || looksTicket(name)).save(') < inner.indexOf('.then('); };
+    const broken = [
+        b.replace('    (ticket || looksTicket(name))', '    var w = await Promise.resolve(1);\n    (ticket || looksTicket(name))'),
+        b.replace('    (ticket || looksTicket(name)).save(new Blob([JSON.stringify(out)], { type: \'application/json\' }))', '    Promise.resolve().then(function() { return (ticket || looksTicket(name)).save(new Blob([JSON.stringify(out)], { type: \'application/json\' })); })'),
+    ];
+    check('the pin of exportLooksFile refuses a wait before its dialog and a dialog behind a then (tried on broken texts first), and the function as written waits for nothing before it',
+        broken.every(t => t !== b && !elfOk(t, src)) && !elfOk(b, 'async ' + b) && elfOk(b, src), j(broken.map(t => [t !== b, elfOk(t, src)])));
+})();
 // Each save of a site goes through the dialog its press opened, and a notice sits inside the save's answer, so a cancel says nothing
 const tight = [
     ['docimport.js', "if (saved(await ticket.save(new Blob([out.text], { type: 'text/markdown' })))) toast('Markdown saved.' + leftW); return; }"],
@@ -212,5 +256,80 @@ check('io.js downloadBlob and download stay, as thin users of savefile.js downlo
     && /if \(downloadNow\(name, new Blob\(\[text\],\{type:'application\/json'\}\)\)\) toast\('Exported '\+name\);\n    else toast\('Export blocked here\.'\);/.test(read('io.js')));
 check('pinned, furnpack.js: the pack maker waits for nothing before its dialog but Export a folder, which picks a folder of its own', /async function makerExport\(asFolder\) \{\n    var F = FU\(\); if \(!_m\) return;\n    var nm = [^\n]*\n    if \(asFolder\) \{ await exportLooksFolder\(nm, makerLooks\); return; \}\n    var ticket = looksTicket\(nm\);/.test(read('furnpack.js')));
 check('the share sheet hands Export its count of the files the export would carry, so the dialog names a .zip or a .json at the press', read('share.js').includes('var p = typeof window.wpExportScope === \'function\' ? window.wpExportScope(scope, share, files) : null;'));
+
+/* ---- (the review of a92c0d93, finding 1) an export that turned out a .zip after a .json was picked at the press: io.js exportScope run
+   for real on stand-ins. The picked .json is never left empty beside a second dialog that comes up by itself: it is taken away where it is
+   still empty, and the .zip waits for the notice's own button ---- */
+pending.push((async function() {
+    // from the .zip's own helpers where they stand, else from exportScope's own comment (so the suite runs, and fails, on a build without them)
+    const src = read('io.js'), to = src.indexOf('\n  window.wpExportScope'), zipAt = src.indexOf('  // The .zip an export turned out');
+    const from = zipAt >= 0 ? zipAt : src.indexOf('  // files (optional): the share sheet');
+    const deps = ['canPersistLocal', 'toast', 'exportPayload', 'exportKindNow', 'saveStart', 'buildExport', 'saveDone', 'download', 'exportLeftWords', 'downloadBlob', 'exportDoneWords', 'toastAction'];
+    const world = function(o) {
+        const E = { said: [], dl: [], tickets: [], acts: [], downloads: [] };
+        const mk = function(opts) {
+            const t = { opts: opts, state: o.st, handle: { name: o.picked || opts.name }, dropped: [], saves: [] };
+            t.ready = Promise.resolve(o.st);
+            t.drop = function(d) { t.dropped.push(d || {}); return Promise.resolve(o.drop || 'removed'); };
+            t.save = function(b) { t.saves.push(b); return Promise.resolve(o.how || 'saved'); };
+            E.tickets.push(t); return t;
+        };
+        const f = new Function(deps.join(','), src.slice(from, to) + '\nreturn { exportScope: exportScope };');
+        const api = f(function() { return true; }, function(w) { E.said.push(w); },
+            function() { return { base: 'mycamp-campaign', payload: {} }; }, function() { return o.kind; }, mk,
+            function() { return Promise.resolve(o.r); }, function(h) { return h === 'saved' || h === 'download'; },
+            function(n, t) { E.downloads.push(['text', n]); }, function() { return ''; },
+            function(n, b) { E.downloads.push(['blob', n]); return true; }, function(r) { return 'Exported ' + r.name + ' (1 picture).'; },
+            function(m, label, fn, ms) { E.acts.push({ m: m, label: label, fn: fn }); });
+        E.api = api; return E;
+    };
+    const zipR = { name: 'mycamp-campaign.zip', blob: new Blob(['PK']), images: 1, videos: 0 };
+    // the review's case: the share sheet counted no file, a .json was picked, and the export found the campaign's own pictures after all
+    let E = world({ kind: '.json', st: 'picked', picked: 'mycamp-campaign.json', r: zipR });
+    let r = await E.api.exportScope('campaign', undefined, 0);
+    const before = { tickets: E.tickets.length, downloads: E.downloads.slice(), dropped: E.tickets[0].dropped.slice(), said: E.said.slice(), acts: E.acts.map(a => [a.m, a.label]) };
+    check('a .json picked at the press for what turned out a .zip: nothing is handed over as a download (no second dialog comes up by itself), the picked file is dropped quietly (taken away where still empty), and a notice says it is a .zip with a button of its own',
+        r === zipR && before.tickets === 1 && before.downloads.length === 0 && j(before.dropped) === j([{ quiet: true }]) && before.said.length === 0
+        && j(before.acts) === j([['This export holds pictures, so it is a .zip file. Nothing was saved yet.', 'Save the .zip']]), j(before));
+    if (E.acts[0]) await E.acts[0].fn(); await new Promise(rr => setImmediate(rr));
+    check('the notice\'s button opens the dialog again for the .zip itself, under the .zip\'s own name, writes the very archive made, and says it was exported only after that save',
+        E.tickets.length === 2 && E.tickets[1].opts.name === 'mycamp-campaign.zip' && E.tickets[1].opts.type === 'application/zip' && E.tickets[1].saves[0] === zipR.blob && j(E.said) === j(['Exported mycamp-campaign.zip (1 picture).']), j([E.tickets.map(t => t.opts), E.said]));
+    E = world({ kind: '.json', st: 'picked', r: zipR, drop: 'empty' });
+    await E.api.exportScope('campaign', undefined, 0);
+    check('where the picked file could not be taken away, the same notice says the .json file named was left empty', E.acts.length === 1 && /The \.json file you named was left empty\.$/.test(E.acts[0].m), j(E.acts.map(a => a.m)));
+    // a .json export saved through the dialog says it once
+    E = world({ kind: '.json', st: 'picked', picked: 'Hall.json', r: { name: 'mycamp.json', text: '{}' } });
+    await E.api.exportScope('item');
+    check('a .json saved through the dialog says "Exported" once, under the name picked (finding 4: no second notice in the bell)', j(E.said) === j(['Exported Hall.json.']) && E.downloads.length === 0, j(E.said));
+    // no dialog in this window: the old download, unchanged
+    E = world({ kind: '', st: 'none', r: zipR });
+    await E.api.exportScope('campaign');
+    check('with no dialog the .zip goes out as the download it always was, with the words it always said', j(E.downloads) === j([['blob', 'mycamp-campaign.zip']]) && j(E.said) === j(['Exported mycamp-campaign.zip (1 picture).']) && E.acts.length === 0, j([E.downloads, E.said]));
+})());
+check('the share sheet hands Export no count where its plan could not list the pictures no map uses (finding 1): the kind is then not known at the press', read('share.js').includes('var files = _s.plan && Array.isArray(_s.plan.paths) && !_s.plan.unlisted ? _s.plan.paths.length : undefined;'));
+
+/* ---- (finding 2) a file the host's reader writes: sheets.js outFile run for real on stand-ins. The host is asked first, and the dialog
+   opens only once the file came back, so a refusal leaves no empty file behind ---- */
+(function() {
+    const src = read('sheets.js'), from = src.indexOf('var OUT_SAYS = '), to = src.indexOf('// [netcheck:sheetoutgo-end]', from);
+    const run = function(answer) {
+        const E = { order: [], said: [], cb: null };
+        const n = { sheetOut: function(id, cid, cb) { E.order.push('ask'); E.cb = cb; } };
+        const f = new Function('net', 'charById', 'fileBase', 'saveTextStart', 'saveTextFile', 'toast', src.slice(from, to) + '\nreturn outFile;');
+        const outFile = f(function() { return n; }, function() { return { name: 'Kael' }; }, function(s) { return String(s); },
+            function() { E.order.push('dialog'); return { drop: function() { E.order.push('drop'); } }; },
+            function(name, text, type, ticket) { E.order.push(['save', name, !!ticket]); return { then: function(fn) { fn(name); } }; },
+            function(w) { E.said.push(w); });
+        outFile('o1', 'c1');
+        E.atPress = E.order.slice();
+        if (answer) E.cb(answer.file, answer.why);
+        return E;
+    };
+    const no = run({ file: null, why: 'slow' }), yes = run({ file: { name: 'Kael-reader.json', text: '{}' } });
+    check('outFile asks the host before any save dialog opens, and a refusal opens none, so no empty file is left (finding 2)',
+        j(no.atPress) === j(['ask']) && j(no.order) === j(['ask']) && no.said[no.said.length - 1] === 'Wait a few seconds, then ask again.', j(no));
+    check('outFile opens the dialog only once the host\'s file came back, under the host\'s own name for it, and says saved after',
+        j(yes.order) === j(['ask', ['save', 'Kael-reader.json', false]]) && yes.said[yes.said.length - 1] === 'Saved Kael-reader.json.', j(yes));
+})();
 
 finish();

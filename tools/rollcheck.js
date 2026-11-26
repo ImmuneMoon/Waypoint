@@ -1034,7 +1034,7 @@ const j = v => JSON.stringify(v);
             && nj.includes('if (window.wpGroupShare) window.wpGroupShare.forget();'), j([sent, pushed]));
         const hx = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wn = [fs.readFileSync(path.join(app, '..', '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')];
         check('1.6.4 gap #23: Help says it, the module is loaded, and both notes carry the draft', /judge a group roll <b>by a share<\/b> instead/.test(hx) && /<b>Who is told the result<\/b> can make it yours alone/.test(hx) && hx.includes('<script type="module" src="scripts/groupshare.js"></script>')
-            && wn.every(t => /Group roll can now judge by a share/.test(t) && /\(draft for Fulllion\)/.test(t)) && nj.includes("var acN = net._actNext; if (acN && !o.act && !o.row && !o.fr && !o.att && o.charId === acN.charId)"));
+            && wn.every(t => /Group roll can now judge by a share/.test(t) && /^More ways to roll again, and group rolls by a share\r?$/m.test(t)) && nj.includes("var acN = net._actNext; if (acN && !o.act && !o.row && !o.fr && !o.att && o.charId === acN.charId)"));
     }
     {   // 1.5.7: a damage roll's type (dmgTypeOf, the cleaner), and a roll's change switching a tick (applyAct), run for real
         const j = JSON.stringify, mk = gm => S.cleanSystem({ v: 1, name: 'D', fields: [

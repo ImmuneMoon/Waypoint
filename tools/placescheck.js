@@ -394,7 +394,7 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
             const helpP = (() => { const a = ix.indexOf('<li><b>Places:</b>'), z = ix.indexOf('</ul>', a); return a > 0 ? ix.slice(a, z) : ''; })();
             check('1.6.4 Help says it in one short entry under Places, in plain words', helpP.includes('<li><b>Picture here</b>, in the Properties of a place or a trigger zone, shows a picture to a player whose token stands there.') && helpP.includes('A hidden zone or place shows nothing.'));
             const notes4 = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(t => t.replace(/\r\n/g, '\n'));
-            check('1.6.4 both release notes say it under 1.6.4 as a draft for Fulllion, alike', notes4.every(t => t.indexOf('Pictures where a token stands (draft for Fulllion)\n') > t.indexOf('WAYPOINT 1.6.4') && t.indexOf('Pictures where a token stands') < t.indexOf('WAYPOINT 1.6.3'))
+            check('1.6.4 both release notes say it under 1.6.4, alike', notes4.every(t => t.indexOf('Pictures where a token stands\n') > t.indexOf('WAYPOINT 1.6.4') && t.indexOf('Pictures where a token stands') < t.indexOf('WAYPOINT 1.6.3'))
                 && notes4[0].slice(0, notes4[0].indexOf('WAYPOINT 1.6.3')) === notes4[1].slice(0, notes4[1].indexOf('WAYPOINT 1.6.3')));
         }
         const ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');

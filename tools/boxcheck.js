@@ -605,7 +605,7 @@ const J = JSON.stringify;
         check('1.6.4: Help says Drop here, the pile, Pick up, Put in, Players see and Players may put in, and the fight\u2019s cost; both release-note drafts carry it, marked a draft',
             ixD.includes('<li><b>Drop here</b>, on an item&rsquo;s right-click menu on a sheet,') && ixD.includes('presses <b>Pick up</b> on it to take from it, or to put things in. An empty pile goes.') && ixD.includes('Beside Lock, <b>Players see</b> is <b>Solid</b> or <b>See-through</b>.')
             && ixD.includes('<li><b>Players may put in</b> lets a player next to it put things in from their own sheet.') && ixD.includes('<li><b>Taking, dropping or putting in, in a fight</b> is in Turns.') && ixD.includes('Press the count to open the pile.') && ixD.includes('reads what it holds by resting the pointer on its chest')
-            && [wnD, waD].every(t => t.includes('Drop it, pick it up [DRAFT]\n- Right-click an item on a sheet and pick Drop here.') && t.indexOf('Drop it, pick it up [DRAFT]') < t.indexOf('WAYPOINT 1.6.3')));
+            && [wnD, waD].every(t => t.includes('Drop it, pick it up\n- Right-click an item on a sheet and pick Drop here.') && t.indexOf('Drop it, pick it up') < t.indexOf('WAYPOINT 1.6.3')));
     }
     {   // 1.6.4, the review's findings
         const sysR = S.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { trade: true, parts: { from: 'f_inv' } } }], items: [{ id: 'i_sword', key: 'Sword', name: 'Sword' }, { id: 'i_gem', key: 'Gem', name: 'Cursed gem', vis: 'gm', pic: '/saves/images/gem.png' }] }, { F, gmView: true });

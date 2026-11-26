@@ -182,7 +182,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
         && lay.includes('if (keepNotes) draft.sheet.notes = false;') && lay.includes('if (keepNotes2) draft.sheet.notes = false;') && cc.includes('if (sheet.notes === false) out.notes = false;'));
     const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
     check('Help says what the page does in plain words, and both release notes carry it marked as a draft', ix.includes('<li><b>Notes</b> in a sheet&rsquo;s head switches the sheet to its Notes page') && ix.includes('<b>Add to my Journal</b> copies a note into your Journal.')
-        && ix.includes('<b>Notes page on character sheets</b>, in the same box, is on for every system.') && wn.includes('A Notes page on every sheet [DRAFT]') && wn === wa);
+        && ix.includes('<b>Notes page on character sheets</b>, in the same box, is on for every system.') && wn.includes('A Notes page on every sheet\n') && wn === wa);
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exitCode = fail ? 1 : 0;
 })().catch(e => { console.log('FAIL      the suite threw: ' + (e && e.stack || e)); process.exitCode = 1; summed = true; });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished its checks'); process.exitCode = 1; } });

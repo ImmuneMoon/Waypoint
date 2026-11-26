@@ -17,7 +17,7 @@ Names on the map
   every name on a map with Show names on this map in Map properties.
   Your players' pins follow, and Places here still lists every place.
 
-Three looks (draft for Fulllion)
+Three looks
 - Waypoint has a new look, Slate: cool blue-gray, see-through toolbars
   and round buttons. The top row and the side panel make one frame
   around the map.
@@ -25,7 +25,7 @@ Three looks (draft for Fulllion)
   warm charcoal with soft corners, and Ink, flat and square. Each look is
   listed twice, dark and light, so the old light switch is gone.
 
-The window bar (draft for Fulllion)
+The window bar
 - The desktop app's window has no system title bar any more. Its
   minimize, maximize and close buttons sit on a slim strip in the app's
   own colors, and the strip changes when you switch the theme.
@@ -33,7 +33,7 @@ The window bar (draft for Fulllion)
 - A page or a sheet you pop out into a window of its own gets the same
   strip, and so does the stream window, with its title on the strip.
 
-Seeing as one character (draft for Fulllion)
+Seeing as one character
 - Tick See as selected in the View menu, then select a character token.
   The map now shows what that one token sees, and selecting another
   moves you into its eyes.
@@ -42,13 +42,13 @@ Seeing as one character (draft for Fulllion)
   fog. The camera can follow the token, jump to it once, or stay put.
 - It's your screen alone. Your players see no change.
 
-The Characters list (draft for Fulllion)
+The Characters list
 - Point at a character and the list tells you its whole name, who plays
   it and which map its token is on.
 - Players folds closed now, the same way NPCs do.
 - Pressing the rail icon that's already lit hides the left panel.
 
-Pictures where a token stands (draft for Fulllion)
+Pictures where a token stands
 - A place or a trigger zone can carry a picture now, from your Image
   Library or one of your picture handouts. Pick it under Picture here in
   the piece's Properties.
@@ -90,7 +90,7 @@ Your plan's relay
 - Hosting never waits more than a few seconds for the relay. If the
   website is busy, your table starts as before.
 
-Closed fields say why [DRAFT]
+Closed fields say why
 - Press, tap or Tab to a field you can't change, and a short line under
   it says why, such as "Only the GM changes this." Press Escape or move
   on and it goes away. This works on the sheet, on a HUD and on a sheet
@@ -98,7 +98,7 @@ Closed fields say why [DRAFT]
 - Building a system? A number that is Taken from another figure has a
   Says box now, for the words that line shows.
 
-Handed out in list order [DRAFT]
+Handed out in list order
 - Building a system? A list with a switch can now tell each row where it
   stands among the rows switched on, and how much of a figure the rows
   before it have taken. Two hands go to the first weapons readied, and a
@@ -106,29 +106,29 @@ Handed out in list order [DRAFT]
 - A formula can read the same of one row it names by its entry, and a
   list that has a stat of its own by that name keeps reading its stat.
 
-A starter for a new campaign [DRAFT]
+A starter for a new campaign
 - New campaign now offers Waypoint VTT’s own starters beside your
   campaigns when it asks which system to start with.
 
-Choices in the ledger [DRAFT]
+Choices in the ledger
 - Building a system? A ledger figure in the sheet's header can be a
   choice now, a select or a number with value names. The sheet shows it
   as a list you pick from right there, so a budget can start from a
   chosen tier beside the points earned and their total.
 
-A system's About [DRAFT]
+A system's About
 - Building a system? The Rules tab has an About this system box now, for
   a few lines on what your game is and a line of credits. They show when
   a new campaign picks a system to start with, and in About Waypoint for
   everyone at your table, your players too. They travel with the system
   when you export it.
 
-Your own name for a player [DRAFT]
+Your own name for a player
 - Player History has a box on each player for what you call them. Your
   roster, party strip, chat and Player History use it. Only you see it,
   and your players keep seeing the name each gave themselves.
 
-Names changed at the table [DRAFT]
+Names changed at the table
 - A player who changes their name, color or picture in Your profile
   while at your table shows the change at once, on your roster and on
   everyone's, with no need to rejoin. You get a short note when a name
@@ -149,14 +149,14 @@ Names changed at the table [DRAFT]
 - GM and Game Master are kept for you. Names that only look alike, such
   as one spelled with a Cyrillic letter, count as the same name.
 
-Inviting players [DRAFT]
+Inviting players
 - Copy invite in the Multiplayer window now copies a join link too, like
   waypointvtt.com/join/AB2CD-EF3GH, with the room code after it for a
   player who opens Waypoint VTT on their computer and types it. The
   password is still never in it. A player who follows the link to play
   in a browser finds the room code already filled in on Join a game.
 
-The stream window [DRAFT]
+The stream window
 - A video you show to only some players no longer plays in the stream
   window. That window is what everyone watching your screen-share sees.
 - Cover leaves the stream bar's Showing and Focus on lists where you can
@@ -167,14 +167,14 @@ The stream window [DRAFT]
 - On a website plan with no hosting, Open stream window says why it is
   not there, rather than opening a second copy of Waypoint VTT.
 
-A window left open across an update [DRAFT]
+A window left open across an update
 - On the website, a sheet, a page or the stream window you opened from
   the main window now asks you to reload once Waypoint VTT was updated
   meanwhile, and takes no presses until then.
 - A starter system is no longer read from a newer version than the one
   your page runs, and Save HTML uses the look your page already has.
 
-The System editor, a last look [DRAFT]
+The System editor, a last look
 - Pressing a point budget's fault takes you to that budget's own box,
   not the first one's.
 - New tests on the Rules tab start as Test 1, Test 2 and so on. The line
@@ -193,7 +193,7 @@ The System editor, a last look [DRAFT]
   system. Its packs and pictures stay in the file, and the notice says
   Import would bring them but replace your whole system.
 
-Buying a row off [DRAFT]
+Buying a row off
 - Building a system? A list can let its rows be bought off now, for a
   cost worked out from the row, such as its tier. Pick the number field
   it comes out of, and each row gets a Buy off in its menu that asks
@@ -204,7 +204,7 @@ Buying a row off [DRAFT]
   let through with a word to you, whichever you pick. A row you keep on
   a player as a curse stays theirs, Buy off or not.
 
-Mentions as you type [DRAFT]
+Mentions as you type
 - Type the name of a page, a map, a room or a character in a page, a
   planner, a character's Notes page or one of your own Journal notes,
   and it gets a faint dotted underline. Press Tab or click it and it
@@ -213,7 +213,7 @@ Mentions as you type [DRAFT]
 - Short names and names made of everyday words, such as The Tavern,
   are never underlined, and neither is a name two things share.
 
-Merging from another system file [DRAFT]
+Merging from another system file
 - Building a system? Merge from a file, beside Import in the System
   editor, brings in just the fields, lists, rolls, items, effects or
   point budgets you tick from another system file. Import still
@@ -225,7 +225,7 @@ Merging from another system file [DRAFT]
   you merge, with a button to tick it too. Undo takes the whole merge
   back.
 
-A whole system in one file [DRAFT]
+A whole system in one file
 - Building a system? Export can now save it whole: one .zip with the
   system, every library pack your campaign holds and every picture they
   show. Hand it to another GM, who presses Import in the System editor,
@@ -236,7 +236,7 @@ A whole system in one file [DRAFT]
 - Export still saves the .wpsystem.json alone when you ask it to, and
   Import still reads one.
 
-A Notes page on every sheet [DRAFT]
+A Notes page on every sheet
 - Notes in a character sheet's head switches the sheet to a page of
   quick notes, and back. Press + Note to write one, with a title if you
   like. Each note shows when it was written.
@@ -251,7 +251,7 @@ A Notes page on every sheet [DRAFT]
 - The page is on for every system. A GM can turn it off in the System
   editor, under Layout, Sheet look, and the notes are kept.
 
-Doors that lead somewhere [DRAFT]
+Doors that lead somewhere
 - A door can lead to another map now. Give it a Portal to Map in its
   Properties, then walk a token through it, and the token comes out on
   that map. Standing in the doorway or turning beside it does nothing.
@@ -269,7 +269,7 @@ Doors that lead somewhere [DRAFT]
   out on, so nobody steps out backwards. An arrow on the door shows you
   the side, and Flip turns it round.
 
-Arrive here markers [DRAFT]
+Arrive here markers
 - Add has a new Arrive here marker. Drop it inside a room, then pick it
   under Leads to on any portal, a teleport tile as much as a door, or
   under Landing Room on a room's link in the Data Map. Travelers come out
@@ -278,13 +278,13 @@ Arrive here markers [DRAFT]
 - With Properties open, the View, Grid and Snap buttons in the map's
   corner move to its left, so they no longer cover it in a small window.
 
-Landing inside the walls [DRAFT]
+Landing inside the walls
 - A player who travels no longer comes out past a room's walls on a map
   with no grid. When the spot they arrive at sits right in a wall, such
   as a door, every traveler now comes out on the same side of it, never
   in the wall.
 
-Drop it, pick it up [DRAFT]
+Drop it, pick it up
 - Right-click an item on a sheet and pick Drop here. It lands on the
   map under that character's token as a small pile wearing the item's
   picture and its count. The count peeks out beside any token standing
@@ -307,7 +307,7 @@ Drop it, pick it up [DRAFT]
   a chest that held it lost it the next time Waypoint opened. A chest
   keeps its own copy now, as a character's sheet always has.
 
-Hits, armor and spreads (draft for Fulllion)
+Hits, armor and spreads
 - A game with one DR for the whole body no longer needs a list of hit
   locations. Pick a field in DR everywhere on the Combat tab, such as
   one that adds up the armor worn, and every blow meets it. A system
@@ -323,7 +323,7 @@ Hits, armor and spreads (draft for Fulllion)
   the points run out. Your system picks whether they still get a
   resist roll.
 
-Building a system: tables, levels and minutes of play (draft for Fulllion)
+Building a system: tables, levels and minutes of play
 - A system can keep up to 1,000 result tables now, with 200 rows each
   and 10,000 rows in all, so a book's every table can be its own. A
   roll can go on from table to table eight deep, where it stopped at
@@ -345,20 +345,20 @@ Building a system: tables, levels and minutes of play (draft for Fulllion)
   play is an apply action that adds to it, by minutes of play every 1
   hour, and its runs are said as By the clock's are.
 
-Plainer words (draft for Fulllion)
+Plainer words
 - Waypoint VTT's own words no longer use long dashes. Tooltips and
   notices say the same things in plain sentences now.
 - About Waypoint VTT says which free fonts, icons and helper libraries
   it uses, in a few short sentences.
 
-Save says what it drops (draft for Fulllion)
+Save says what it drops
 - The System editor now says when Save would drop one of a list's
   columns, for example a column with the same short name as a stat.
 - It warns when an Add or a Subtract is set to a number below 0. That
   amount counts as 0 and changes nothing, so the warning names the
   fix.
 
-More ways to roll again, and group rolls by a share (draft for Fulllion)
+More ways to roll again, and group rolls by a share
 - A roll's card can offer Roll again, keep the better, or keep the
   worse. Each press rolls again, and the card keeps the better (or
   worse) try. It says how many tries there were and what the others
@@ -375,7 +375,7 @@ More ways to roll again, and group rolls by a share (draft for Fulllion)
   you alone. Set it for the whole system on the Combat tab, or for one
   roll on the Rolls tab.
 
-Fights in the System editor (draft for Fulllion)
+Fights in the System editor
 - A rule can run as a fight ends now. Set an action or a due roll to
   Also as its fight ends, and when you press End combat it runs once on
   everyone who fought. It reads how many rounds the fight lasted and
@@ -389,7 +389,7 @@ Fights in the System editor (draft for Fulllion)
 - A roll or an action can cost some of the turn's move: half of it to
   stand up, a set distance to climb into the saddle, or all but a step.
 
-Shapes, pushes, ruins and smoke (draft for Fulllion)
+Shapes, pushes, ruins and smoke
 - An item's blast can be a ring, a cone, a square or a cylinder now,
   beside the circle. Pick its Blast shape in the item's entry. A cone
   starts at the thrower's token and opens toward where they click.

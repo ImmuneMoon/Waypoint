@@ -7,7 +7,7 @@
 ![Multiplayer: peer-to-peer WebRTC](https://img.shields.io/badge/Multiplayer-peer--to--peer%20%28WebRTC%29-333333?logo=webrtc&logoColor=white)
 [![License: Terms of Use](https://img.shields.io/badge/License-Terms%20of%20Use-lightgrey)](license.txt)
 
-Current release: **Waypoint VTT Alpha 1.6.4**. Downloads and release notes are on [waypointvtt.com](https://waypointvtt.com).
+Current release: **Waypoint VTT Alpha 1.6.4**. Downloads and release notes are on [GitHub Releases](https://github.com/ImmuneMoon/Waypoint/releases).
 
 Drag a map in, drop your tokens, and your players only see what you reveal. Waypoint VTT is a desktop app for running tabletop RPG campaigns, and you prep in it as well as play in it. Every campaign lives in a plain `saves` folder beside the app, so a backup is a folder copy.
 
@@ -41,13 +41,13 @@ Connections go straight between computers where the networks allow it. Mobile da
 
 ## Installing (players and GMs)
 
-Download `Waypoint_Setup.exe` from Waypoint's website, waypointvtt.com, and run it. The installer puts Waypoint VTT in your user folder, needs no admin rights, and offers a Start menu and desktop shortcut.
+Download `Waypoint_Setup.exe` from the latest release and run it. The installer puts Waypoint VTT in your user folder, needs no admin rights, and offers a Start menu and desktop shortcut.
 
 ### The Windows warning
 
-Waypoint's installer is code-signed by Fulllion Creative Works, LLC, the name Windows shows as its publisher. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own website, or through the app's own update button. If it came from anywhere else, do not run it. Windows may still show a SmartScreen notice for a while, until enough people have run the signed installer. Installers from before 1.6.4 were unsigned.
+Windows may warn that it does not recognize the publisher, because Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own releases page, or through the app's own update button. If it came from anywhere else, do not run it.
 
-One-click updates inside the app are signed with Waypoint's own update key, which is separate from the code-signing certificate. Your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates and about ▸ Restore the previous version** puts the app back as it was before the last update. An update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
+One-click updates inside the app are signed with Waypoint's own update key. Your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates and about ▸ Restore the previous version** puts the app back as it was before the last update. An update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
 
 New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken. When Setup finds a copy already installed it asks what to do. Updating in place is the usual choice. A clean install rebuilds the program files and keeps your saves and settings unless you tick the box to delete them. You can also put a separate copy in a new folder and leave the existing one alone.
 
@@ -78,7 +78,7 @@ To back up, copy `saves`. To restore or move to another computer, paste it back 
 
 ## What leaves your computer
 
-Each time Waypoint starts, it asks waypointvtt.com whether there's a new release.
+Each time Waypoint starts, it asks GitHub whether there's a new release.
 
 Playing together goes through servers outside your computer. Tables are found through the public PeerJS signaling server, or Waypoint's own for a WP code or with Own signaling server ticked, and Google's STUN servers help two computers find a route to each other. Those servers see your network address. On a direct connection, anyone who dials your room code can see it too, even if you never let them in, which is why the code is best shared privately. A relay, yours or your plan's, carries the table for players who can't connect directly.
 
@@ -114,7 +114,7 @@ for f in tools/*check.js; do node "$f" | tail -1; done
 
 ## Releases and updates
 
-Players update from inside the app. **Settings ▸ Updates and about ▸ Check for updates** asks waypointvtt.com for the newest release. The site answers with a list signed with Waypoint's update key, and the app reads it only once the signature checks. The files come from Waypoint's own download host and nowhere else. If only the front end changed, **Update now** downloads the app zip, checks it, swaps `system/app` in place and reloads. If the release changed the core, the same panel installs the new installer instead. A quiet check runs shortly after launch, and when it finds a newer version a gold **Update** button stays in the top row until the update is applied. Nothing installs until you press the button. Copies of 1.6.3 and older still read their updates from GitHub, which is why releases go there too for now.
+Players update from inside the app. **Settings ▸ Updates and about ▸ Check for updates** looks at this repository's latest GitHub Release, and fetches from GitHub's own hosts and nowhere else. If only the front end changed, **Update now** downloads the app zip, checks it, swaps `system/app` in place and reloads. If the release changed the core, the same panel installs the new installer instead. A quiet check runs shortly after launch, and when it finds a newer version a gold **Update** button stays in the top row until the update is applied. Nothing installs until you press the button. Updates still come from GitHub for now. The app can also read them from waypointvtt.com, a list signed with Waypoint's update key and the files on Waypoint's own download host, once that is live.
 
 To cut a release:
 
@@ -137,7 +137,7 @@ To cut a release:
 
    `--publish` puts the files and the signed list on Waypoint's download host and tells the website a release is there. It needs the download host's `WAYPOINT_R2_*` settings, `WAYPOINT_DISPATCH_TOKEN` and `WAYPOINT_SIGNTOOL`. `--github` also makes the GitHub Release, with a `GITHUB_TOKEN` that can write releases, for the installs that still read GitHub. If a run stops partway, run the same command again and it finishes what's missing without rebuilding. `tools/sitepub.js --check` then confirms the live site names the new version, before the release is announced.
 
-The website the app checks is the `UPDATE_SITE` constant at the top of `system/resources/app/main.js`.
+Where the app looks for updates is the `UPDATE_SOURCE` constant near the top of `system/resources/app/updater.js`: `'github'` reads the repository named by `UPDATE_REPO` at the top of `system/resources/app/main.js`, and `'site'` reads the website named by `UPDATE_SITE` beside it. 1.6.4 ships with `'github'`, so for now a release is published as a GitHub Release carrying the six files a plain build writes (`waypoint-app-<version>.zip` with its `.sha256` and `.sig`, `manifest.json`, `Waypoint_Setup.exe` and its `.sig`).
 
 ## Repository layout
 

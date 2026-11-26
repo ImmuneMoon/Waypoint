@@ -94,6 +94,17 @@ function releaseLink(target, site) {
     if (u.hostname === 'downloads.' + s.hostname && !u.hash && /^\/waypoint\/[0-9A-Za-z][0-9A-Za-z.-]{0,39}\/Waypoint_Setup\.exe$/.test(u.pathname)) return u.href;
     return null;
 }
+// The same, while updates come from GitHub (updater.js UPDATE_SOURCE 'github', as 1.6.4 ships; Fulllion, 2026-11-25): this
+// project's own release pages on github.com only, as 1.6.3 had it. repo is main.js's UPDATE_REPO. Opened: the installer's
+// download link, a release's page, the latest, the list. Not GitHub's download hosts, which serve every project's files, nor
+// any other part of the project, another project, http, a port, a user name or password. Returns the address, or null.
+function githubReleaseLink(target, repo) {
+    if (typeof target !== 'string' || target.length > 2000 || typeof repo !== 'string' || !repo) return null;
+    let u; try { u = new URL(target); } catch (e) { return null; }
+    if (u.protocol !== 'https:' || u.hostname !== 'github.com' || u.port || u.username || u.password) return null;
+    const base = '/' + repo + '/releases';
+    return (u.pathname === base || u.pathname.startsWith(base + '/')) ? u.href : null;
+}
 
 /* ---------- permissions ---------- */
 
@@ -491,5 +502,5 @@ function scratchSystemDir(ownSystem, named) {
     return path.relative(real(ownSystem), real(chosen)) === '' ? null : chosen;
 }
 
-module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk, restrictedAnswer,
+module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, githubReleaseLink, PERMS_ASK, PERMS_CHECK, permOk, restrictedAnswer,
     devModeOf, zoomOf, WINBAR_H, barColor, barStart, barPageOf, barTarget, menuTemplate, devToolsKey, zoomInKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };

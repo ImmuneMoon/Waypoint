@@ -62,14 +62,15 @@ Pictures where a token stands (draft for Fulllion)
 - No other player learns of it, and a hidden zone or place shows
   nothing.
 
-Updates from Waypoint's website
-- Waypoint now gets its updates from waypointvtt.com. Check for updates
-  in Settings reads the list there, and the files come from the
-  website's own download host. Each update is still signed, and
-  Waypoint checks the signature before it reads a word of the list or
-  installs a file.
-- When an update needs the installer, the steps open a page of the
-  website, not GitHub.
+Updates
+- Updates still come from GitHub for now, the same way they always have.
+  I've built the part that reads them from waypointvtt.com, and it gets
+  switched on once the website's update list and download host are live.
+  Each update is still signed, and Waypoint checks the signature before
+  it installs a file.
+- The installer isn't code-signed yet, so Windows may say it doesn't
+  recognize the publisher. Only run a Waypoint_Setup.exe you got from
+  Waypoint's releases page or through the app's own update button.
 
 Your plan's relay
 - If you host on a Waypoint GM plan, the website's relay carries your

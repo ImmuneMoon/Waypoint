@@ -1,6 +1,22 @@
 /* Waypoint self-update — shared by the Electron shell (main.js) and tools/dev-server.js.
 
-   Where an update comes from (1.6.4; the owner, 2026-11-16: "Private, updates from waypointvtt.com"). The shell asks
+   Two places an update can come from, picked by one constant, UPDATE_SOURCE (below). 1.6.4 ships with 'github'
+   (Fulllion, 2026-11-25: publish 1.6.4 "like we have been until i can get the certificate ... based off github
+   releases"): the website's list and its download host are not live yet, so an install that read them would never see
+   another update. With 'github' the shell reads the latest release of a public GitHub repository exactly as 1.6.3 did
+   (checkGithub): each release is tagged with the version (e.g. "1.1.3" or "v1.1.3") and carries these assets:
+     waypoint-app-<version>.zip          the system/app folder (the whole front end)
+     waypoint-app-<version>.zip.sha256   hex digest of that zip (required)
+     waypoint-app-<version>.zip.sig      the release's signature (required): Ed25519 over the three lines
+                                         "<zip name>", "<sha256 hex>", "<version>", base64 (tools/release.js)
+     manifest.json                       { "version": "1.1.3", "minShell": "1.1.2" }
+     Waypoint_Setup.exe                  the full installer (for shell changes / fresh installs)
+     Waypoint_Setup.exe.sig              the installer's signature: the same three lines, its name the first
+   and nothing is fetched from any host but GitHub's own (githubUrlOk), a redirect included. With 'site' the shell reads
+   Waypoint's website, as follows. Flip the constant to 'site' once the website answers its signed list and the download
+   host holds the files; nothing else needs to change.
+
+   Where an update comes from with 'site' (1.6.4; the owner, 2026-11-16: "Private, updates from waypointvtt.com"). The shell asks
    Waypoint's own website for the newest release and fetches its files from Waypoint's own download host, and from no
    other address: https://waypointvtt.com/api/updates/... answers the signed list, and
    https://downloads.waypointvtt.com/waypoint/<version>/... holds the files (updateHosts, updateUrlOk). A redirect that
@@ -51,6 +67,7 @@ const os = require('os');
 const { UPDATE_PUBKEY } = require('./updatekey');
 
 const UA = 'Waypoint-updater';
+const SMALL = 4096;   // the most a checksum or a signature file of a GitHub release may be: each is one short line
 const UNSIGNED = 'unsigned update, refused';
 const CANNOT_SELF = 'this copy cannot install an update by itself';
 const SIG_OK = /^[A-Za-z0-9+/]{86}==$/;   // 64 bytes in base64: the only shape an Ed25519 signature has
@@ -72,6 +89,39 @@ const LIST_UNSIGNED = 'the update list is not signed by Waypoint, no update offe
 const LIST_BAD = 'the update list could not be read, no update offered';
 const NOT_OURS = "that address is not Waypoint's update site, refused";
 const NOT_LISTED = 'the download is not the file the update list names, refused';   // its length or its digest is not the list's
+
+/* The one switch: where this shell takes its updates from. 'github' reads the latest GitHub release of UPDATE_REPO, as
+   1.6.3 did; 'site' reads Waypoint's website and its download host, as described above. 1.6.4 ships with 'github'
+   (Fulllion, 2026-11-25: "like we have been until i can get the certificate ... based off github releases"), because the
+   website's update list and its download host are not live yet. Flip it to 'site' once they are: main.js, the dev server
+   and the walk-through's link all follow it. A caller of this module may pass opts.source to pick one for a single call
+   (the suite does, to run both paths); the shell passes none, so the constant decides. */
+const UPDATE_SOURCE = 'github';
+const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo>: main.js names the same and hands it in as cfg.repo
+function sourceOf(opts) {
+    const s = opts && opts.source !== undefined && opts.source !== null ? opts.source : UPDATE_SOURCE;
+    return s === 'site' ? 'site' : 'github';   // anything else is GitHub, the source that works today
+}
+/* The hosts a GitHub release is read from, and nothing else: the API that answers the release, the release's own
+   download links on github.com, and the two hosts GitHub sends those links on to. Over https only, with no port, user
+   name or password; asked of the first address and of every redirect (githubUrlOk), so a redirect off GitHub is refused
+   before a byte is read. opts.apiUrl, the suite's and the dev server's dry run only (never a request), stands in for the
+   release's address: then that address's own origin is the one other place allowed, so a mock on this machine works and a
+   redirect from it to anywhere else is still refused. */
+const GITHUB_HOSTS = ['api.github.com', 'github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'];
+function githubHosts(opts) {
+    opts = opts || {};
+    const repo = typeof opts.repo === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(opts.repo) ? opts.repo : UPDATE_REPO;
+    const given = opts.apiUrl !== undefined && opts.apiUrl !== null;
+    return { repo: repo, test: given ? originOf(opts.apiUrl) : null, apiUrl: given ? String(opts.apiUrl) : 'https://api.github.com/repos/' + repo + '/releases/latest' };
+}
+function githubUrlOk(u, h) {
+    if (!h) return false;
+    if (!(u instanceof URL)) { try { u = new URL(String(u)); } catch (e) { return false; } }
+    if (u.username || u.password) return false;
+    if (h.test && u.origin === h.test) return true;   // the suite's own mock, named by its caller
+    return u.protocol === 'https:' && !u.port && GITHUB_HOSTS.indexOf(u.hostname) >= 0;   // GitHub's own; a signed asset link carries a query, which is kept
+}
 
 /* The two addresses this shell may fetch from, as origins: { site, siteHost, api, files, apiUrl }. By default they are
    the site and its download host. opts.apiUrl (the list's own address) and opts.filesUrl (an address on the files' host)
@@ -302,8 +352,10 @@ function cleanManifest(m, h) {
            selfInstall (true only where this copy can run the installer over itself: the shell says so, never a request),
            pubKey (the shell's own unless a caller of this module passes another) }
    With no key configured nothing is offered: no list can be vouched for. The answer carries each file's digest and
-   signature as the manifest gives them (sha256, sig, installerSig), for applyAppUpdate and downloadInstaller to check. */
+   signature as the manifest gives them (sha256, sig, installerSig), for applyAppUpdate and downloadInstaller to check.
+   With the source 'github' (sourceOf) the release is read from GitHub instead, by checkGithub. */
 async function checkForUpdate(opts) {
+    if (sourceOf(opts) === 'github') return checkGithub(opts);
     const pubKey = opts.pubKey !== undefined ? opts.pubKey : UPDATE_PUBKEY;
     if (typeof pubKey !== 'string' || !pubKey.trim()) throw new Error(UNSIGNED);
     const h = updateHosts(opts);
@@ -340,6 +392,56 @@ async function checkForUpdate(opts) {
         // this copy can fetch, check and run the installer by itself: the release must carry the installer (with its signature,
         // which the manifest always gives), and the shell itself must say this copy can run one
         canSelfInstall: !!(needsInstaller && installer && opts.selfInstall === true),
+    };
+}
+
+/* The latest GitHub release, read as 1.6.3 read it (the source 'github'). opts: { repo (main.js's UPDATE_REPO), currentVersion,
+   shellVersion, apiUrl (the suite and the dev server's dry run only: see githubHosts), selfInstall, pubKey }. The release's
+   API answer and its manifest.json are fetched from GitHub's own hosts alone. Nothing here is trusted yet: the answer names
+   the addresses of the zip, its .sha256 and its .sig, and of the installer and its .sig, and applyAppUpdate and
+   downloadInstaller fetch and check them (the signature by the key this shell carries, over the name, the digest and the
+   version, before the zip is taken; the installer's over the digest of what arrived). The manifest beside them is not
+   signed, so its minShell only decides which button is offered: the signed archive's own version.json holds the core it
+   needs, and applyAppUpdate refuses an app for a core older than that. */
+async function checkGithub(opts) {
+    const h = githubHosts(opts), ok = u => githubUrlOk(u, h);
+    const rel = JSON.parse((await fetchBuffer(h.apiUrl, { 'Accept': 'application/vnd.github+json' }, null, ENVELOPE_CAP, ok)).toString('utf8'));
+    const latest = String(rel.tag_name || rel.name || '').replace(/^v/i, '');
+    const assets = Array.isArray(rel.assets) ? rel.assets : [];
+    const find = re => assets.find(a => a && re.test(a.name || ''));
+    const zip = find(/^waypoint-app-.*\.zip$/i);
+    const sha = find(/^waypoint-app-.*\.zip\.sha256$/i);
+    const sig = find(/^waypoint-app-.*\.zip\.sig$/i);
+    const manifestAsset = find(/^manifest\.json$/i);
+    const installer = find(/^Waypoint_Setup\.exe$/i);
+    const installerSig = find(/^Waypoint_Setup\.exe\.sig$/i);
+    const pubKey = opts.pubKey !== undefined ? opts.pubKey : UPDATE_PUBKEY;
+    const keyed = typeof pubKey === 'string' && !!pubKey.trim();
+    let manifest = {};
+    if (manifestAsset) { try { manifest = JSON.parse((await fetchBuffer(manifestAsset.browser_download_url, null, null, ENVELOPE_CAP, ok)).toString('utf8')) || {}; } catch (e) { manifest = {}; } }
+    const newer = latest && cmpVersion(latest, opts.currentVersion) > 0;
+    const minShell = manifest.minShell || null;
+    const shellOk = !minShell || cmpVersion(opts.shellVersion || opts.currentVersion, minShell) >= 0;
+    const needsInstaller = !!(newer && (!zip || !shellOk));
+    return {
+        current: opts.currentVersion,
+        latest: latest || null,
+        newer: !!newer,
+        notes: rel.body || '',
+        page: rel.html_url || ('https://github.com/' + h.repo + '/releases'),
+        appZip: zip ? zip.browser_download_url : null,
+        appZipName: zip ? String(zip.name) : null,   // the zip's own name as the release lists it: part of what is signed
+        sha256: sha ? sha.browser_download_url : null,   // the address of the digest, fetched by applyAppUpdate
+        sig: sig ? sig.browser_download_url : null,      // the address of the signature, fetched by applyAppUpdate
+        installer: installer ? installer.browser_download_url : null,
+        installerSig: installerSig ? installerSig.browser_download_url : null,   // an address, fetched by downloadInstaller
+        installerSize: (installer && Number.isSafeInteger(installer.size) && installer.size > 0) ? installer.size : null,   // as the release lists it: for the words on the page only, never trusted as a bound
+        minShell: minShell,
+        canHotUpdate: !!(newer && zip && sha && sig && shellOk),   // never offered without its checksum and its signature (applyAppUpdate refuses it anyway)
+        needsInstaller: needsInstaller,
+        // this copy can fetch, check and run the installer by itself: the release must carry the installer AND its signature,
+        // a key must be configured to check it with, and the shell itself must say this copy can run one
+        canSelfInstall: !!(needsInstaller && installer && installerSig && keyed && opts.selfInstall === true),
     };
 }
 
@@ -429,6 +531,9 @@ function privateInArchive(rel) { return rel.split('/')[0].replace(/[. ]+$/, '').
 /* Verify, download, unpack and swap. opts: { systemDir, appZip, appZipName, sha256 (the digest as the manifest gives it, or
    null), sig (the zip's signature as the manifest gives it, or null), version, pubKey, shellVersion, and site, apiUrl and
    filesUrl as checkForUpdate takes them: the zip is fetched from the update hosts alone }.
+   With the source 'github' (opts.source, else UPDATE_SOURCE), sha256 and sig are the ADDRESSES of the release's .sha256 and
+   .sig, as checkGithub answers them, fetched here from GitHub's hosts alone (repo and apiUrl as checkGithub takes them),
+   exactly as 1.6.3 did; every check after that is the same for both sources.
    pubKey defaults to the shell's own (updatekey.js); only this module's callers can pass another (the tests do), never a request.
    Returns { ok, version, previous } — the previous app folder is kept as app.prev for one rollback. */
 async function applyAppUpdate(opts) {
@@ -437,19 +542,23 @@ async function applyAppUpdate(opts) {
     const newDir = path.join(systemDir, 'app.new');
     const prevDir = path.join(systemDir, 'app.prev');
     const pubKey = opts.pubKey !== undefined ? opts.pubKey : UPDATE_PUBKEY;
+    const gh = sourceOf(opts) === 'github';
+    // the hosts every fetch of this update must stay on: GitHub's own, or the site and its download host
+    const allowed = gh ? (h => u => githubUrlOk(u, h))(githubHosts(opts)) : (h => u => updateUrlOk(u, h))(updateHosts(opts));
     // a hot update replaces the app: never without the release's signature, checked with the key this shell carries
     if (typeof pubKey !== 'string' || !pubKey.trim()) throw new Error(UNSIGNED);   // no key configured: nothing can be vouched for
     if (!opts.sig) throw new Error(UNSIGNED);
     if (!opts.sha256) throw new Error('no checksum published for this update, refused');   // never without its digest (every release ships one)
     const version = plainVersion(opts.version);
     if (!version || opts.appZipName !== 'waypoint-app-' + version + '.zip') throw new Error(UNSIGNED);   // the signed words name the zip and the version: both must be the release's own
-    const want = typeof opts.sha256 === 'string' ? opts.sha256.trim().toLowerCase() : '';
+    const want = gh ? (await fetchBuffer(opts.sha256, null, null, SMALL, allowed)).toString('utf8').trim().split(/\s+/)[0].toLowerCase()
+        : (typeof opts.sha256 === 'string' ? opts.sha256.trim().toLowerCase() : '');
     if (!/^[0-9a-f]{64}$/.test(want)) throw new Error('unreadable checksum, update aborted');   // an empty or odd digest is a failure, not a pass
-    const sigText = typeof opts.sig === 'string' ? opts.sig.trim() : '';
+    const sigText = gh ? (await fetchBuffer(opts.sig, null, null, SMALL, allowed)).toString('utf8').trim()
+        : (typeof opts.sig === 'string' ? opts.sig.trim() : '');
     if (!verifyUpdate(pubKey, opts.appZipName, want, version, sigText)) throw new Error(UNSIGNED);
     // the signature covers the digest; the digest covers every byte of the zip, fetched from the update hosts alone
-    const hosts = updateHosts(opts);
-    const zipBuf = await fetchBuffer(opts.appZip, null, null, null, u => updateUrlOk(u, hosts));
+    const zipBuf = await fetchBuffer(opts.appZip, null, null, null, allowed);
     const got = crypto.createHash('sha256').update(zipBuf).digest('hex');
     if (want !== got) throw new Error('checksum mismatch, update aborted');
     const entries = readZip(zipBuf);
@@ -544,10 +653,14 @@ function rollbackAppUpdate(opts) {
    listed length must be within the cap; the download is then held to exactly that length (a file of another length on the
    download host is refused at once, never downloaded in full), its bytes to that digest, and the signature is checked once more
    over the digest of what arrived. The bytes go to <dir>/Waypoint_Setup-<version>.exe.part and take their final name only once
-   all of that holds; anything else removes them. dir is a fresh private folder the caller made. Returns { file, sha256, version }. */
+   all of that holds; anything else removes them. dir is a fresh private folder the caller made. Returns { file, sha256, version }.
+   With the source 'github' a GitHub release lists no digest for its installer, so the check is 1.6.3's: opts.sigUrl is the
+   address of Waypoint_Setup.exe.sig (checkGithub's installerSig), fetched first from GitHub's hosts alone; the download is held
+   to the cap; and the signature must check over the digest of what arrived, or the file is removed. */
 async function downloadInstaller(opts) {
     const pubKey = opts.pubKey !== undefined ? opts.pubKey : UPDATE_PUBKEY;
     if (typeof pubKey !== 'string' || !pubKey.trim()) throw new Error(UNSIGNED);   // no key configured: nothing can be vouched for
+    if (sourceOf(opts) === 'github') return downloadGithubInstaller(opts, pubKey);
     const version = plainVersion(opts.version);
     if (!version || !opts.url || !opts.sig) throw new Error(UNSIGNED);
     if (typeof opts.dir !== 'string' || !path.isAbsolute(opts.dir) || !fs.statSync(opts.dir).isDirectory()) throw new Error('no folder to download into');
@@ -566,6 +679,28 @@ async function downloadInstaller(opts) {
         const got = await fetchToFile(opts.url, part, { max: cap, exact: opts.size, onProgress: opts.onProgress, ok: u => updateUrlOk(u, hosts) });
         if (typeof opts.onVerify === 'function') { try { opts.onVerify(); } catch (_) {} }
         if (got.size !== opts.size || got.sha256 !== want) throw new Error(NOT_LISTED);
+        if (!verifyUpdate(pubKey, INSTALLER_NAME, got.sha256, version, sigText)) throw new Error(UNSIGNED);
+        fs.renameSync(part, file);
+        return { file: file, sha256: got.sha256, version: version };
+    } catch (e) {
+        try { fs.unlinkSync(part); } catch (_) {}
+        try { fs.unlinkSync(file); } catch (_) {}
+        throw e;
+    }
+}
+// The installer of a GitHub release (1.6.3's checks): opts as downloadInstaller takes them, with sigUrl, repo and apiUrl.
+async function downloadGithubInstaller(opts, pubKey) {
+    const version = plainVersion(opts.version);
+    if (!version || !opts.url || !opts.sigUrl) throw new Error(UNSIGNED);
+    if (typeof opts.dir !== 'string' || !path.isAbsolute(opts.dir) || !fs.statSync(opts.dir).isDirectory()) throw new Error('no folder to download into');
+    const file = path.join(opts.dir, 'Waypoint_Setup-' + version + '.exe'), part = file + '.part';
+    const h = githubHosts(opts), ok = u => githubUrlOk(u, h);
+    // the signature first: a release without one that could be a signature costs no download
+    const sigText = (await fetchBuffer(opts.sigUrl, null, null, SMALL, ok)).toString('utf8').trim();
+    if (!SIG_OK.test(sigText)) throw new Error(UNSIGNED);
+    try {
+        const got = await fetchToFile(opts.url, part, { max: opts.maxBytes, onProgress: opts.onProgress, ok: ok });
+        if (typeof opts.onVerify === 'function') { try { opts.onVerify(); } catch (_) {} }
         if (!verifyUpdate(pubKey, INSTALLER_NAME, got.sha256, version, sigText)) throw new Error(UNSIGNED);
         fs.renameSync(part, file);
         return { file: file, sha256: got.sha256, version: version };
@@ -646,8 +781,16 @@ function installFailed(cfg) {
 /* The paths the handler below answers: both servers send exactly these to it. */
 const UPDATE_ROUTES = ['/api/update-check', '/api/update-apply', '/api/update-rollback', '/api/update-installer', '/api/update-installer-status', '/api/update-installer-run', '/api/update-installer-dismiss'];
 
+/* The page a failed check names for the walk-through: the latest GitHub release of the repository while the source is
+   'github', else the website's own front page. Either is a page the walk-through may open for that source (main.js). */
+function failPage(cfg) {
+    return sourceOf(cfg) === 'github' ? 'https://github.com/' + githubHosts(cfg).repo + '/releases/latest' : updateHosts(cfg).site + '/';
+}
+
 /* Wire the endpoints onto any (req, res, url) dispatcher.
-   cfg: { site, currentVersion, shellVersion, systemDir, apiUrl and filesUrl (the dev server's dry run only), and for an update that changes the core:
+   cfg: { site and repo (main.js's constants: the website, and the GitHub repository read while UPDATE_SOURCE is 'github'),
+          currentVersion, shellVersion, systemDir, apiUrl and filesUrl (the dev server's dry run only), source (the suite and
+          the dev server's dry run only: see sourceOf), and for an update that changes the core:
           selfInstall (true only where this copy can run the installer over itself), appRoot (the folder that holds
           Waypoint.exe and system/), dataDir (the shell's own data folder), quit (closes the app) }.
    Nothing a request carries chooses what is applied, which key vouches for it, what is downloaded, where to, or what is
@@ -672,7 +815,7 @@ function makeHandler(cfg) {
                 res.end(JSON.stringify(Object.assign({}, cache, prevInfo(cfg.systemDir, cfg.shellVersion), { installFailed: installFailed(cfg) })));
             } catch (e) {
                 res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-                res.end(JSON.stringify(Object.assign({ current: cfg.currentVersion, error: String(e.message || e), page: updateHosts(cfg).site + '/' }, prevInfo(cfg.systemDir, cfg.shellVersion), { installFailed: installFailed(cfg) })));   // the way back needs no network; the site's own page stands in for the walk-through (the page names no address of its own)
+                res.end(JSON.stringify(Object.assign({ current: cfg.currentVersion, error: String(e.message || e), page: failPage(cfg) }, prevInfo(cfg.systemDir, cfg.shellVersion), { installFailed: installFailed(cfg) })));   // the way back needs no network; the source's own page stands in for the walk-through (the page names no address of its own)
             }
             return true;
         }
@@ -680,7 +823,7 @@ function makeHandler(cfg) {
             try {
                 const info = await checkForUpdate(cfg);
                 if (!info.canHotUpdate) throw new Error(info.needsInstaller ? 'this update needs the installer' : 'already up to date');
-                const r = await applyAppUpdate({ systemDir: cfg.systemDir, appZip: info.appZip, appZipName: info.appZipName, sha256: info.sha256, sig: info.sig, version: info.latest, pubKey: cfg.pubKey, shellVersion: cfg.shellVersion, site: cfg.site, apiUrl: cfg.apiUrl, filesUrl: cfg.filesUrl });
+                const r = await applyAppUpdate({ systemDir: cfg.systemDir, appZip: info.appZip, appZipName: info.appZipName, sha256: info.sha256, sig: info.sig, version: info.latest, pubKey: cfg.pubKey, shellVersion: cfg.shellVersion, site: cfg.site, apiUrl: cfg.apiUrl, filesUrl: cfg.filesUrl, source: cfg.source, repo: cfg.repo });
                 cache = null;
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(r));
@@ -721,7 +864,7 @@ function makeHandler(cfg) {
                     const base = cfg.tmpDir || os.tmpdir();
                     sweepInstallerDirs(base, Date.now());
                     job.dir = fs.mkdtempSync(path.join(base, TMP_PREFIX));
-                    const r = await downloadInstaller({ url: info.installer, sig: info.installerSig, sha256: info.installerSha256, size: info.installerSize, version: info.latest, pubKey: cfg.pubKey, dir: job.dir, maxBytes: cfg.maxInstallerBytes, site: cfg.site, apiUrl: cfg.apiUrl, filesUrl: cfg.filesUrl,
+                    const r = await downloadInstaller({ url: info.installer, sig: info.installerSig, sigUrl: info.installerSig, source: cfg.source, repo: cfg.repo, sha256: info.installerSha256, size: info.installerSize, version: info.latest, pubKey: cfg.pubKey, dir: job.dir, maxBytes: cfg.maxInstallerBytes, site: cfg.site, apiUrl: cfg.apiUrl, filesUrl: cfg.filesUrl,
                         onProgress: (got, total) => { job.got = got; if (total !== null) job.total = total; }, onVerify: () => { job.state = 'verifying'; } });
                     job.file = r.file; job.sha256 = r.sha256; job.state = 'ready';
                 } catch (e) {
@@ -762,4 +905,4 @@ function makeHandler(cfg) {
 
 module.exports = { cmpVersion, checkForUpdate, applyAppUpdate, rollbackAppUpdate, prevInfo, signedText, verifyUpdate, readZip, makeHandler, fetchBuffer, PRIVATE_FILES, PRIVATE_BYTES,
     fetchToFile, downloadInstaller, runInstaller, sweepInstallerDirs, installFailed, UPDATE_ROUTES, INSTALLER_NAME, INSTALLER_ARGS,
-    UPDATE_SITE, MANIFEST_PREFIX, NOTES_MAX, LIST_UNSIGNED, LIST_BAD, NOT_OURS, NOT_LISTED, INSTALLER_CAP, updateHosts, updateUrlOk, sitePage, verifyManifest, readEnvelope, cleanManifest };
+    UPDATE_SITE, UPDATE_SOURCE, UPDATE_REPO, GITHUB_HOSTS, sourceOf, githubHosts, githubUrlOk, MANIFEST_PREFIX, NOTES_MAX, LIST_UNSIGNED, LIST_BAD, NOT_OURS, NOT_LISTED, INSTALLER_CAP, updateHosts, updateUrlOk, sitePage, verifyManifest, readEnvelope, cleanManifest };

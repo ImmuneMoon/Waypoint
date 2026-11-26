@@ -17,10 +17,11 @@ const port = parseInt(process.argv[3], 10) || 3999;
 if (!fs.existsSync(savesDir)) fs.mkdirSync(savesDir, { recursive: true });
 const dataFile = path.join(savesDir, 'data.json');
 
-// Self-update endpoints, same module the shell uses, reading the same website (main.js's UPDATE_SITE). For a dry run against a
-// mock of the site on this machine set
-//   WAYPOINT_UPDATE_API=http://127.0.0.1:<port>/api/updates/latest   (the signed list, as the site answers it)
-//   WAYPOINT_UPDATE_FILES=http://127.0.0.1:<port>/                     (where its files are, under /waypoint/<version>/)
+// Self-update endpoints, same module the shell uses, reading the same place (updater.js UPDATE_SOURCE: GitHub, main.js's
+// UPDATE_REPO, as 1.6.4 ships; or the website, main.js's UPDATE_SITE). For a dry run against a mock on this machine set
+//   WAYPOINT_UPDATE_SOURCE=github or site                              (which of the two the mock stands for; the shell's own where unset)
+//   WAYPOINT_UPDATE_API=http://127.0.0.1:<port>/...                     (a GitHub-shaped release JSON, or the site's signed list)
+//   WAYPOINT_UPDATE_FILES=http://127.0.0.1:<port>/                     (the site only: where its files are, under /waypoint/<version>/)
 //   WAYPOINT_SYSTEM_DIR=<a scratch copy of system/>                     (never the repo's own)
 // Without a scratch folder named — or with the source tree's own system folder named, under any spelling — the dev server
 // changes nothing: Update and Restore answer 409 and the tree it runs from stays as it is (the check itself still answers).
@@ -34,13 +35,15 @@ const reqguard = require('../system/resources/app/reqguard');   // the shell's o
 const shellguard = require('../system/resources/app/shellguard');   // the shell's own rules: which folder an update may change, the loopback listen
 const shellPkg = require('../system/resources/app/package.json');
 const UPDATE_SITE = (fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8').match(/const UPDATE_SITE = '([^']+)'/) || [])[1] || updater.UPDATE_SITE;
+const UPDATE_REPO = (fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8').match(/const UPDATE_REPO = '([^']+)'/) || [])[1] || updater.UPDATE_REPO;
 const ownSystem = path.join(__dirname, '..', 'system');
 const scratchSystem = shellguard.scratchSystemDir(ownSystem, process.env.WAYPOINT_SYSTEM_DIR);   // null: no folder this server may change
 const updateHandler = updater.makeHandler({
-    site: UPDATE_SITE, currentVersion: shellPkg.version, shellVersion: shellPkg.version,
+    site: UPDATE_SITE, repo: UPDATE_REPO, currentVersion: shellPkg.version, shellVersion: shellPkg.version,
     systemDir: scratchSystem || ownSystem,
     apiUrl: process.env.WAYPOINT_UPDATE_API || undefined,
     filesUrl: process.env.WAYPOINT_UPDATE_FILES || undefined,
+    source: process.env.WAYPOINT_UPDATE_SOURCE || undefined,
 });
 const accountHandler = account.makeHandler({ savesDir, base: account.siteBase(process.env), version: shellPkg.version, readBody: reqguard.readBody, bodyCap: reqguard.BODY.small, log: (s) => console.log('[account] ' + s) });
 const cloudHandler = cloudsync.makeHandler({ savesDir, base: account.siteBase(process.env), readBody: reqguard.readBody, bodyCap: reqguard.BODY.small, log: (s) => console.log('[cloud] ' + s) });   // 1.6.2: cloud saves, as the shell

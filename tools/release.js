@@ -480,7 +480,9 @@ if (RUNTIME_NOTE) console.warn(RUNTIME_NOTE);   // said last, where it is read: 
 }
 
 if (!PUBLISH) {
-    if (!NOTES_ONLY) console.log('\nTo publish: run again with --publish (the R2 bucket, its token and WAYPOINT_DISPATCH_TOKEN set), and with --github too\nwhile installs of 1.6.3 and older still read GitHub (GITHUB_TOKEN set); then node tools/sitepub.js --check.');
+    // 1.6.4 ships reading its updates from GitHub (updater.js UPDATE_SOURCE 'github'; Fulllion, 2026-11-25), so until that is
+    // switched to 'site' a release is a GitHub Release of the six files above, which this plain build writes.
+    if (!NOTES_ONLY) console.log('\nTo publish while installs read GitHub (updater.js UPDATE_SOURCE is \'github\'): make a GitHub Release tagged ' + VERSION + '\nwith the six files above (' + ASSETS.join(', ') + ').\nOnce installs read the website: run again with --publish (the R2 bucket, its token and WAYPOINT_DISPATCH_TOKEN set), with --github too,\nthen node tools/sitepub.js --check.');
     process.exit(0);
 }
 

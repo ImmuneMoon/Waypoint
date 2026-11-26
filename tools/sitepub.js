@@ -520,7 +520,7 @@ function dispatch(token, repo, origin) {
    ok only where the site names this version as its newest, signed, with nothing newer, and an older install is offered both
    files. Nothing is downloaded but the list. */
 async function checkSite(o) {
-    const lines = [], base = { site: o.site, apiUrl: o.apiUrl, pubKey: o.pubKey };
+    const lines = [], base = { site: o.site, apiUrl: o.apiUrl, pubKey: o.pubKey, source: 'site' };   // the site, whatever the shell reads today (updater.js UPDATE_SOURCE)
     let same = null, older = null;
     try { same = await updater.checkForUpdate(Object.assign({ currentVersion: o.version, shellVersion: o.version }, base)); }
     catch (e) { return { ok: false, lines: ['The site\'s list could not be taken: ' + (e && e.message || e) + '.'] }; }

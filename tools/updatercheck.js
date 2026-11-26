@@ -39,13 +39,16 @@ const realUpdater = require('../system/resources/app/updater.js');
 /* The updater as the suite calls it: the real module, with every call that fetches pointed at the mock's download host (filesUrl,
    the test-only override) unless a test names another. The list's own address is each release's apiUrl, as publish() answers it.
    makeHandler takes its cfg as the servers hand it (the suite changes cfg.apiUrl as it goes), so filesUrl is set on that very object. */
+/* 1.6.4 (Fulllion, 2026-11-25): the shell ships reading GitHub (updater.js UPDATE_SOURCE 'github'), so the site's checks name
+   the site as their source here (source: 'site', the module's test-only per-call parameter) unless a test names another; the
+   GitHub path is checked on its own further down (part G), with a mock of GitHub's API and its assets on loopback. */
 let FILES = null;
-const withFiles = o => (o && typeof o === 'object' && !('filesUrl' in o)) ? Object.assign({}, o, { filesUrl: FILES }) : o;
+const withFiles = o => (o && typeof o === 'object') ? Object.assign({}, o, 'filesUrl' in o ? {} : { filesUrl: FILES }, 'source' in o ? {} : { source: 'site' }) : o;
 const updater = Object.assign({}, realUpdater, {
     checkForUpdate: o => realUpdater.checkForUpdate(withFiles(o)),
     applyAppUpdate: o => realUpdater.applyAppUpdate(withFiles(o)),
     downloadInstaller: o => realUpdater.downloadInstaller(withFiles(o)),
-    makeHandler: cfg => { if (cfg && !('filesUrl' in cfg)) cfg.filesUrl = FILES; return realUpdater.makeHandler(cfg); },
+    makeHandler: cfg => { if (cfg && !('filesUrl' in cfg)) cfg.filesUrl = FILES; if (cfg && !('source' in cfg)) cfg.source = 'site'; return realUpdater.makeHandler(cfg); },
 });
 let signkey = null; try { signkey = require('./signkey.js'); } catch (e) { signkey = null; }
 let shellrev = null; try { shellrev = require('./shellrev.js'); } catch (e) { shellrev = null; }
@@ -450,9 +453,148 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 && yesU.every(u => updater.updateUrlOk(u, H) === true) && noU.every(u => updater.updateUrlOk(u, H) === false) && hostsBad.api === null && hostsBad.files === null && yesU.concat([API + '/api/updates/x', FILES + '/waypoint/x']).every(u => updater.updateUrlOk(u, hostsBad) === false),
                 j([H, yesU.filter(u => !updater.updateUrlOk(u, H)), noU.filter(u => updater.updateUrlOk(u, H))]));
             const mainS = read('system/resources/app/main.js'), devS = read('tools/dev-server.js'), upS = read('system/resources/app/updater.js');
-            check('main.js names the site once (UPDATE_SITE, the same as the updater\'s own) and hands it to the updater as site; it names no list or files address of its own (apiUrl, filesUrl are for the suite and the dev server\'s dry run alone, from the environment there); nothing in the shell reads GitHub any more',
-                mainS.split("const UPDATE_SITE = 'https://waypointvtt.com';").length === 2 && /const updateCfg = \{\s*site: UPDATE_SITE,/.test(mainS) && !/apiUrl|filesUrl|UPDATE_REPO/.test(mainS)
-                && /apiUrl: process\.env\.WAYPOINT_UPDATE_API \|\| undefined,\s*filesUrl: process\.env\.WAYPOINT_UPDATE_FILES \|\| undefined,/.test(devS) && /site: UPDATE_SITE,/.test(devS) && !/api\.github\.com|browser_download_url|tag_name/.test(upS), j([mainS.split('UPDATE_SITE').length]));
+            /* 1.6.4 (Fulllion, 2026-11-25), moved on purpose: the shell reads GitHub again while updater.js UPDATE_SOURCE is 'github', so main.js names the
+               repository beside the site and hands both, and the source is one constant of the updater that nothing else sets */
+            check('main.js names the site once (UPDATE_SITE, the same as the updater\'s own) and the GitHub repository once (UPDATE_REPO, the same as the updater\'s own), and hands both to the updater as site and repo; it names no list or files address and no source of its own (apiUrl, filesUrl and source are for the suite and the dev server\'s dry run alone, from the environment there); updater.js names the source once, as \'github\' (1.6.4 ships reading GitHub until the website is live)',
+                mainS.split("const UPDATE_SITE = 'https://waypointvtt.com';").length === 2 && mainS.split("const UPDATE_REPO = 'ImmuneMoon/Waypoint';").length === 2 && /const updateCfg = \{\s*site: UPDATE_SITE,\s*repo: UPDATE_REPO,/.test(mainS) && !/apiUrl|filesUrl|source:/.test(mainS)
+                && /apiUrl: process\.env\.WAYPOINT_UPDATE_API \|\| undefined,\s*filesUrl: process\.env\.WAYPOINT_UPDATE_FILES \|\| undefined,\s*source: process\.env\.WAYPOINT_UPDATE_SOURCE \|\| undefined,/.test(devS) && /site: UPDATE_SITE, repo: UPDATE_REPO,/.test(devS)
+                && upS.split("const UPDATE_SOURCE = 'github';").length === 2 && updater.UPDATE_SOURCE === 'github' && updater.UPDATE_REPO === 'ImmuneMoon/Waypoint' && updater.sourceOf({}) === 'github' && updater.sourceOf({ source: 'site' }) === 'site' && updater.sourceOf({ source: 'other' }) === 'github',
+                j([mainS.split('UPDATE_SITE').length, mainS.split('UPDATE_REPO').length]));
+        }
+
+        /* ================= G. GitHub releases, the source 1.6.4 ships with =================
+           Fulllion, 2026-11-25: publish 1.6.4 "like we have been until i can get the certificate ... based off github releases". The website's
+           list and its download host are not live yet, so updater.js UPDATE_SOURCE is 'github': the shell reads the latest GitHub release of
+           UPDATE_REPO exactly as 1.6.3 did. Here the real module is called with NO source, so the constant decides, against a mock of GitHub's
+           API and its assets on loopback (apiUrl, the test-only override, names the mock: its origin is then the one other place allowed).
+           A third server (OTHER, above) stands for any host that is not GitHub's: whatever reaches it is counted, and nothing should. */
+        {
+            const ghRels = {};
+            const ghSrv = http.createServer((req, res) => {
+                const m = /^\/(g\d+)\/(.+)$/.exec(new URL(req.url, 'http://localhost').pathname), rel = m && ghRels[m[1]];
+                res.on('error', () => {});
+                if (!rel) { res.writeHead(404); return res.end(); }
+                if (m[2] === 'latest') { if (typeof rel.json === 'function') return rel.json(req, res); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(rel.json)); }
+                const name = decodeURIComponent(m[2]), f = rel.files[name];
+                rel.hits[name] = (rel.hits[name] || 0) + 1;
+                if (typeof f === 'function') return f(req, res);
+                if (f === undefined) { res.writeHead(404); return res.end(); }
+                res.writeHead(200, { 'Content-Length': Buffer.byteLength(f) }); res.end(f);
+            });
+            ghSrv.keepAliveTimeout = 600000; ghSrv.on('clientError', (e, sock) => { try { sock.destroy(); } catch (_) {} });
+            await new Promise(r => ghSrv.listen(0, '127.0.0.1', r)); ghSrv.unref();
+            const GHM = 'http://127.0.0.1:' + ghSrv.address().port, GREPO = 'ImmuneMoon/Waypoint';
+            /* a GitHub release as 1.6.3's build published it and tools/release.js still writes it (the six assets). spec: tag, zip, zipName,
+               shaText / noSha, sigText / noSig, served (the bytes the zip's address really gives), key, manifest (manifest.json's content; none
+               where not given), setup ({ bytes, served, noSig, sigText, key }), urls ({ <name>: the address the API names for it }), json (the
+               API's whole answer, or a function of (req, res)). Answers the release's address. */
+            function ghPublish(spec) {
+                const id = 'g' + (++seq), tag = spec.tag, zipName = spec.zipName || ('waypoint-app-' + tag + '.zip'), z = spec.zip || appZip(tag), digest = sha256(z);
+                const files = {};
+                files[zipName] = spec.served || z;
+                if (!spec.noSha) files[zipName + '.sha256'] = spec.shaText !== undefined ? spec.shaText : digest + '  ' + zipName + NL;
+                if (!spec.noSig) files[zipName + '.sig'] = spec.sigText !== undefined ? spec.sigText : sign(zipName, digest, tag, spec.key) + NL;
+                if (spec.manifest) files['manifest.json'] = JSON.stringify(spec.manifest);
+                if (spec.setup) {
+                    const s = spec.setup, bytes = s.bytes || SETUP;
+                    files[SETUP_NAME] = s.served || bytes;
+                    if (!s.noSig) files[SETUP_NAME + '.sig'] = s.sigText !== undefined ? s.sigText : sign(SETUP_NAME, sha256(bytes), tag, s.key || spec.key) + NL;
+                }
+                const at = n => (spec.urls && spec.urls[n] !== undefined) ? spec.urls[n] : GHM + '/' + id + '/' + encodeURIComponent(n);
+                ghRels[id] = { files, hits: {}, json: spec.json !== undefined ? spec.json : { tag_name: tag, body: 'notes', html_url: 'https://github.com/' + GREPO + '/releases/tag/' + tag,
+                    assets: Object.keys(files).map(n => ({ name: n, size: typeof files[n] === 'function' ? 0 : Buffer.byteLength(files[n]), browser_download_url: at(n) })) } };
+                return GHM + '/' + id + '/latest';
+            }
+            const ghHits = (api, name) => { const m = /\/(g\d+)\/latest$/.exec(api); return (m && ghRels[m[1]] && ghRels[m[1]].hits[name]) || 0; };
+            // the real module, no source named: the shell's own constant decides
+            const ghLook = spec => within(realUpdater.checkForUpdate(Object.assign({ repo: GREPO, currentVersion: spec.from || '1.5.0', shellVersion: spec.shell || '1.5.0', apiUrl: spec.api || ghPublish(spec), pubKey: 'checkKey' in spec ? spec.checkKey : PUB }, 'self' in spec ? { selfInstall: spec.self } : {})), 60000, 'github check');
+            async function ghAttempt(spec) {
+                const inst = install(spec.from || '1.5.0'), before = tree(inst.root), api = ghPublish(spec);
+                let info = null, res = null, err = null;
+                try {
+                    info = await ghLook(Object.assign({}, spec, { api }));
+                    res = await within(realUpdater.applyAppUpdate({ systemDir: inst.sys, appZip: info.appZip, appZipName: info.appZipName, sha256: info.sha256, sig: info.sig, version: info.latest, pubKey: 'checkKey' in spec ? spec.checkKey : PUB, shellVersion: spec.shellOpt || '1.5.0', repo: GREPO, apiUrl: api }), 120000, 'github apply');
+                } catch (e) { err = String(e && e.message || e); }
+                return { inst, info, res, err, same: tree(inst.root) === before, api };
+            }
+            check('1.6.4 ships reading GitHub (Fulllion, 2026-11-25): updater.js UPDATE_SOURCE is \'github\', a call that names no source reads the latest release of ImmuneMoon/Waypoint at https://api.github.com/repos/ImmuneMoon/Waypoint/releases/latest, and only \'site\' picks the website',
+                realUpdater.UPDATE_SOURCE === 'github' && realUpdater.sourceOf({}) === 'github' && realUpdater.sourceOf({ source: 'site' }) === 'site' && realUpdater.sourceOf({ source: 'Site' }) === 'github'
+                && realUpdater.githubHosts({}).apiUrl === 'https://api.github.com/repos/ImmuneMoon/Waypoint/releases/latest' && realUpdater.githubHosts({ repo: 'a/b' }).apiUrl === 'https://api.github.com/repos/a/b/releases/latest' && realUpdater.githubHosts({ repo: '../x' }).repo === GREPO,
+                j([realUpdater.UPDATE_SOURCE, realUpdater.githubHosts({})]));
+
+            const gGood = await ghAttempt({ tag: '1.5.1' });
+            check('GitHub: a signed, well-formed release is applied as 1.6.3 applied it: the app the new version, the old one kept as app.prev, the saves as they were; the check names the .sha256 and .sig by their addresses (fetched by the apply), the zip by its own name, the release page GitHub gives, and a one-click update',
+                !gGood.err && gGood.res && gGood.res.ok === true && verOf(gGood.inst.app) === '1.5.1' && verOf(path.join(gGood.inst.sys, 'app.prev')) === '1.5.0' && j(fs.readdirSync(gGood.inst.sys).sort()) === j(['app', 'app.prev'])
+                && fs.readFileSync(path.join(gGood.inst.root, 'saves', 'data.json'), 'utf8') === '{"campaigns":{"c_1":{"name":"kept"}}}'
+                && !!gGood.info && /\/waypoint-app-1\.5\.1\.zip\.sha256$/.test(String(gGood.info.sha256)) && /\/waypoint-app-1\.5\.1\.zip\.sig$/.test(String(gGood.info.sig)) && gGood.info.appZipName === 'waypoint-app-1.5.1.zip'
+                && gGood.info.canHotUpdate === true && gGood.info.needsInstaller === false && gGood.info.page === 'https://github.com/ImmuneMoon/Waypoint/releases/tag/1.5.1' && gGood.info.notes === 'notes'
+                && ghHits(gGood.api, 'waypoint-app-1.5.1.zip.sha256') === 1 && ghHits(gGood.api, 'waypoint-app-1.5.1.zip.sig') === 1, why(gGood));
+
+            const gNoSig = await ghAttempt({ tag: '1.5.1', noSig: true }), gKey = await ghAttempt({ tag: '1.5.1', key: K2.privateKey });
+            const gz151 = appZip('1.5.1'), gs151 = sign('waypoint-app-1.5.1.zip', sha256(gz151), '1.5.1') + NL;
+            const gRelA = await ghAttempt({ tag: '1.5.2', zip: gz151, zipName: 'waypoint-app-1.5.1.zip' }), gRelB = await ghAttempt({ tag: '1.5.2', zip: gz151, sigText: gs151 });
+            const gChanged = appZip('1.5.1', [{ name: 'scripts/extra.js', data: 'alert(1)' }]);
+            const gAlt = await ghAttempt({ tag: '1.5.1', zip: gz151, served: gChanged }), gAlt2 = await ghAttempt({ tag: '1.5.1', zip: gz151, served: gChanged, shaText: sha256(gChanged) + '  waypoint-app-1.5.1.zip' + NL });
+            const gInside = await ghAttempt({ tag: '1.5.1', zip: appZip('1.5.1', null, { says: '99.0.0' }) });
+            check('GitHub: an unsigned release, one signed by another key, a signed older zip relabelled as a newer release (under its own name, or with its old signature), a zip whose bytes changed after it was signed (against the signed checksum, and with the checksum rewritten to match), and a signed zip that is not the release\'s version are each refused with 1.6.3\'s words, the install byte for byte as it was',
+                [gNoSig, gKey, gRelA, gRelB, gAlt2].every(r => refused(r, REFUSED)) && refused(gAlt, /^checksum mismatch, update aborted$/) && refused(gInside, /not version 1\.5\.1/), why([gNoSig, gKey, gRelA, gRelB, gAlt, gAlt2, gInside]));
+
+            const gNoKey = await ghAttempt({ tag: '1.5.1', checkKey: '' });
+            const gShell = await ghLook({ tag: '1.5.1', manifest: { version: '1.5.1', minShell: '1.5.1' }, setup: {}, self: true }), gShellNoSig = await ghLook({ tag: '1.5.1', manifest: { version: '1.5.1', minShell: '1.5.1' }, setup: { noSig: true }, self: true });
+            const gShellOk = await ghLook({ tag: '1.5.1', manifest: { version: '1.5.1', minShell: '1.1.2' }, setup: {}, self: true }), gShellNoKey = await ghLook({ tag: '1.5.1', manifest: { minShell: '1.5.1' }, setup: {}, self: true, checkKey: '' });
+            const gSame = await ghLook({ tag: '1.5.0' });
+            check('GitHub: manifest.json\'s minShell routes to the installer as in 1.6.3: a release that needs a newer core offers no one-click update but the installer, which this copy runs by itself only where the release carries the installer\'s signature, a key is configured and the shell says it can; a core new enough is offered the one-click update; the version this copy runs is no update; with no key the check still answers and the apply refuses',
+                gShell.canHotUpdate === false && gShell.needsInstaller === true && gShell.canSelfInstall === true && gShell.minShell === '1.5.1' && /\/Waypoint_Setup\.exe$/.test(String(gShell.installer)) && /\/Waypoint_Setup\.exe\.sig$/.test(String(gShell.installerSig)) && gShell.installerSize === SETUP.length
+                && gShellNoSig.needsInstaller === true && gShellNoSig.canSelfInstall === false && gShellOk.canHotUpdate === true && gShellOk.needsInstaller === false && gShellNoKey.canSelfInstall === false
+                && gSame.newer === false && gSame.canHotUpdate === false && !!gNoKey.err && refused(gNoKey, REFUSED), j([gShell, gShellNoSig.canSelfInstall, gShellOk.canHotUpdate, gShellNoKey.canSelfInstall, gSame.newer, gNoKey.err]));
+
+            // GitHub's own hosts and nowhere else: an asset named on another host, a redirect off the mock, the API itself redirected
+            const o0 = otherHits.length;
+            const gOffZip = await ghAttempt({ tag: '1.5.1', urls: { 'waypoint-app-1.5.1.zip': OTHER + '/waypoint-app-1.5.1.zip' } });
+            const gOffSha = await ghAttempt({ tag: '1.5.1', urls: { 'waypoint-app-1.5.1.zip.sha256': OTHER + '/x.sha256' } });
+            const gHop = await ghAttempt({ tag: '1.5.1', served: (req, res) => { res.writeHead(302, { Location: OTHER + '/waypoint-app-1.5.1.zip' }); res.end(); } });
+            const gHopApi = ghPublish({ tag: '1.5.1', json: (req, res) => { res.writeHead(302, { Location: OTHER + '/latest' }); res.end(); } });
+            let gHopApiErr = null; try { await ghLook({ api: gHopApi }); } catch (e) { gHopApiErr = String(e && e.message || e); }
+            const gHopIn = await ghAttempt({ tag: '1.5.1', served: (req, res) => { res.writeHead(302, { Location: GHM + '/' + /\/(g\d+)\/latest$/.exec(gGood.api)[1] + '/waypoint-app-1.5.1.zip' }); res.end(); } });
+            check('GitHub: nothing is fetched from a host that is not GitHub\'s own: a zip or a checksum the release names on another host is refused (NOT_OURS) before a byte is asked for, a redirect from GitHub to another host is refused, and so is the release\'s own address redirected elsewhere; each leaves the install as it was, and the other host is never reached; a redirect that stays on GitHub is followed',
+                refused(gOffZip, NOT_OURS) && refused(gOffSha, NOT_OURS) && refused(gHop, NOT_OURS) && NOT_OURS.test(String(gHopApiErr)) && otherHits.length === o0 && !gHopIn.err && gHopIn.res && gHopIn.res.ok === true,
+                j([gOffZip.err, gOffSha.err, gHop.err, gHopApiErr, otherHits.slice(o0), gHopIn.err]));
+            const ghOk = ['https://api.github.com/repos/ImmuneMoon/Waypoint/releases/latest', 'https://github.com/ImmuneMoon/Waypoint/releases/download/1.6.4/waypoint-app-1.6.4.zip',
+                'https://objects.githubusercontent.com/github-production-release-asset/1/x?X-Amz-Signature=a', 'https://release-assets.githubusercontent.com/github-production-release-asset/1/x?sp=r&sig=b'];
+            const ghNo = ['http://github.com/ImmuneMoon/Waypoint/releases/latest', 'https://github.com:444/ImmuneMoon/Waypoint/releases/latest', 'https://u:p@github.com/ImmuneMoon/Waypoint/releases/latest', 'https://user@api.github.com/repos/x',
+                'https://github.com.evil.example/x', 'https://evil.github.com/x', 'https://raw.githubusercontent.com/ImmuneMoon/Waypoint/main/x', 'https://waypointvtt.com/api/updates/latest', 'https://downloads.waypointvtt.com/waypoint/1.6.4/Waypoint_Setup.exe',
+                GHM + '/g1/latest', OTHER + '/x', 'file:///C:/x', 'not a url', 42, null];
+            const hDef = realUpdater.githubHosts({}), hMock = realUpdater.githubHosts({ apiUrl: GHM + '/g1/latest' });
+            check('GitHub\'s hosts, judged by githubUrlOk: api.github.com, github.com and the two hosts GitHub sends a download on to, over https with no port, user name or password (a signed download link\'s query kept); not http, another or look-alike host, another of GitHub\'s hosts, the website, a file or junk; the suite\'s mock only where its address was named, and then nothing else on loopback',
+                ghOk.every(u => realUpdater.githubUrlOk(u, hDef) === true) && ghNo.every(u => realUpdater.githubUrlOk(u, hDef) === false) && ghOk.every(u => realUpdater.githubUrlOk(u, hMock) === true)
+                && realUpdater.githubUrlOk(GHM + '/g9/waypoint-app-1.zip', hMock) === true && realUpdater.githubUrlOk(OTHER + '/x', hMock) === false && realUpdater.GITHUB_HOSTS.length === 4,
+                j([ghOk.filter(u => !realUpdater.githubUrlOk(u, hDef)), ghNo.filter(u => realUpdater.githubUrlOk(u, hDef))]));
+
+            // the installer of a GitHub release: 1.6.3's checks (the signature first, then the digest of what arrived)
+            const gDl = async (setup, more) => {
+                const api = ghPublish({ tag: '1.5.1', manifest: { minShell: '1.5.1' }, setup: setup || {} }), info = await ghLook({ api, self: true }), dir = fs.mkdtempSync(path.join(tmp, 'ghdl-'));
+                let r = null, err = null;
+                try { r = await within(realUpdater.downloadInstaller(Object.assign({ url: info.installer, sigUrl: info.installerSig, version: info.latest, pubKey: PUB, dir, repo: GREPO, apiUrl: api }, more || {})), 60000, 'github download'); } catch (e) { err = String(e && e.message || e); }
+                return { r, err, left: fs.readdirSync(dir) };
+            };
+            const dOk = await gDl(), dKey = await gDl({ key: K2.privateKey }), dAlt = await gDl({ served: Buffer.concat([SETUP, Buffer.from('x')]) }), dNoSig = await gDl(null, { sigUrl: null }), dOff = await gDl(null, { sigUrl: OTHER + '/Waypoint_Setup.exe.sig' });
+            const dHop = await gDl({ served: (req, res) => { res.writeHead(302, { Location: OTHER + '/Waypoint_Setup.exe' }); res.end(); } });
+            check('GitHub: the installer is downloaded and checked as 1.6.3 checked it: a signed one lands whole under its own name; one signed by another key, one whose bytes changed, one with no signature, a signature on another host and an installer redirected off GitHub are each refused, nothing left in the folder',
+                !dOk.err && !!dOk.r && fs.readFileSync(dOk.r.file).equals(SETUP) && dOk.r.sha256 === sha256(SETUP) && j(dOk.left) === j(['Waypoint_Setup-1.5.1.exe'])
+                && [dKey, dAlt, dNoSig].every(d => REFUSED.test(String(d.err)) && !d.r && d.left.length === 0) && [dOff, dHop].every(d => NOT_OURS.test(String(d.err)) && !d.r && d.left.length === 0),
+                j([dOk.err, dKey.err, dAlt.err, dNoSig.err, dOff.err, dHop.err, dOk.left, dKey.left, dAlt.left]));
+
+            // the shell's own routes with no source named: the check, a failed check's page, and the apply
+            const ri = install('1.5.0'), rApi = ghPublish({ tag: '1.5.1' });
+            const rh = realUpdater.makeHandler({ repo: GREPO, currentVersion: '1.5.0', shellVersion: '1.5.0', systemDir: ri.sys, apiUrl: rApi, pubKey: PUB });
+            const rres = () => { const r = { code: 0, body: '', writeHead(c) { r.code = c; }, end(b) { r.body = String(b || ''); } }; return r; };
+            const rc = rres(); await within(rh({ method: 'GET' }, rc, new URL('/api/update-check', 'http://localhost')), 60000, 'github route check');
+            const ra = rres(); await within(rh({ method: 'POST' }, ra, new URL('/api/update-apply', 'http://localhost')), 60000, 'github route apply');
+            const rf = rres(); await within(realUpdater.makeHandler({ repo: GREPO, currentVersion: '1.5.0', shellVersion: '1.5.0', systemDir: install('1.5.0').sys, apiUrl: GHM + '/g0/latest', pubKey: PUB })({ method: 'GET' }, rf, new URL('/api/update-check', 'http://localhost')), 60000, 'github route fail');
+            let rcj = null, rfj = null; try { rcj = JSON.parse(rc.body); rfj = JSON.parse(rf.body); } catch (e) {}
+            check('GitHub, through the routes both servers mount (no source named): the check answers the release, the apply takes it, and a check that cannot reach the release names the repository\'s latest release page for the walk-through, a page the walk-through may open for this source (shellguard.githubReleaseLink)',
+                rc.code === 200 && !!rcj && rcj.latest === '1.5.1' && rcj.canHotUpdate === true && ra.code === 200 && verOf(ri.app) === '1.5.1'
+                && rf.code === 200 && !!rfj && !!rfj.error && rfj.page === 'https://github.com/ImmuneMoon/Waypoint/releases/latest' && require('../system/resources/app/shellguard.js').githubReleaseLink(rfj.page, GREPO) === rfj.page, j([rc.code, rcj && rcj.latest, ra.code, ra.body, rfj]));
         }
 
         /* ================= B. the way back ================= */
@@ -1070,7 +1212,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const rid = 'r' + (++seq); releases[rid] = { files: { [zipN]: zipBytes, [SETUP_NAME]: setupBytes }, hits: {}, envelope: envText };
                     const realApi = API + '/api/updates/' + rid + '/latest', at = n => FILES + '/waypoint/' + vNow + '/' + rid + '/' + n, DLH = 'https://downloads.waypointvtt.com/waypoint/' + vNow + '/';
                     let env = null, man = null; try { env = JSON.parse(envText); man = JSON.parse(env.manifest); } catch (e) { env = null; }
-                    let info = null, infoErr = null; try { info = await within(realUpdater.checkForUpdate({ currentVersion: '0.0.1', shellVersion: vNow, apiUrl: realApi, pubKey: pub2 }), 60000, 'check'); } catch (e) { infoErr = String(e && e.message || e); }
+                    let info = null, infoErr = null; try { info = await within(realUpdater.checkForUpdate({ currentVersion: '0.0.1', shellVersion: vNow, apiUrl: realApi, pubKey: pub2, source: 'site' }), 60000, 'check'); } catch (e) { infoErr = String(e && e.message || e); }
                     const sp = require(path.join(sr, 'tools', 'sitepub.js'));
                     check('release.js writes the site\'s signed list (dist/<version>/envelope.json): { manifest: <text>, sig } signed over "waypoint-manifest" and the text with the build\'s key, the manifest\'s keys in their order (version, minShell, electron, published, notes, notesUrl, files), the notes the top of WHATSNEW.txt as plain text, the notes page the site\'s What\'s new at the version (https://waypointvtt.com/whats-new#<version>, never null), and the zip and the installer each by its exact name at downloads.<the site>/waypoint/<version>/<name>, with its whole size, lower-case digest and own signature, the very files on disk',
                         !!env && j(Object.keys(env)) === j(['manifest', 'sig']) && updater.verifyManifest(pub2, env.manifest, env.sig) === true && !!man && j(Object.keys(man)) === j(['version', 'minShell', 'electron', 'published', 'notes', 'notesUrl', 'files'])
@@ -1609,7 +1751,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 check('Settings: a failed check says the shell\'s own refusal of the list in full (not signed by Waypoint, could not be read, an address off the update site), never "offline?"; a short network error is said as itself and a long one as "offline?"; the words are one plain line',
                     !!src && own.every((e, n) => ownSaid[n] === 'could not check (' + e + ')') && netSaid[0] === 'could not check (getaddrinfo ENOTFOUND waypointvtt.com)' && netSaid[1] === 'could not check (offline?)' && netSaid[2] === 'could not check (offline?)' && netSaid[3] === 'could not check (b x /b)', j([ownSaid, netSaid]));
                 check('Settings: the installer\'s Continue with no address to open (an older core whose check failed names no page) says in words where the installer comes from, opens nothing and asks the shell nothing, and puts the steps away',
-                    Array.isArray(goToast) && goToast[0].length === 1 && /Waypoint_Setup\.exe from Waypoint's website/.test(goToast[0][0]) && !/https?:/.test(goToast[0][0]) && goToast[1] === 0 && goToast[2] === 'none', j(goToast));
+                    Array.isArray(goToast) && goToast[0].length === 1 && /Waypoint_Setup\.exe from Waypoint's releases page/.test(goToast[0][0]) && !/https?:/.test(goToast[0][0]) && goToast[1] === 0 && goToast[2] === 'none', j(goToast));
             }
 
             /* ---- an update that changes the core, in one click (Part D4) ---- */
@@ -1880,10 +2022,10 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const first = fs.readdirSync(ROOT).filter(f => /^READ ME FIRST/.test(f)).map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join(NL);
             const a = ix.indexOf('<div id="installerModal"'), b = ix.indexOf('<!-- VTT features at a joined table', a), modal = a > 0 && b > a ? ix.slice(a, b) : '';
             const coaching = /Run anyway|More info/i;
-            check('the installer dialog no longer tells anyone to click past the Windows warning: it says (1.6.4, moved on purpose: "Yes, sign 1.6.4") the installer is code-signed by Fulllion Creative Works, LLC and to run only a Waypoint_Setup.exe downloaded through its own button or from Waypoint\'s own website (1.6.4: no longer a releases page); the other steps stand; settings.js, the README and the install instructions say no such thing either',
-                modal.length > 500 && !coaching.test(modal) && /Waypoint's installer is code-signed by Fulllion Creative Works, LLC, the name Windows shows as its publisher\. Only run a <b>Waypoint_Setup\.exe<\/b> you downloaded through this button or from Waypoint's own website; if it came from anywhere else, do not run it\./.test(modal) && !/not code-signed/.test(modal)
+            check('the installer dialog no longer tells anyone to click past the Windows warning: it says (1.6.4, moved back on purpose: Fulllion, 2026-11-25, the installer cannot be code-signed yet) the installer is not code-signed yet and to run only a Waypoint_Setup.exe downloaded through its own button or from Waypoint\'s own releases page; the other steps stand; settings.js, the README and the install instructions say no such thing either, and none of them says the installer is code-signed by anyone',
+                modal.length > 500 && !coaching.test(modal) && /Windows may warn that it does not recognize the publisher: Waypoint's installer is not code-signed yet\. Only run a <b>Waypoint_Setup\.exe<\/b> you downloaded through this button or from Waypoint's own releases page; if it came from anywhere else, do not run it\./.test(modal) && !/code-signed by/.test(modal) && !/code-signed by/.test(ix)
                 && (modal.match(/<li>/g) || []).length === 5 && /close Waypoint<\/b> and run the file/.test(modal) && /Update this copy in place/.test(modal) && !coaching.test(ix) && !coaching.test(st) && !coaching.test(rd) && !coaching.test(first) && first.length > 100
-                && /code-signed by Fulllion Creative Works, LLC/.test(rd) && !/not code-signed yet/.test(rd) && /do not run it/.test(rd) && /code-signed by Fulllion Creative Works, LLC/.test(first) && !/not code-signed yet/.test(first) && /do not run it/.test(first) && /never one from anywhere else/.test(st), j([modal.length, coaching.test(modal), coaching.test(st), coaching.test(rd), coaching.test(first)]));
+                && /not code-signed yet/.test(rd) && !/code-signed by/.test(rd) && /do not run it/.test(rd) && /not code-signed yet/.test(first) && !/code-signed by/.test(first) && /do not run it/.test(first) && /never one from anywhere else/.test(st), j([modal.length, coaching.test(modal), coaching.test(st), coaching.test(rd), coaching.test(first)]));
             const hA = ix.indexOf('id="helpModal"'), hB = ix.indexOf('<!-- An update that needs the installer'), help = hA > 0 && hB > hA ? ix.slice(hA, hB) : '';
             const step = (tu.match(/\{ target: '#settingsBtn', title: 'Settings',\s*html: '([^\n]*)',\n/) || [])[1] || '';
             const g = ix.indexOf('<details class="set-group" data-group="updates">'), gEnd = ix.indexOf('</details>', g), group = g > 0 ? ix.slice(g, gEnd) : '';
@@ -1942,7 +2084,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const freePort = () => new Promise(r => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
             // start the scratch dev server with (or without) WAYPOINT_SYSTEM_DIR, ask it, stop it
             async function devRun(named, asks) {
-                const port = await freePort(), saves = path.join(tmp, 'devsaves' + (++seq)), env = cleanEnv({ WAYPOINT_UPDATE_API: api, WAYPOINT_UPDATE_FILES: FILES });
+                const port = await freePort(), saves = path.join(tmp, 'devsaves' + (++seq)), env = cleanEnv({ WAYPOINT_UPDATE_API: api, WAYPOINT_UPDATE_FILES: FILES, WAYPOINT_UPDATE_SOURCE: 'site' });
                 delete env.WAYPOINT_SYSTEM_DIR; if (named !== undefined) env.WAYPOINT_SYSTEM_DIR = named;
                 const child = cp.spawn(process.execPath, [path.join(tree0, 'tools', 'dev-server.js'), saves, String(port)], { stdio: ['ignore', 'pipe', 'pipe'], env });
                 const up = await new Promise(resolve => { let out = ''; const t = setTimeout(() => resolve(false), 15000); child.stdout.on('data', c => { out += c; if (/Waypoint dev server: http/.test(out)) { clearTimeout(t); resolve(true); } }); child.on('exit', () => { clearTimeout(t); resolve(false); }); });

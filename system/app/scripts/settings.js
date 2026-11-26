@@ -1061,8 +1061,9 @@ function appVersionPromise() {   // the newer of the shell's version and the app
 })();
 
 /* ---------- updates ----------
-   /api/update-check asks the shell to look at the newest release on Waypoint's website (from 1.6.4;
-   a GitHub release until 1.6.3). If the front end alone
+   /api/update-check asks the shell to look at the newest release where updates come from: the newest
+   GitHub Release, as 1.6.4 ships, or Waypoint's website once updater.js UPDATE_SOURCE is 'site'
+   (the page cannot tell the two apart and needs neither named). If the front end alone
    changed, Update now downloads it, the shell swaps system/app in place and we reload. If the
    release needs a newer shell, the button becomes Get installer instead. A quiet check runs a
    few seconds after launch; a newer version raises the header Update button and a notice.
@@ -1421,7 +1422,7 @@ if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info;
     if (close) close.addEventListener('click', hide);
     if (go) go.addEventListener('click', function() {
         // with no address to open (an older core whose check failed names no page), say where the installer comes from in words, never nothing
-        var target = m.dataset.url; if (!target) { hide(); toast("Download the newest Waypoint_Setup.exe from Waypoint's website. Then close Waypoint, run it, and open Waypoint again."); return; }
+        var target = m.dataset.url; if (!target) { hide(); toast("Download the newest Waypoint_Setup.exe from Waypoint's releases page. Then close Waypoint, run it, and open Waypoint again."); return; }
         fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
             .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run the Waypoint_Setup.exe you just downloaded (never one from anywhere else), and open Waypoint again.'); })
             .catch(function() { hide(); toast('Open this in a browser: ' + target); });

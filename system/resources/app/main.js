@@ -6,8 +6,12 @@ const { app, BrowserWindow, shell } = require('electron');
 // it (updater.js reads both, and fetches from no other address). The app checks on launch and from Settings;
 // updates of the front end apply in place, and an update that needs a newer shell is fetched, checked and
 // run by the shell itself where this copy was put there by the installer, with the walk-through in the
-// browser as the fallback. Until 1.6.3 the releases were read from a public GitHub repository.
+// browser as the fallback. Until 1.6.3 the releases were read from a public GitHub repository, and 1.6.4 still reads
+// them there: updater.js UPDATE_SOURCE is 'github' until the website's list and download host are live (Fulllion,
+// 2026-11-25: publish 1.6.4 "like we have been until i can get the certificate ... based off github releases"). The
+// switch is that one constant; this file names both places and follows it.
 const UPDATE_SITE = 'https://waypointvtt.com';   // Waypoint's own website — change here and nowhere else
+const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> read while the source is 'github': change here and nowhere else
 const updater = require('./updater');
 const account = require('./account');
 const cloudsync = require('./cloudsync');   // 1.6.2: cloud saves, the shell's half (the website's API of 2026-11-07)   // 1.6.0: the link between this install and a Waypoint website account (only this server talks to the site)
@@ -101,6 +105,7 @@ function installedCopy() {
 }
 const updateCfg = {
     site: UPDATE_SITE,
+    repo: UPDATE_REPO,
     shellVersion: SHELL_VERSION,
     systemDir: path.join(rootDir, 'system'),
     selfInstall: installedCopy(),
@@ -157,13 +162,14 @@ const server = http.createServer((req, res) => {
     }
     if (account.ACCOUNT_ROUTES.includes(url.pathname)) { accountHandler(req, res, url); return; }   // 1.6.0: the website account link
     if (cloudsync.CLOUD_ROUTES.includes(url.pathname) || url.pathname.startsWith('/api/cloud/')) { cloudHandler(req, res, url); return; }   // 1.6.2: cloud saves
-    // Open a release's notes page or its installer in the system browser — a page of Waypoint's own website, or a file under
-    // /waypoint/ on its download host, only (shellguard.releaseLink: no other host, no port, no user name)
+    // Open a release's notes page or its installer in the system browser, from where updates come (updater.UPDATE_SOURCE):
+    // this project's own release pages on github.com (shellguard.githubReleaseLink), or a page of Waypoint's own website or a
+    // file under /waypoint/ on its download host (shellguard.releaseLink); no other host, no port, no user name
     if (url.pathname === '/api/open-external' && req.method === 'POST') {
         reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // read with a cap (413 past 64 KB), decoded as UTF-8 across chunks
             let target = null;
             try { target = JSON.parse(body).url; } catch (e) {}
-            const link = shellguard.releaseLink(target, UPDATE_SITE);   // the address as the parser made it, or nothing: never the request's own value
+            const link = updater.UPDATE_SOURCE === 'site' ? shellguard.releaseLink(target, UPDATE_SITE) : shellguard.githubReleaseLink(target, UPDATE_REPO);   // the address as the parser made it, or nothing: never the request's own value
             if (!link) { res.writeHead(400); return res.end('{"error":"not allowed"}'); }
             shell.openExternal(link);
             res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');

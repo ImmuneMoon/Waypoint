@@ -186,6 +186,48 @@ if (on) {
         if (hideBtn.dataset && hideBtn.dataset.tip !== undefined) hideBtn.dataset.tip = words; else hideBtn.title = words;   // a tooltip set while the page runs goes where the tooltips read it
     }
     if (hideBtn && bar) hideBtn.addEventListener('click', function() { barFold(!bar.classList.contains('folded')); });
+    // [videocheck:streamtrk-start]
+    // 1.6.4 (the hand test of 2026-11-25: the trackers "sit UNDER the stream bar; only their bottom edge shows below it"): the trackers bar
+    // (#trkStrip, drawn by trackers.js, which leaves the stream window's place to this window) stood at a fixed place clear of the stream bar
+    // folded to its dot and arrow, so the bar opened, which runs across the window and wraps onto a second row in a narrow one, lay over it. Now
+    // the trackers stand below the open bar's foot, at its left edge, and beside the folded bar, level with it, so they are never under it at any
+    // width. trkSpot is the one rule and reads rectangles alone (the bar's and the box the trackers are placed in, both as the page measures them),
+    // answering the trackers' top and left in that box, or null where the bar has no size (put away), which leaves the style sheet's own place.
+    // trkPlace writes the answer on the trackers as --streamtrk-top and --streamtrk-left, which the style sheet reads (body.stream-mode #trkStrip),
+    // only where they differ. It is asked a frame after the bar changes size (its fold, a wrap, a cover, a list filled) and after the window does,
+    // never on the spot inside an observer (the house rule: a ResizeObserver changes nothing on the spot). Nothing of it runs in the main window
+    var TRK_GAP = 6;   // the room kept between the stream bar and the trackers, in CSS pixels
+    function trkSpot(barR, hostR, folded) {
+        var n = function(v) { return typeof v === 'number' && isFinite(v) ? v : NaN; };
+        if (!barR || !hostR || !(n(barR.right) > n(barR.left)) || !(n(barR.bottom) > n(barR.top)) || !isFinite(n(hostR.left)) || !isFinite(n(hostR.top))) return null;
+        if (folded) return { top: Math.round(barR.top - hostR.top), left: Math.round(barR.right - hostR.left + TRK_GAP) };   // beside the dot and the arrow, on their row
+        return { top: Math.round(barR.bottom - hostR.top + TRK_GAP), left: Math.round(barR.left - hostR.left) };   // under the bar's last row, at its left edge
+    }
+    function trkPlace(doc) {
+        doc = doc || document;
+        var sb = doc.getElementById('streamBar'), tk = doc.getElementById('trkStrip'), host = tk ? (tk.offsetParent || tk.parentElement) : null;
+        if (!tk || !tk.style) return null;
+        var sp = sb && host && typeof sb.getBoundingClientRect === 'function' && typeof host.getBoundingClientRect === 'function'
+            ? trkSpot(sb.getBoundingClientRect(), host.getBoundingClientRect(), !!(sb.classList && sb.classList.contains('folded'))) : null;
+        var T = sp ? sp.top + 'px' : '', L = sp ? sp.left + 'px' : '';
+        if (tk.style.getPropertyValue('--streamtrk-top') !== T) { if (T) tk.style.setProperty('--streamtrk-top', T); else tk.style.removeProperty('--streamtrk-top'); }
+        if (tk.style.getPropertyValue('--streamtrk-left') !== L) { if (L) tk.style.setProperty('--streamtrk-left', L); else tk.style.removeProperty('--streamtrk-left'); }
+        return sp;
+    }
+    // A place asked for the next frame, once however often it is asked: what the observer, the window's resize and the window bar call
+    var _trkSoon = 0;
+    function trkSoon() { if (_trkSoon) return; var raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : function(f) { return setTimeout(f, 16); }; _trkSoon = raf(function() { _trkSoon = 0; try { trkPlace(); } catch (e) {} }) || 1; }
+    // Wired once as the stream window starts: the stream bar's size, the window's size and the window bar's height each ask for a place
+    function trkWire(win) {
+        win = win || window;
+        if (bar && typeof win.ResizeObserver === 'function') { try { new win.ResizeObserver(trkSoon).observe(bar); } catch (e) {} }
+        if (typeof win.addEventListener === 'function') win.addEventListener('resize', trkSoon);
+        var o = win.navigator && win.navigator.windowControlsOverlay;   // the window bar's height may change with no resize of the stream bar, which still moves it
+        if (o && typeof o.addEventListener === 'function') o.addEventListener('geometrychange', trkSoon);
+        trkSoon();
+    }
+    // [videocheck:streamtrk-end]
+    trkWire();
 
     // [videocheck:streamread-start]
     // 1.6.3 (the multiplayer review, finding 25): this window read, parsed and drew the whole save every second, on the very machine hosting the

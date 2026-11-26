@@ -1079,7 +1079,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         // always was (savefile.js downloadNow's own steps, on the suite's document, address and clock), or, with o.pick, a dialog the person
         // cancels ('cancel') or saves in ('saved'). savecheck runs savefile.js itself
         const tickets = [];
-        const saveStartS = op => { const t = { op, state: o.pick ? 'picked' : 'none', drops: 0 }; tickets.push(t); t.ready = Promise.resolve(o.pick === 'cancel' ? 'cancel' : o.pick ? 'picked' : 'none'); t.drop = () => { t.drops++; };
+        const saveStartS = op => { const t = { op, state: o.pick ? 'picked' : 'none', drops: 0 }; tickets.push(t); t.ready = Promise.resolve(o.pick === 'cancel' ? 'cancel' : o.pick ? 'picked' : 'none'); t.drop = () => { t.drops++; }; t.fail = w => t.ready.then(st => { if (st === 'cancel') return 'cancel'; t.drops++; t.failed = w; return st === 'picked' ? 'removed' : 'none'; });   // 1.6.4: a failure said once the dialog has closed (savefile.js fail)
             t.save = blob => t.ready.then(st => { if (st === 'cancel') return 'cancel'; if (st === 'picked') { saved.push({ name: op.name, picked: true }); return 'saved'; }
                 const url = 'blob:u' + (++nUrl), a = doc.createElement('a'); a.href = url; a.download = op.name; body.appendChild(a); a.click(); a.remove(); timers.push({ fn: () => revoked.push(url), ms: blob && blob.size > 50 * 1024 * 1024 ? 600000 : 1000 }); return 'download'; }); return t; };
         const saveDoneS = how => how === 'saved' || how === 'download';

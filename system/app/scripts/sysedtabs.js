@@ -1605,7 +1605,7 @@ function exportSystem() {
             var zt = sysSaveStart(Z.zipName(clean.name), 'application/zip');   // 1.6.4: the Save As dialog opens at the press of Whole system, before the archive is made
             toast('Making the export…');
             Z.buildWhole(clean, D).then(function(r) { sysDownload(zt, r.blob, function() { toast(Z.exportWords(r)); }); })
-                .catch(function(e) { if (zt) zt.drop(); console.error(e); toast('The export could not be made. Nothing was saved.'); });   // the review (finding 6): plain words; the archive's own reason goes to the console and the step log
+                .catch(function(e) { console.error(e); if (zt) window.wpSaveFile.failTo(zt, 'The export could not be made.'); else toast('The export could not be made. Nothing was saved.'); });   // the review (finding 6): plain words; the archive's own reason goes to the console and the step log. 1.6.4: said once the Save As dialog has closed (savefile.js failTo)
         }, { noEnter: true, yes: 'Whole system', alt: 'System alone' });
     }).catch(function(e) { console.error(e); toast('The whole system could not be made ready, so the system alone is exported.'); exportAlone(clean); });   // the module cannot be had: the system alone, and why (the review, finding 3)
 }

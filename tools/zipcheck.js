@@ -379,6 +379,31 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         evA.exportMediaBytes('campaign') === 1120000003 && evA.exportMediaBytes('all') === 1120000110 && evA.exportMediaBytes('item') === 0 && evA.exportMediaBytes('maps') === 0 && evA.exportBaseName('campaign') === 'a-b-campaign' && evA.exportBaseName('all') === 'waypoint-everything'
         && exVid({ appState: null }, () => null, s => s, null, Blob).exportMediaBytes('all') === 0 && exVid({ appState: null }, () => null, s => s, null, Blob).exportMediaBytes('campaign') === 0);
     const exSay = new Function('fetch', 'Blob', sliceOf(ioSrc, 'exportfile') + NL + 'return { exportTally: exportTally, exportDoneWords: exportDoneWords, exportLeftWords: exportLeftWords, exportFailTidy: exportFailTidy };')(null, Blob);
+    // 1.6.4 (the hand test of 7a333010: "About 261 MB" of a file of 590 MB): io.js exportMeasure, run for real on a saves folder of the suite's
+    // own. Each file with no size from the picture list is asked by HEAD for its length (a sound, a song, a video, an unlisted picture), one
+    // not there is 0, one that says no length stays unknown; each pinned library pack is read for its length, one that is not there counted
+    {
+        const exM = new Function('state', 'getActiveCampaign', 'slugName', 'fetch', 'Blob', sliceOf(ioSrc, 'exportfile') + NL + 'return exportMeasure;')(null, null, null, null, Blob);
+        const files = { '/saves/images/audio/c1/song.ogg': 300000000, '/saves/images/video/c1/intro.mp4': 120000000, '/saves/images/m1/odd.avif': 5000 };
+        const asked = [];
+        const fake = async function(u, o) {
+            asked.push([u, o && o.method || 'GET']);
+            if (/^\/api\/library/.test(u)) { if (/pack=p2/.test(u)) return { ok: false, status: 404 }; return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(4321) }; }
+            const p = decodeURI(u);
+            if (p === '/saves/images/m1/nolen.png') return { ok: true, status: 200, headers: { get: () => null } };
+            if (!(p in files)) return { ok: false, status: 404, headers: { get: () => null } };
+            return { ok: true, status: 200, headers: { get: k => /content-length/i.test(k) ? String(files[p]) : null } };
+        };
+        const sizes = { '/saves/images/m1/a.png': 300 };
+        const pay = { campaigns: { c1: { library: { dir: 'lib1', packs: [{ id: 'p1', rev: 3 }, { id: 'p2', rev: 1 }, { id: 'p3' }] } } } };
+        const PS = ['/saves/images/m1/a.png', '/saves/images/audio/c1/song.ogg', '/saves/images/video/c1/intro.mp4', '/saves/images/m1/odd.avif', '/saves/images/m1/gone.png', '/saves/images/m1/nolen.png'];
+        const m = await exM(PS, sizes, pay, fake);
+        check('1.6.4: every file the export carries that the picture list did not size is asked of the saves folder by HEAD for its real length (a song, a video, a picture the list does not hold), never a listed picture again; one not there is 0, as the export leaves it out; one that says no length stays unknown; each pinned pack is read for its length, one that is not there counted missing, one with no revision passed over as the export passes it over',
+            sizes['/saves/images/audio/c1/song.ogg'] === 300000000 && sizes['/saves/images/video/c1/intro.mp4'] === 120000000 && sizes['/saves/images/m1/odd.avif'] === 5000 && sizes['/saves/images/m1/gone.png'] === 0
+            && !('/saves/images/m1/nolen.png' in sizes) && sizes['/saves/images/m1/a.png'] === 300 && m.unknown === 1 && m.asked === 5
+            && !asked.some(a => a[0] === '/saves/images/m1/a.png') && asked.filter(a => a[1] === 'HEAD').length === 5
+            && m.lib.n === 1 && m.lib.bytes === 4321 && m.lib.missing === 1 && j(m.lib.names) === j(['library/lib1/p1.3.json']), j([sizes, m, asked]));
+    }
     check('what an export says of itself (exportTally / exportDoneWords, run for real): a file left out is taken off the count of its kind and counted as missing, and the closing line says how many — an archive short of a file is never called whole; both ways of writing an export and the closing line go through them (source)',
         j(exSay.exportTally(212, 3, ['images/video/c/a.webm', 'images/m/b.png'])) === j({ images: 211, videos: 2, missing: 2 }) && j(exSay.exportTally(5, 0, [])) === j({ images: 5, videos: 0, missing: 0 }) && j(exSay.exportTally(4, 2, ['images/video/c/a.webm', 'images/video/c/b.webm'])) === j({ images: 4, videos: 0, missing: 2 })
         && exSay.exportDoneWords({ name: 'a.zip', images: 211, videos: 2, missing: 2 }) === 'Exported a.zip (211 pictures, 2 videos, 2 missing).' && exSay.exportDoneWords({ name: 'a.zip', images: 5, videos: 0, missing: 0 }) === 'Exported a.zip (5 pictures).' /* 1.6.3: real plurals, moved on purpose */
@@ -678,6 +703,41 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 [0, 1, 2, 1536, 5 * 1048576 + 1, 12.4 * 1048576, 3.25 * 1073741824, -5, NaN].map(S.sizeWords).join('|') === '0 bytes|1 byte|2 bytes|2 KB|5 MB|12 MB|3.3 GB|0 bytes|0 bytes'
                 && S.contentsWords(card) === '2 maps \u00b7 2 pages \u00b7 2 characters \u00b7 2 pictures \u00b7 2 sounds \u00b7 1 video' && S.contentsWords({ contents: { music: { n: 1 } } }) === '1 song' && S.contentsWords(null) === ''
                 && S.leftWords(card) === 'Left out by its author: pictures, music, players.' && S.leftWords({ left: [] }) === '' && S.byWords(card) === 'by Alex \u00b7 version 1.0' && S.byWords({ version: '2' }) === 'Version 2' && S.byWords({ author: 'A' }) === 'by A' && S.byWords({}) === '', S.contentsWords(card));
+            /* 1.6.4 (the hand test of 7a333010: the sheet said "About 261 MB" and the zip written was 590,104,804 bytes): the whole file as the
+               export makes it (sharecore exportSize): each file by its own size, the library packs, data.json and the archive's own headers */
+            const plan = { payload: pay(), paths: PA, sizes: { '/saves/images/m1/a.png': 300, '/saves/images/m1/b.jpg': 700, '/saves/images/audio/c1/rain.ogg': 1200, '/saves/images/audio/c1/cue.ogg': 0 },
+                lib: { n: 1, bytes: 40000, missing: 0, names: ['library/lib1/p1.3.json'] }, unlisted: false };
+            const names = ['data.json', 'images/m1/a.png', 'images/m1/b.jpg', 'images/audio/c1/rain.ogg', 'images/audio/c1/song.ogg', 'images/video/c1/intro.mp4', 'library/lib1/p1.3.json'];
+            const want = 2000 + 300 + 700 + 1200 + 5000 + 90000 + 40000 + S.zipOverhead(names);
+            const e1 = S.exportSize(plan, () => true, [], 2000, false);
+            const e2 = S.exportSize(plan, k => k !== 'videos', ['/saves/images/m1/b.jpg'], 2000, false);
+            const e3 = S.exportSize(Object.assign({}, plan, { sizes: { '/saves/images/m1/a.png': 300 } }), () => true, [], 2000, false);
+            const e4 = S.exportSize({ payload: { campaigns: {} }, paths: [], sizes: {} }, () => true, [], 2000, false);
+            // the old line, worked as the sheet worked it before: data.json and each kind's tally, the library packs and the headers never counted
+            const t0 = S.tally(plan.payload, PA, plan.sizes), old = 2000 + t0.pictures.bytes + t0.sounds.bytes + t0.music.bytes + t0.videos.bytes;
+            check('1.6.4: the sheet\'s size of the whole file counts what the export carries (sharecore exportSize): every file by the size the saves folder answered, else by its list\'s; a file that is not there (0) adds nothing; the library packs every campaign export carries; data.json; and the archive\'s own headers (76 bytes and the name twice an entry, 22 at its end), so it is the very size of a store-only zip of those files; left-out kinds and single pictures left out are not counted',
+                e1.bytes === want && e1.unsure === false && e1.bytes > old && e2.bytes === want - 700 - 90000 - (76 + 2 * 'images/m1/b.jpg'.length) - (76 + 2 * 'images/video/c1/intro.mp4'.length) && e2.unsure === false
+                && e4.bytes === 2000 && e4.unsure === false && S.zipOverhead(['data.json']) === 22 + 76 + 18 && S.zipOverhead(['\u00e9']) === 22 + 76 + 4, j([e1, want, old, e2, e4]));
+            check('1.6.4: where a file\'s size could not be had, or the pictures no map uses could not be listed, the line says "At least" in place of "About" (sharecore exportSize, sizeLine); a size of 0 that was asked for is known, and tally counts it as no unknown file',
+                e3.unsure === true && S.exportSize(Object.assign({}, plan, { unlisted: true }), () => true, [], 2000, false).unsure === true
+                && S.sizeLine(590104804, false) === 'About 563 MB in all.' && S.sizeLine(590104804, true) === 'At least 563 MB in all.'
+                && t0.sounds.unknown === 0 && S.tally(plan.payload, ['/saves/images/m1/z.png'], {}).pictures.unknown === 1, j([e3, t0.sounds]));
+            // the store-only archive zip.js writes, of the very names and sizes counted: exportSize is its size to the byte
+            {
+                const Z = await import(url('zip.js'));
+                const ents = names.map((n, i) => ({ name: n, data: new Uint8Array([2000, 300, 700, 1200, 5000, 90000, 40000][i]) }));
+                const zb = Z.zipCreate(ents);
+                check('1.6.4: the size the sheet says is the size of the archive zip.js writes of those files, to the byte', zb.size === e1.bytes, j([zb.size, e1.bytes]));
+            }
+            // the sheet's own line, from share.js (drawKinds) on stand-ins: it says what exportSize says, "About" or "At least"
+            {
+                const shT = read('system/app/scripts/share.js'), ta = shT.indexOf('// [zipcheck:sharetotal-start]'), tb = shT.indexOf('// [zipcheck:sharetotal-end]');
+                const line = (pl) => { const els = { shareTotal: { textContent: '' } }; const boxes = {}; S.KINDS.forEach(k => { boxes[k] = { checked: true, disabled: false }; });
+                    try { new Function('SC', '_s', 'el', 'kindBox', 'outNow', shT.slice(ta, tb) + '\ndrawKinds();')(S, { tally: S.tally(pl.payload, pl.paths, pl.sizes), plan: pl, data: 2000 }, id => els[id] || null, k => boxes[k], () => []); } catch (e) { return 'threw: ' + e.message; }
+                    return els.shareTotal.textContent; };
+                check('1.6.4: the sheet\'s line (share.js drawKinds, run for real on stand-ins) says the whole file\'s size as exportSize counts it, "About" where every size is known and "At least" where one is not',
+                    ta > 0 && tb > ta && line(plan) === S.sizeLine(e1.bytes, false) && line(Object.assign({}, plan, { sizes: {} })).indexOf('At least ') === 0, j([line(plan), line(Object.assign({}, plan, { sizes: {} }))]));
+            }
         }
         /* 1.6.2, Export all (backlog 227; the owner, by prompt on the drawn sheet: "Grow the Share sheet, no new export", "Both", "a Template tick on a
            character", "A look before it lands"): the starting points, the pictures by tag, templates kept, the left-out list and the import's counts */

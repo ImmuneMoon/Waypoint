@@ -15,6 +15,8 @@
      ... build the file, waiting as long as it takes ...
      var how = await t.save(blob);                                       // writes it to the file picked, or downloads it
      if (saved(how)) toast('Markdown saved.');                           // only after a real save
+   Where the file will not be made after all (the export failed, or there was nothing to put in it), the caller hands its words to the ticket:
+     t.fail('Image export failed.');                                     // said once the dialog has closed, never while it is open
    how is 'saved' (written to the file the person picked), 'download' (handed to the browser as before), 'cancel' (the person canceled the
    dialog: say nothing, nothing was saved) or 'failed' (the write or the download failed, and this module has said so in plain words).
 
@@ -74,7 +76,7 @@ async function writeTo(handle, blob) {
 // Opens the save dialog, at the press: called in the same turn as the click (or key) that asked for the file, before anything the caller
 // waits for. opts: { name: the file name the dialog suggests and a download uses, type: its MIME type, desc: words for its kind in the
 // dialog, fail: the words said where the save fails (absent: '<name> could not be saved.'; false: the caller says it itself) }.
-// Answers a ticket: { name, ready, state, handle, save(blob, name?), drop() }. ready settles to 'picked' (a file was picked: state and
+// Answers a ticket: { name, ready, state, handle, save(blob, name?), drop(), fail(words) }. ready settles to 'picked' (a file was picked: state and
 // handle say which), 'cancel' (the person canceled), 'none' (no dialog in this window) or 'fallback' (the dialog would not open: the press
 // had run out, or the window refused). The last two save as a download, as before
 function saveStart(opts) {
@@ -103,6 +105,7 @@ function saveStart(opts) {
     // The file, once it is made: written to the file picked, or downloaded where no dialog could be had. name2 is the name a download takes
     // where the file's own name was known only once it was made (the dialog showed the caller's best guess). Answers how it went (above)
     t.save = function(blob, name2) {
+        t.saving = true;   // from here on the save itself says how it went: a fail() asked afterwards says nothing more (failPicked)
         return t.ready.then(function(st) {
             if (st === 'cancel') return 'cancel';
             if (st === 'picked') {
@@ -126,7 +129,38 @@ function saveStart(opts) {
     // where it cannot, one line says the file was left empty. Answers a promise of what it did: 'none' (no file was picked, or this save
     // already wrote to it), 'kept', 'removed' or 'empty'. opts.quiet: the caller says the empty file itself, in its own words
     t.drop = function(dopts) { return dropPicked(t, ext, dopts || {}); };
+    // The file will not be made after all, and the person is to be told why (1.6.4, the hand test of 7a333010: Save as image failed while its
+    // dialog was still open, so its notice was gone before the person pressed Save, and the empty file was then taken away with nothing said).
+    // fail() waits for the dialog to close before it says anything, then: after a cancel it says nothing at all (the person asked for no
+    // file); where a file was picked it takes the empty file away quietly (drop) and says the words with what became of that file; where no
+    // file was picked (no dialog in this window, or it would not open) it says the words alone. words may be empty: then only what became of
+    // the picked file is said, where it was left empty. Every export that used to call drop() and then say its own failure calls this
+    // instead. Answers a promise of 'cancel', or of what drop() did ('none', 'kept', 'removed', 'empty')
+    t.fail = function(words) { return failPicked(t, ext, words); };
     return t;
+}
+
+// What a ticket's fail() does (above). A save already under way says its own outcome (savefile.js says a failed write), so a fail() after
+// it says nothing more and takes nothing away
+function failPicked(t, ext, words) {
+    var w = typeof words === 'string' ? words.trim() : '';
+    return t.ready.then(function(st) {
+        if (st === 'cancel') { saveLog('failed-canceled', { ext: ext }); return 'cancel'; }
+        if (t.saving) return 'none';
+        if (st !== 'picked') { saveLog('failed', { ext: ext, picked: 0 }); if (w) say(w); return 'none'; }
+        return dropPicked(t, ext, { quiet: true }).then(function(d) {
+            saveLog('failed', { ext: ext, picked: 1, file: d });
+            say(failWords(w, t.name, d));
+            return d;
+        });
+    });
+}
+// The words a failure says where a file was picked: the caller's words, then what became of the file the person named. removed: the empty
+// file is gone again, so no file was written. empty: it could not be taken away and stays, empty. kept: it holds something this export did
+// not write (it was left as it was). Pure: the suite reads it directly
+function failWords(w, name, d) {
+    var tail = d === 'empty' ? name + ' was left empty. Nothing was written to it.' : d === 'kept' ? 'Nothing was written to ' + name + '.' : 'No file was written.';
+    return w ? w.replace(/[.!?]?$/, '.') + ' ' + tail : tail;
 }
 
 // What a ticket's drop() does (above): the picked file's size read through the handle, then the file taken away where it is empty. A step
@@ -160,6 +194,9 @@ function saved(how) { return how === 'saved' || how === 'download'; }
 // a ticket without spelling the method's name
 function saveTo(ticket, blob, name2) { return ticket.save(blob, name2); }
 
-if (typeof window !== 'undefined') window.wpSaveFile = { start: saveStart, saved: saved, saveTo: saveTo, downloadNow: downloadNow };
+// A ticket's fail, as a function of its own, for the same reason as saveTo: a part of a split script reaches it through window.wpSaveFile
+function failTo(ticket, words) { return ticket && typeof ticket.fail === 'function' ? ticket.fail(words) : Promise.resolve('none'); }
 
-export { saveStart, saved, saveTo, downloadNow, saySet, typesOf };
+if (typeof window !== 'undefined') window.wpSaveFile = { start: saveStart, saved: saved, saveTo: saveTo, failTo: failTo, downloadNow: downloadNow };
+
+export { saveStart, saved, saveTo, failTo, failWords, downloadNow, saySet, typesOf };

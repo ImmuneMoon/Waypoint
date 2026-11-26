@@ -2166,6 +2166,47 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       });
       return n;
   }
+  // What the share sheet's size line counts beside the pictures the saves folder lists (1.6.4, the hand test of 7a333010: the sheet said
+  // "About 261 MB" for a file of 590 MB). Two things were not counted as the export really carries them. Every file that is no listed picture
+  // (a sound, a song, a video, a picture the list does not hold) was counted by the size its library entry stored, or not at all where it
+  // stored none; and the library packs a campaign pins, which every campaign export carries, were not counted at all. So each such file is
+  // asked of the saves folder itself (a HEAD request: its length, nothing read), its size put in sizes by its path, which the sheet's count
+  // (sharecore tally) reads before an entry's own; a file that is not there is 0, as the export will leave it out; one that cannot be asked
+  // is left unknown, and the sheet then says "At least". Each pinned pack is read as the export reads it, for its length. paths and sizes:
+  // what exportPlan made (sizes is written into). fetchFn: the page's fetch, or a suite's. Answers { lib: { n, bytes, missing, names },
+  // asked, unknown }. Asked by exportPlan alone
+  var MEASURE_MAX = 4000, MEASURE_AT_ONCE = 8;
+  async function exportMeasure(paths, sizes, payload, fetchFn) {
+      var get = fetchFn || fetch, has = function(p) { return Object.prototype.hasOwnProperty.call(sizes, p) && typeof sizes[p] === 'number' && isFinite(sizes[p]); };
+      var todo = (Array.isArray(paths) ? paths : []).filter(function(p) { return typeof p === 'string' && !has(p); });
+      var unknown = Math.max(0, todo.length - MEASURE_MAX), asked = 0;
+      todo = todo.slice(0, MEASURE_MAX);
+      var one = async function(p) {
+          asked++;
+          try {
+              var r = await get(encodeURI(p), { method: 'HEAD', cache: 'no-store' });
+              if (r && r.status === 404) { sizes[p] = 0; return; }   // not there: the export leaves it out, so it adds nothing
+              var said = r && r.ok && r.headers && typeof r.headers.get === 'function' ? r.headers.get('Content-Length') : null, len = said === null || said === '' ? NaN : Number(said);
+              if (isFinite(len) && len >= 0) sizes[p] = Math.floor(len); else unknown++;   // no length said (a server that sends none): unknown
+          } catch (e) { unknown++; }
+      };
+      for (var i = 0; i < todo.length; i += MEASURE_AT_ONCE) await Promise.all(todo.slice(i, i + MEASURE_AT_ONCE).map(one));
+      var lib = { n: 0, bytes: 0, missing: 0, names: [] };
+      var camps = payload && payload.campaigns && typeof payload.campaigns === 'object' ? Object.values(payload.campaigns) : [];
+      for (var c = 0; c < camps.length; c++) {
+          var lm = camps[c] && camps[c].library;
+          if (!lm || typeof lm.dir !== 'string' || !Array.isArray(lm.packs)) continue;
+          for (var k = 0; k < lm.packs.length; k++) {
+              var pk = lm.packs[k]; if (!pk || !pk.rev) continue;
+              try {
+                  var lr = await get('/api/library?dir=' + encodeURIComponent(lm.dir) + '&pack=' + encodeURIComponent(pk.id) + '&rev=' + pk.rev);
+                  if (lr && lr.ok) { lib.n++; lib.bytes += (await lr.arrayBuffer()).byteLength; lib.names.push('library/' + lm.dir + '/' + pk.id + '.' + pk.rev + '.json'); }
+                  else lib.missing++;
+              } catch (e) { lib.missing++; }
+          }
+      }
+      return { lib: lib, asked: asked, unknown: unknown };
+  }
   function exportBaseName(scope) { var c = getActiveCampaign(); return scope === 'all' ? 'waypoint-everything' : slugName(c && c.name) + '-campaign'; }
   // What an export says of itself: the pictures and the videos that went in (a file left out taken off the count of its kind) and
   // how many were left out — a file that was not there, or changed while it was read, is never passed over in silence
@@ -2225,7 +2266,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       Object.values(payload.campaigns || {}).forEach(function(c) { if (c) dropWaiting(c); });
       var paths = collectImagePaths(payload), sizes = {};
       var ok = await exportListed(scope, payload, paths, sizes);
-      return { payload: payload, paths: paths, sizes: sizes, unlisted: !ok, campId: camp.id, name: scope === 'all' ? '' : String(camp.name || ''), camps: Object.keys(payload.campaigns || {}).length };
+      var meas = await exportMeasure(paths, sizes, payload);   // 1.6.4: every file the export carries, by its real size, and the library packs it carries
+      if (typeof window.wpStepLog === 'function') window.wpStepLog('export v1', 'plan', { files: paths.length, asked: meas.asked, unknown: meas.unknown, packs: meas.lib.n, packsMissing: meas.lib.missing });
+      return { payload: payload, paths: paths, sizes: sizes, lib: meas.lib, unknown: meas.unknown, unlisted: !ok, campId: camp.id, name: scope === 'all' ? '' : String(camp.name || ''), camps: Object.keys(payload.campaigns || {}).length };
   }
   window.wpExportPlan = exportPlan;
   // What an export of this scope holds, made at once with nothing waited for (1.6.4): exportScope asks it at the press, so that it knows

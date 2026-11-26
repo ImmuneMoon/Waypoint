@@ -176,6 +176,122 @@ pending.push((async function() {
         && !cLog.concat(rLog, sLog, fLog).some(l => /Secret|Kael|plans/.test(l)), j([cLog, rLog, sLog, fLog]));
     check('published as window.wpSaveFile for the parts that import their root alone (sysedtabs.js), saveTo a ticket\'s save as a function of its own', typeof window.wpSaveFile.start === 'function' && typeof window.wpSaveFile.saveTo === 'function' && window.wpSaveFile.saved('saved') === true && window.wpSaveFile.saved('cancel') === false && typeof window.wpSaveFile.downloadNow === 'function');
 
+    /* fail (1.6.4, the hand test of 7a333010: Save as image failed while its dialog was still open, so its notice was gone before the person
+       pressed Save, and drop() then took the empty file away with nothing said). A dialog of the suite's own that answers only when told: the
+       person still has it open while the export fails */
+    const later = function(fileSize, opt) {
+        const L = { removed: 0 };
+        L.done = new Promise(r => { L.pick = r; });
+        window.showSaveFilePicker = function() {
+            return L.done.then(function(how) {
+                if (how === 'cancel') throw Object.assign(new Error('canceled'), { name: 'AbortError' });
+                return { name: 'x.png', getFile: async function() { return { size: fileSize || 0 }; }, remove: opt === 'no-remove' ? undefined : async function() { L.removed++; },
+                    createWritable: async function() { return { write: async function(b) { L.wrote = b; }, close: async function() { L.closed = true; } }; } };
+            });
+        };
+        return L;
+    };
+    const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
+    reset(); let L = later(0);
+    t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' });
+    let fp = t.fail('Image export failed.'); await settle();
+    const whileOpen = W.said.slice();
+    L.pick('picked'); const f1 = await fp; const f1Log = W.logs.slice();
+    check('fail() asked while the save dialog is still open says nothing until the person has answered it; once a file was picked it takes the empty file away and says the words with what became of it, and the step log names no file',
+        whileOpen.length === 0 && f1 === 'removed' && L.removed === 1 && j(W.said) === j(['Image export failed. No file was written.'])
+        && f1Log.some(l => /^savefile v1 failed ext=png picked=1 file=removed$/.test(l)) && !f1Log.some(l => /Undertow/.test(l)), j([whileOpen, f1, W.said, f1Log]));
+    reset(); L = later(0);
+    t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' });
+    fp = t.fail('Image export failed.'); L.pick('cancel'); const f2 = await fp; await settle();
+    check('fail() after the person canceled the dialog says nothing and takes nothing away: they asked for no file', f2 === 'cancel' && W.said.length === 0 && L.removed === 0 && W.logs.some(l => /^savefile v1 failed-canceled ext=png$/.test(l)), j([f2, W.said]));
+    reset();
+    const f3 = await SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }).fail('Image export failed.');
+    reset(); dialog('refuse');
+    const f4 = await SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }).fail('Image export failed.'); const said4f = W.said.slice();
+    reset(); dialog('refuse');
+    check('with no dialog in this window, or one that would not open, fail() says the words alone, once: no file was picked', f3 === 'none' && f4 === 'none' && j(said4f) === j(['Image export failed.']), j([f3, f4, said4f]));
+    reset(); L = later(0, 'no-remove');
+    t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }); L.pick('picked');
+    const f5 = await t.fail('Image export failed.'); const said5 = W.said.slice();
+    reset(); L = later(9);
+    t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }); L.pick('picked');
+    const f6 = await t.fail('Add at least one picture.'); const said6 = W.said.slice();
+    reset(); L = later(0);
+    t = SF.saveStart({ name: 'The Undertow.png', type: 'image/png' }); L.pick('picked');
+    const f7 = await t.fail(''); const said7 = W.said.slice();
+    check('fail() says what became of the picked file in one notice with the words: left empty where the window cannot take it away, untouched where it holds something, and with no words only what became of the file',
+        f5 === 'empty' && j(said5) === j(['Image export failed. The Undertow.png was left empty. Nothing was written to it.'])
+        && f6 === 'kept' && j(said6) === j(['Add at least one picture. Nothing was written to The Undertow.png.'])
+        && f7 === 'removed' && j(said7) === j(['No file was written.']), j([f5, said5, f6, said6, f7, said7]));
+    reset(); D = dialog('write-fails');
+    t = SF.saveStart({ name: 'Notes.md', type: 'text/markdown' }); await t.save(blob); const saidW = W.said.slice(); W.said = [];
+    const f8 = await t.fail('The journal could not be saved.');
+    check('a save already under way says its own outcome: a fail() after it says nothing more and takes nothing away, so a failure is never said twice', j(saidW) === j(['Notes.md could not be saved.']) && f8 === 'none' && W.said.length === 0 && D.removed === 0, j([saidW, f8, W.said]));
+    check('failTo, a ticket\'s fail as a function of its own, is published on window.wpSaveFile for the parts of a split script (sysedtabs.js)', typeof window.wpSaveFile.failTo === 'function' && SF.failWords('Words', 'a.png', 'removed') === 'Words. No file was written.' && SF.failWords('Words.', 'a.png', 'removed') === 'Words. No file was written.');
+
+    /* Save as image (main.js, the hand test of 7a333010), run for real on stand-ins of the page: its handler from the page, the bundled
+       renderer a stand-in, the save dialog the suite's own. It drew too large a picture and could not read Chromium's color(), and said its
+       failure while the dialog was still open */
+    const mainSrc = read('main.js');
+    const imgA = mainSrc.indexOf('// [savecheck:imgexport-start]'), imgB = mainSrc.indexOf('// [savecheck:imgexport-end]');
+    const imgSlice = imgA >= 0 && imgB > imgA ? mainSrc.slice(imgA, imgB) : '';
+    const IMG = imgSlice ? new Function('window', imgSlice + '\nreturn { imgScaleFor: imgScaleFor, imgColorFix: imgColorFix, imgColorsFix: imgColorsFix, imgWhy: imgWhy, imgFailWords: imgFailWords, imgDoneWords: imgDoneWords, IMG_SIDE: IMG_SIDE, IMG_AREA: IMG_AREA };')(window) : null;
+    const big = IMG && IMG.imgScaleFor(18000, 10000, 2), fits = IMG && IMG.imgScaleFor(800, 600, 2), tall = IMG && IMG.imgScaleFor(1000, 60000, 1.5);
+    check('a picture is drawn at the screen\'s own pixel ratio where it fits, and else at the largest scale that keeps both sides within 16,384 pixels and the whole within the area kept under Chromium\'s canvas limit (imgScaleFor); nothing for a size that is none',
+        !!IMG && IMG.IMG_SIDE === 16384 && IMG.IMG_AREA <= 268435456 && fits.scale === 2 && !fits.small && fits.w === 1600 && fits.h === 1200
+        && big.small && big.w <= 16384 && big.h <= 16384 && big.w * big.h <= IMG.IMG_AREA && big.w * big.h > IMG.IMG_AREA * 0.99
+        && tall.small && tall.h <= 16384 && tall.w * tall.h <= IMG.IMG_AREA && IMG.imgScaleFor(0, 10, 1) === null && IMG.imgScaleFor(NaN, 10, 1) === null, j([big, fits, tall]));
+    check('a color the renderer cannot read is written as the rgba() it is, wherever it stands in a value (imgColorFix): color(srgb) exactly, srgb-linear turned back to srgb, an alpha kept, a gradient and a shadow kept around it, and one it cannot work out made transparent rather than stopping the picture',
+        !!IMG && IMG.imgColorFix('color(srgb 1 0.5 0 / 0.25)') === 'rgba(255, 128, 0, 0.25)' && IMG.imgColorFix('color(srgb 0 0 1)') === 'rgba(0, 0, 255, 1)'
+        && IMG.imgColorFix('linear-gradient(color(srgb 1 1 1) 0%, rgb(0, 0, 0) 100%)') === 'linear-gradient(rgba(255, 255, 255, 1) 0%, rgb(0, 0, 0) 100%)'
+        && IMG.imgColorFix('color(srgb-linear 1 0 0)') === 'rgba(255, 0, 0, 1)' && IMG.imgColorFix('rgb(1, 2, 3) 0px 0px 4px') === 'rgb(1, 2, 3) 0px 0px 4px'
+        && IMG.imgColorFix('oklch(0.5 0.1 20)') === 'rgba(0, 0, 0, 0)' && IMG.imgColorFix('color-mix(in srgb, currentcolor 50%, transparent)') === 'rgba(0, 0, 0, 0)' && IMG.imgColorFix('color(srgb none 50% 1)') === 'rgba(0, 128, 255, 1)');
+    const el = (cs, kids) => { const e = { cs: cs, set: {}, kids: kids || [] }; e.style = { setProperty: function(p, v, pr) { e.set[p] = [v, pr]; } }; e.querySelectorAll = function() { const all = []; const walk = n => n.kids.forEach(k => { all.push(k); walk(k); }); walk(e); return all; }; return e; };
+    const kid = el({ 'box-shadow': 'color(srgb 0 0 0 / 0.5) 0px 2px 4px', color: 'rgb(1, 2, 3)' }), root = el({ 'background-color': 'color(srgb 1 0 0)' }, [kid]);
+    const fakeDoc = { defaultView: { getComputedStyle: e => ({ getPropertyValue: p => e.cs[p] || '' }) } };
+    const nFix = IMG ? IMG.imgColorsFix(fakeDoc, root) : -1;
+    check('the renderer\'s own copy of the page has every such color written back inline and important before it reads any style (imgColorsFix), the colors it reads left alone',
+        nFix === 2 && j(root.set['background-color']) === j(['rgba(255, 0, 0, 1)', 'important']) && j(kid.set['box-shadow']) === j(['rgba(0, 0, 0, 0.5) 0px 2px 4px', 'important']) && !kid.set.color, j([nFix, root.set, kid.set]));
+    check('why a picture failed is one short word for the step log (imgWhy): the renderer refusing a color, the canvas giving none, the copy of the page, else the error\'s own name',
+        !!IMG && IMG.imgWhy(new Error('Attempting to parse an unsupported color function "color"')) === 'color' && IMG.imgWhy('canvas') === 'canvas' && IMG.imgWhy('Error finding the DIV in the cloned document') === 'clone' && IMG.imgWhy(new RangeError('x')) === 'RangeError' && IMG.imgWhy(null) === 'error');
+    // the handler itself, from the page, with the slice of helpers before it
+    const hA = mainSrc.indexOf('_el_exportImgBtn.addEventListener(\'click\', function() {'), hEnd = mainSrc.indexOf('var _el_importBtn'), hB = hA >= 0 ? mainSrc.lastIndexOf('});', hEnd) : -1;
+    const body = hA >= 0 && hB > hA ? mainSrc.slice(mainSrc.indexOf('{', hA + 40) + 1, hB) : '';
+    const imgRun = async function(o) {
+        reset(); const L2 = o.dialog ? later(0) : null;
+        const E = { toasts: [], opts: null, logs: [] };
+        const page = { whiteboardWrap: { scrollLeft: 0, scrollTop: 0, clientWidth: 1800, clientHeight: 1000 }, whiteboard: { getBoundingClientRect: () => ({ width: 50000, height: 50000 }) } };
+        const win = { devicePixelRatio: 2, wpStepLog: function(a, s, f) { E.logs.push(a + ' ' + s + ' ' + Object.keys(f || {}).map(k => k + '=' + f[k]).join(' ')); } };
+        const h2c = function(target, opts) { E.opts = opts; return o.render(); };
+        const deps = ['getActiveMap', 'html2canvas', 'isDocLike', 'exportTitle', 'state', 'document', 'saveStart', 'toast', 'saveExport', 'window'];
+        const run = new Function(deps.join(','), imgSlice + '\nreturn function() {' + body + '};')(
+            () => ({ id: 'm1', type: 'map' }), h2c, () => false, () => 'The Undertow', { viewMode: 'visual', zoomLevel: 0.1 },
+            { getElementById: id => page[id] || null }, SF.saveStart, w => E.toasts.push(w),
+            function(ticket, b, then) { ticket.save(b).then(function(how) { if (SF.saved(how)) then(); }); }, win);
+        run(); await settle();
+        E.whileOpen = W.said.slice();
+        if (L2) L2.pick(o.dialog); await settle(); await settle();
+        E.said = W.said.slice(); E.L = L2; return E;
+    };
+    const colorErr = () => Promise.reject(new Error('Attempting to parse an unsupported color function "color"'));
+    const tooBig = () => Promise.resolve({ width: 16000, height: 7500, toBlob: function(cb) { cb(null); } });
+    const good = () => Promise.resolve({ width: 16000, height: 7500, toBlob: function(cb) { cb(new Blob(['PNG'], { type: 'image/png' })); } });
+    const R1 = body && imgSlice ? await imgRun({ dialog: 'picked', render: colorErr }) : null;
+    check('Save as image whose picture cannot be drawn says nothing while its save dialog is open; once a file is picked, the empty file is taken away and one notice says why, with no file written; the reason is a step of its own',
+        !!R1 && R1.whileOpen.length === 0 && R1.L.removed === 1 && j(R1.said) === j(['Image export failed. The picture could not be drawn. No file was written.'])
+        && R1.logs.some(l => /^imgexport v1 failed why=color /.test(l)) && j(R1.toasts) === j(['Rendering image...']), j(R1 && [R1.whileOpen, R1.said, R1.logs, R1.toasts]));
+    const R2 = body && imgSlice ? await imgRun({ dialog: 'picked', render: tooBig }) : null;
+    check('Save as image whose canvas gives no picture says so once the dialog has closed, with the picture\'s size and, on a map, the way round it; the canvas size is logged',
+        !!R2 && R2.whileOpen.length === 0 && j(R2.said) === j(['Image export failed. A picture of 16000 by 7500 pixels is too large to make here. Zoom in and try again. No file was written.'])
+        && R2.logs.some(l => /^imgexport v1 failed why=canvas w=16000 h=7500$/.test(l)), j(R2 && [R2.said, R2.logs]));
+    const R3 = body && imgSlice ? await imgRun({ dialog: 'cancel', render: colorErr }) : null;
+    check('Save as image whose dialog was canceled says nothing of its failure, neither in its own notice nor through the save', !!R3 && R3.said.length === 0 && R3.L.removed === 0 && j(R3.toasts) === j(['Rendering image...']), j(R3 && [R3.said, R3.toasts]));
+    const R4 = body && imgSlice ? await imgRun({ dialog: 'picked', render: good }) : null;
+    const sc = R4 && R4.opts ? R4.opts.scale : 0;
+    check('Save as image of a map zoomed far out is drawn at a scale that fits a canvas (the renderer is handed it, and the hook that writes its colors back), the file written, and the notice says it was made smaller, with its size',
+        !!R4 && sc > 0 && sc < 2 && R4.opts.width * sc <= 16384 && R4.opts.width * sc * R4.opts.height * sc <= 120000000 && typeof R4.opts.onclone === 'function' && R4.L.closed === true
+        && j(R4.toasts) === j(['Rendering image...', 'Image exported, made smaller to fit: 16000 by 7500 pixels.']) && R4.said.length === 0, j(R4 && [sc, R4.toasts, R4.said]));
+
     global.setTimeout = realTimeout; URL.createObjectURL = realMake; URL.revokeObjectURL = realLetGo;
 })());
 
@@ -195,7 +311,7 @@ const SITES = [
     ['io.js', 'Export (exportScope)', '  async function exportScope(scope, share, files) {', '\n  window.wpExportScope', /saveStart\(/, null, ["toast('Exported ' + r.name + '.' + exportLeftWords(r));"]],
     ['librarywin.js', 'a library pack', 'function exportPack(which) {', '\n/* ---- import', /saveStart\(/, null, ["exported: ' + plural("]],
     ['main.js', 'Save HTML', "askK(activeMap, showConfirm, function(players) {", "_el_exportImgBtn", /saveStart\(/, /run\(function|fetch\(/, ["toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.')"]],
-    ['main.js', 'Save as Image', "var title = exportTitle();\n\n      var opts", "var _el_", /saveStart\(/, /html2canvas\(/, ["toast('Image exported.')"]],
+    ['main.js', 'Save as Image', "var title = exportTitle();\n\n      var opts", "var _el_", /saveStart\(/, /html2canvas\(/, ["toast(imgDoneWords(got))"]],   // 1.6.4: moved on purpose, the words say when it was made smaller
     ['mapshot.js', 'Save Map as Picture', 'function shotGo() {', '\nfunction shotStops', /saveStart\(/, /Promise\.all\(/, ['toast(shotDoneWords(p, r.lost, r.cut))']],
     ['record.js', 'the Game Record as text', 'function saveText() {', '\nfunction delSession', /saveStart\(/, null, []],
     ['settings.js', 'Save profile to a file', "if (save) save.addEventListener('click', function() {", '\n    if (open && file)', /saveStart\(/, null, ["toast('Profile saved."]],
@@ -250,6 +366,12 @@ check('pinned: each save waits for the person\'s answer, and a cancel says nothi
 // No script but savefile.js makes a download link or opens the save dialog itself: one rule for how a file is saved
 const own = fs.readdirSync(SCRIPTS).filter(f => /\.js$/.test(f) && f !== 'savefile.js').filter(f => { const s = read(f); return /\.download\s*=/.test(s) || /setAttribute\(\s*['"]download['"]/.test(s) || /showSaveFilePicker/.test(s); });
 check('no script but savefile.js makes a download link or opens the save dialog itself (one rule for how a file is saved)', own.length === 0, j(own));
+// 1.6.4 (the hand test of 7a333010): no export drops its picked file and then says its failure itself, which it did while the dialog was still
+// open; it hands its words to the ticket's fail(), which says them once the dialog has closed. Tried first on the old text, which it must refuse
+const dropSay = /\.drop\([^)]*\);[^}]*?\btoast\(/;
+const dropped = fs.readdirSync(SCRIPTS).filter(f => /\.js$/.test(f) && f !== 'savefile.js').filter(f => dropSay.test(read(f)));
+check('no export drops its picked file and then says its own failure: each hands its words to the ticket\'s fail(), which waits for the save dialog to close (tried first on the old Save as image text)',
+    dropSay.test("if(!blob) { ticket.drop(); toast('Image export failed.'); return; }") && dropSay.test("ticket.drop();\n          toast('Image export failed.');") && dropped.length === 0, j(dropped));
 check('savefile.js loads with the page: io.js imports it statically and hands it the app\'s notice; it is no import() of anyone', /import \{ saveStart, saved as saveDone, downloadNow, saySet \} from '\.\/savefile\.js';/.test(read('io.js')) && /\nsaySet\(toast\);/.test(read('io.js'))
     && !fs.readdirSync(SCRIPTS).filter(f => /\.js$/.test(f)).some(f => /import\(\s*['"]\.\/savefile\.js/.test(read(f))));
 check('io.js downloadBlob and download stay, as thin users of savefile.js downloadNow with the words they always said', /function downloadBlob\(name, blob\) \{\n      if \(downloadNow\(name, blob\)\) return true;\n      toast\('Export failed\.'\); return false;\n  \}/.test(read('io.js'))

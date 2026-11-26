@@ -266,7 +266,7 @@ async function template() {
         var how = await ticket.save(zip.zipCreate(ents));
         if (!saved(how)) { log('template-not-saved', { how: how }); return; }
         log('template', { px: px }); toast('The template is downloaded, ' + px + ' pixels a cell.');
-    } catch (er) { ticket.drop(); log('template-failed', {}); toast('The template could not be made.'); }
+    } catch (er) { log('template-failed', {}); ticket.fail('The template could not be made.'); }   // 1.6.4: said once the save dialog has closed (savefile.js fail)
 }
 
 // ---- the pack maker (fold 3): a grid of every kind and era, the picked one beside it at its real size. Fold 4 (the owner: "Blocks tab in the
@@ -568,7 +568,7 @@ async function makerExport(asFolder) {
     var nm = F.packName(_m.name) || 'A pack'; if (!Object.keys(_m.looks).length) { toast('Add at least one picture.'); return; }
     if (asFolder) { await exportLooksFolder(nm, makerLooks); return; }
     var ticket = looksTicket(nm);   // 1.6.4: the save dialog opens at the press, before the pictures are read
-    var looks = await makerLooks(); if (!looks.length) { ticket.drop(); toast('Add at least one picture.'); return; }
+    var looks = await makerLooks(); if (!looks.length) { ticket.fail('Add at least one picture.'); return; }   // 1.6.4: said once the save dialog has closed
     exportLooksFile(nm, looks, ticket);
 }
 

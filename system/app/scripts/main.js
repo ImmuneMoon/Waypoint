@@ -558,8 +558,113 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
               '</head><body><div id="plannerPreviewWrap" class="doc-view">' + content + '</div></body></html>';
 
           saveExport(ticket, new Blob([htmlOutput], {type: 'text/html'}), function() { toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.'); });
-      }).catch(function() { ticket.drop(); toast('HTML export failed.'); }); }); });
+      }).catch(function() { ticket.fail('HTML export failed.'); }); }); });   // 1.6.4: said once the save dialog has closed (savefile.js fail)
   });
+
+  // [savecheck:imgexport-start]
+  // Save as image (1.6.4, the hand test of 7a333010: "on Save the dialog closes, NO file is left, and NO notice of any kind appears"). Two
+  // things made it fail, and both are answered here.
+  //
+  // First, the picture renderer (the bundled html2canvas 1.4.1) reads every color through the style the browser works out, and it knows only
+  // rgb() and hsl(). The style sheet mixes colors with color-mix(), and Chromium writes a mixed color out as color(srgb r g b / a), which the
+  // renderer refuses with "Attempting to parse an unsupported color function": every element of the board that wears such a color stopped the
+  // whole picture. imgColorsFix, asked through the renderer's onclone on its own copy of the page (never the page on screen), writes each such
+  // color back as the rgba() it is, so the renderer reads it.
+  //
+  // Second, a picture larger than a canvas may be: Chromium holds a canvas to about 16,384 pixels a side and about 268 million pixels in
+  // all, and past them toBlob answers nothing. A map zoomed far out, or a long page, at the screen's own pixel ratio could pass them.
+  // imgScaleFor draws the picture at the largest scale that fits IMG_SIDE and IMG_AREA (kept under the browser's own limits, since the
+  // renderer and the PNG encoder each hold a copy) and says when it had to make the picture smaller than the screen shows it.
+  //
+  // Where it still fails the reason is logged as a step ('imgexport v1', with the picture's size) and said in plain words through the save
+  // ticket's fail(), which waits for the save dialog to close before it says anything (savefile.js).
+  var IMG_SIDE = 16384, IMG_AREA = 120000000;
+  // The scale a picture of w by h board pixels is drawn at: the screen's own pixel ratio (want) where it fits, else the largest that keeps
+  // both sides within IMG_SIDE and the whole within IMG_AREA. Answers { scale, w, h, small } (w and h the picture's own pixels, small true
+  // where it was made smaller than want), or null for a size that is none. Pure: the suite runs it
+  function imgScaleFor(w, h, want) {
+      if (!(typeof w === 'number' && isFinite(w) && w > 0 && typeof h === 'number' && isFinite(h) && h > 0)) return null;
+      var dpr = typeof want === 'number' && isFinite(want) && want > 0 ? want : 1;
+      var fit = Math.min(dpr, IMG_SIDE / w, IMG_SIDE / h, Math.sqrt(IMG_AREA / (w * h)));
+      var s = Math.floor(fit * 10000) / 10000;   // a hair under, so the renderer's own rounding never passes a limit
+      if (!(s > 0)) s = 0.0001;
+      return { scale: s, w: Math.floor(w * s), h: Math.floor(h * s), small: s < dpr };
+  }
+  // The color functions the renderer cannot read, wherever they stand in a value (a gradient, a shadow)
+  var IMG_COLOR_FN = /\b(color-mix|color|oklab|oklch|lab|lch|hwb)\(/i;
+  // One channel of color(...) as a number from 0 to 1: a plain number, a percentage, or none (0)
+  function imgChan(t) {
+      if (t === 'none' || t === undefined) return 0;
+      var n = parseFloat(t); if (!isFinite(n)) return NaN;
+      return /%$/.test(t) ? n / 100 : n;
+  }
+  // A color function the renderer cannot read, as the rgba() it reads. color(srgb ...) is exact, color(srgb-linear ...) is turned back to
+  // srgb, and the other spaces of color() are read as srgb (close enough for a picture). Anything else (a color-mix the browser left as
+  // written, oklch and the like, which the style sheet does not use today) becomes transparent: the picture loses that one color and is still
+  // made, where before the whole picture failed
+  function imgRgba(fn, inner) {
+      var none = 'rgba(0, 0, 0, 0)';
+      if (fn !== 'color') return none;
+      var parts = String(inner).replace('/', ' / ').trim().split(/\s+/), space = (parts[0] || '').toLowerCase();
+      var slash = parts.indexOf('/'), ch = parts.slice(1, slash >= 0 ? slash : parts.length), a = slash >= 0 ? imgChan(parts[slash + 1]) : 1;
+      if (ch.length !== 3) return none;
+      var c = ch.map(imgChan); if (c.some(function(v) { return !isFinite(v); }) || !isFinite(a)) return none;
+      if (space === 'srgb-linear') c = c.map(function(v) { return v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; });
+      var by = function(v) { return Math.round(Math.max(0, Math.min(1, v)) * 255); };
+      return 'rgba(' + by(c[0]) + ', ' + by(c[1]) + ', ' + by(c[2]) + ', ' + Math.round(Math.max(0, Math.min(1, a)) * 1000) / 1000 + ')';
+  }
+  // A whole value with every color function the renderer cannot read written as rgba() (imgRgba), the rest of the value as it was. Each
+  // function is found with its own closing bracket, so a function inside it (color-mix of a color) goes with it. Pure: the suite runs it
+  function imgColorFix(v) {
+      var s = String(v == null ? '' : v), out = '', i = 0, re = /\b(color-mix|color|oklab|oklch|lab|lch|hwb)\(/ig;
+      while (i < s.length) {
+          re.lastIndex = i; var m = re.exec(s);
+          if (!m) { out += s.slice(i); break; }
+          out += s.slice(i, m.index);
+          var open = m.index + m[1].length, depth = 0, j = open;
+          for (; j < s.length; j++) { if (s[j] === '(') depth++; else if (s[j] === ')') { depth--; if (!depth) break; } }
+          out += imgRgba(m[1].toLowerCase(), s.slice(open + 1, j));
+          i = j + 1;
+      }
+      return out;
+  }
+  // The properties the renderer reads a color from
+  var IMG_COLOR_PROPS = ['color', 'background-color', 'background-image', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'outline-color', 'box-shadow', 'text-shadow', 'text-decoration-color', '-webkit-text-stroke-color'];
+  // Asked through the renderer's onclone on its own copy of the page (doc), before it reads any style: every element under root (the copy of
+  // what is drawn, the renderer's own elements for ::before and ::after among them) whose worked-out color the renderer cannot read gets that
+  // color written back as rgba(), inline and important, so the copy looks as the page does. Answers how many values it wrote
+  function imgColorsFix(doc, root) {
+      var win = doc && doc.defaultView, n = 0; if (!win || !root || typeof root.querySelectorAll !== 'function') return 0;
+      var els = [root].concat(Array.prototype.slice.call(root.querySelectorAll('*')));
+      els.forEach(function(el) {
+          var cs; try { cs = win.getComputedStyle(el); } catch (e) { return; }
+          if (!cs || !el.style) return;
+          IMG_COLOR_PROPS.forEach(function(p) { var v = cs.getPropertyValue(p); if (v && IMG_COLOR_FN.test(v)) { el.style.setProperty(p, imgColorFix(v), 'important'); n++; } });
+      });
+      return n;
+  }
+  // Why a picture failed, as one short word for the step log: the renderer refused a color, the canvas gave no picture (too large, or no
+  // memory), the renderer could not copy the page, or another error by its own name
+  function imgWhy(e) {
+      if (e === 'canvas') return 'canvas';
+      var msg = e && typeof e.message === 'string' ? e.message : typeof e === 'string' ? e : '';
+      if (/unsupported color function/i.test(msg)) return 'color';
+      if (typeof e === 'string') return 'clone';
+      return e && typeof e.name === 'string' && /^[A-Za-z]{1,40}$/.test(e.name) ? e.name : 'error';
+  }
+  // The words a failure says (the save ticket adds what became of the file named): a picture too large to make, with its size and, on a
+  // map, the way round it; anything else plainly as a picture that could not be drawn
+  function imgFailWords(why, size, map) {
+      if (why === 'canvas' && size) return 'Image export failed. A picture of ' + size.w + ' by ' + size.h + ' pixels is too large to make here.' + (map ? ' Zoom in and try again.' : '');
+      return 'Image export failed. The picture could not be drawn.';
+  }
+  // The words said once it was saved: where it had to be made smaller than the screen shows it, its size
+  function imgDoneWords(size) {
+      return size && size.small ? 'Image exported, made smaller to fit: ' + size.w + ' by ' + size.h + ' pixels.' : 'Image exported.';
+  }
+  // One step of Save as image in the app's step log, with sizes and short words alone
+  function imgLog(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('imgexport v1', step, facts || {}); } catch (e) {} }
+  // [savecheck:imgexport-end]
 
   var _el_exportImgBtn = document.getElementById('exportImgBtn');
 
@@ -581,11 +686,11 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       var opts = { backgroundColor: '#15151c', logging: false, useCORS: true };
 
-      var target;
+      var target, pageOwn = null;
 
       if(isDocLike(activeMap)) {
 
-          target = document.getElementById('plannerPreviewWrap'); opts.onclone = function(d) { Array.prototype.forEach.call(d.querySelectorAll('.diagram'), function(x) { x.style.background = '#fbfbfd'; }); };   // a picture of the page draws a chart's own colors alone, so it stays on its light block
+          target = document.getElementById('plannerPreviewWrap'); pageOwn = function(d) { Array.prototype.forEach.call(d.querySelectorAll('.diagram'), function(x) { x.style.background = '#fbfbfd'; }); };   // a picture of the page draws a chart's own colors alone, so it stays on its light block
 
       } else {
 
@@ -604,6 +709,13 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
           opts.width = wrapEl.clientWidth / z; opts.height = wrapEl.clientHeight / z;
 
       }
+      // 1.6.4: the colors the renderer cannot read are written back on its own copy (imgColorsFix), and the picture is drawn at a scale that
+      // fits a canvas (imgScaleFor), its size logged as a step
+      opts.onclone = function(d, root) { var nC = imgColorsFix(d, root); if (pageOwn) pageOwn(d); imgLog('colors', { fixed: nC }); };
+      var mapPic = !isDocLike(activeMap), tr = target ? target.getBoundingClientRect() : null;
+      var size = imgScaleFor(mapPic ? opts.width : (tr && tr.width), mapPic ? opts.height : (tr && tr.height), window.devicePixelRatio || 1);
+      if (size) opts.scale = size.scale;
+      imgLog('start', { map: mapPic, w: size ? size.w : 0, h: size ? size.h : 0, scale: size ? size.scale : 0, small: !!(size && size.small) });
 
       var ticket = saveStart({ name: title + '.png', type: 'image/png', desc: 'Picture' });   // the save dialog opens at the press, before the picture is drawn
       toast('Rendering image...');
@@ -613,19 +725,23 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
       html2canvas(target, opts).then(function(cv) {
           refoldI();
 
-          cv.toBlob(function(blob) {
+          var got = cv && cv.width && cv.height ? { w: cv.width, h: cv.height, small: !!(size && size.small) } : size;
+          try {
+              cv.toBlob(function(blob) {
 
-              if(!blob) { ticket.drop(); toast('Image export failed.'); return; }
+                  if(!blob) { imgLog('failed', { why: 'canvas', w: got ? got.w : 0, h: got ? got.h : 0 }); ticket.fail(imgFailWords('canvas', got, mapPic)); return; }   // 1.6.4: said once the save dialog has closed (savefile.js fail)
 
-              saveExport(ticket, blob, function() { toast('Image exported.'); });
+                  imgLog('drawn', { w: got ? got.w : 0, h: got ? got.h : 0, kb: Math.round(blob.size / 1024) });
+                  saveExport(ticket, blob, function() { toast(imgDoneWords(got)); });
 
-          });
+              }, 'image/png');
+          } catch (eB) { imgLog('failed', { why: imgWhy(eB), w: got ? got.w : 0, h: got ? got.h : 0 }); ticket.fail(imgFailWords(imgWhy(eB), got, mapPic)); }   // a canvas the page may not read throws here
 
-      }).catch(function() {
+      }).catch(function(e) {
 
           refoldI();
-          ticket.drop();
-          toast('Image export failed.');
+          imgLog('failed', { why: imgWhy(e), w: size ? size.w : 0, h: size ? size.h : 0 });
+          ticket.fail(imgFailWords(imgWhy(e), size, mapPic));   // 1.6.4: said once the save dialog has closed, never while it is open
 
       });
 

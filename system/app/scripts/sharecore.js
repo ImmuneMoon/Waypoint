@@ -16,6 +16,8 @@
      cleanCard(raw)             a card as it is written and as it is read back from a file, every key cleaned; null when there is none
      coverName(name)            the archive entry a cover may name: a picture under images/, never in the Journal's folder
      sizeWords, contentsWords, leftWords, byWords   the words the sheet and the import say
+     exportSize, zipOverhead, sizeLine   the size the sheet says of the whole file (1.6.4): every file it carries, data.json, the library
+                                packs and the archive's own headers, "About" where every size is known and "At least" where one is not
 
    Export all (1.6.2, backlog 227; the owner, by prompt on the drawn sheet: "Grow the Share sheet, no new export", "Both", "a Template
    tick on a character", "A look before it lands"; then, correcting it: no starting points, "just full export and have options on
@@ -93,12 +95,52 @@ function tally(payload, paths, sizes) {
     var seen = Object.create(null);
     (Array.isArray(paths) ? paths : []).forEach(function(p) {
         if (typeof p !== 'string' || seen[p]) return; seen[p] = 1;
-        var k = kindOf(p, sets), b = sizes && own(sizes, p) ? bytesOf(sizes[p]) : k !== 'pictures' && sets[k] && p in sets[k] ? sets[k][p] : 0;
+        var k = kindOf(p, sets), known = knownSize(sizes, p), b = known ? bytesOf(sizes[p]) : k !== 'pictures' && sets[k] && p in sets[k] ? sets[k][p] : 0;
         if (k === 'pictures') t.pictures.n++;
-        if (b) t[k].bytes += b; else t[k].unknown++;
+        if (b) t[k].bytes += b; else if (!known) t[k].unknown++;   // 1.6.4: a size of 0 that was asked for (a file that is not there) is known, not unknown
     });
     return t;
 }
+// Whether sizes holds a size for p (the saves folder's list, or the export plan's own ask of the file: io.js exportMeasure). A size of 0 is a
+// size: a file that is not there, which the export leaves out
+function knownSize(sizes, p) { return !!sizes && own(sizes, p) && typeof sizes[p] === 'number' && isFinite(sizes[p]) && sizes[p] >= 0; }
+// The bytes of one name as UTF-8, as the archive writes it (zip.js): no encoder needed, so Node and the page read it alike. A name that holds
+// half a character counts three bytes for each of its characters, the most it could take
+function utf8Len(s) { try { return encodeURIComponent(String(s)).replace(/%[0-9A-F]{2}/gi, 'x').length; } catch (e) { return String(s).length * 3; } }
+// What a store-only archive adds to its files (zip.js): each entry's local header (30 bytes and its name) and its central header (46 bytes
+// and its name again), and the end record (22). An archive past 4 GB adds a few more bytes an entry (ZIP64), well under a part in a million
+function zipOverhead(names) {
+    var n = 22; (Array.isArray(names) ? names : []).forEach(function(nm) { n += 76 + 2 * utf8Len(nm); });
+    return n;
+}
+// The size of the whole file an export makes, for the sheet's line (1.6.4, the hand test of 7a333010: the line said "About 261 MB" of a
+// file of 590 MB, since files whose size was not stored, and the library packs, were not counted). plan: what io.js exportPlan made (its
+// payload, paths, sizes, lib and unlisted). on(kind): whether a kind is ticked. out: the pictures left out one by one. data: the bytes of
+// data.json. card: a share card goes in (share.json). Each file is counted by its own size as the saves folder answered it, else by its
+// list's, else it is unknown; a file that is not there adds nothing, as the export leaves it out. Answers { bytes, unsure }: unsure where a
+// file's size could not be had, or the pictures no map uses could not be listed, so the sheet says "At least"
+function exportSize(plan, on, out, data, card) {
+    var P = isObj(plan) ? plan : {}, sets = fileSets(P.payload), sizes = isObj(P.sizes) ? P.sizes : null, O = Object.create(null);
+    (Array.isArray(out) ? out : []).forEach(function(p) { if (typeof p === 'string') O[p] = 1; });
+    var bytes = bytesOf(data), unsure = P.unlisted === true, names = ['data.json'], seen = Object.create(null), files = 0;
+    (Array.isArray(P.paths) ? P.paths : []).forEach(function(p) {
+        if (typeof p !== 'string' || seen[p]) return; seen[p] = 1;
+        var k = kindOf(p, sets);
+        if (typeof on === 'function' && !on(k)) return;
+        if (k === 'pictures' && O[p]) return;
+        if (knownSize(sizes, p)) { if (!(sizes[p] > 0)) return; bytes += bytesOf(sizes[p]); }
+        else if (k !== 'pictures' && sets[k] && sets[k][p] > 0) bytes += sets[k][p];
+        else unsure = true;
+        names.push(p.replace(/^\/saves\//, '')); files++;
+    });
+    var lib = isObj(P.lib) ? P.lib : null;
+    if (lib) { bytes += bytesOf(lib.bytes); if (Array.isArray(lib.names)) names = names.concat(lib.names.filter(function(x) { return typeof x === 'string'; })); }
+    if (card) names.push('share.json');
+    if (files || names.length > 1) bytes += zipOverhead(names);   // a .json alone has no archive around it
+    return { bytes: Math.min(LIMITS.bytes, bytes), unsure: unsure };
+}
+// The sheet's line of the whole file's size: "About" where every size is known, "At least" where one is not
+function sizeLine(bytes, unsure) { return (unsure ? 'At least ' : 'About ') + sizeWords(bytes) + ' in all.'; }
 function leaveOut(payload, leave) {
     var L = cleanLeave(leave); if (!L.length) return payload;
     var has = {}; L.forEach(function(k) { has[k] = true; });
@@ -340,7 +382,7 @@ function byWords(card) {
 var API = { stripTable: stripTable, TAG_NONE: TAG_NONE, LOOK_KINDS: LOOK_KINDS, picTags: picTags, privOff: privOff, tagRows: tagRows, picsOut: picsOut, templatesIn: templatesIn, leftPicName: leftPicName, lookOf: lookOf, lookWords: lookWords, asNewCamps: asNewCamps, freeNames: freeNames, stripPrivate: stripPrivate,
     KINDS: KINDS, NAMES: NAMES, WORDS: WORDS, FILE_KINDS: FILE_KINDS, LIMITS: LIMITS, PLAYER_KEYS: PLAYER_KEYS, fileSets: fileSets, kindOf: kindOf, tally: tally,
     leaveOut: leaveOut, keepPaths: keepPaths, cleanLeave: cleanLeave, coverName: coverName, cleanCard: cleanCard, isBlank: isBlank, cardFor: cardFor, sizeWords: sizeWords,
-    countWords: countWords, contentsWords: contentsWords, leftWords: leftWords, byWords: byWords };
+    countWords: countWords, contentsWords: contentsWords, leftWords: leftWords, byWords: byWords, exportSize: exportSize, zipOverhead: zipOverhead, sizeLine: sizeLine };
 if (typeof window !== 'undefined') window.wpShareCore = API;
 export { stripTable, TAG_NONE, LOOK_KINDS, picTags, privOff, tagRows, picsOut, templatesIn, leftPicName, lookOf, lookWords, asNewCamps, freeNames, stripPrivate, KINDS, NAMES, WORDS, FILE_KINDS, LIMITS, PLAYER_KEYS, fileSets, kindOf, tally, leaveOut, keepPaths, cleanLeave, coverName, cleanCard, isBlank, cardFor, sizeWords,
-    countWords, contentsWords, leftWords, byWords };
+    countWords, contentsWords, leftWords, byWords, exportSize, zipOverhead, sizeLine };

@@ -1269,7 +1269,7 @@ async function journalDownload(only) {
     jdlLog('download-start', { one: !!only });
     try {
         var doc = await journalDocOf(only);
-        if (!doc || doc.why) { ticket.drop(); jdlLog('download-none', { one: !!only }); toast(doc && doc.why || 'That page is no longer in your journal.'); return; }
+        if (!doc || doc.why) { jdlLog('download-none', { one: !!only }); ticket.fail(doc && doc.why || 'That page is no longer in your journal.'); return; }   // 1.6.4: said once the save dialog has closed (savefile.js fail)
         if ((await ticket.ready) === 'cancel') { jdlLog('download-cancel', { one: !!only }); return; }
         at = 'pictures';
         var n = 0, pics = 0, missing = 0, used = 0, want = 0;
@@ -1301,9 +1301,8 @@ async function journalDownload(only) {
         jdlLog('download-done', { entries: n, pics: pics, missing: missing, chars: chars });
         toast('Saved ' + name + (missing ? '. ' + missing + ' picture' + (missing === 1 ? '' : 's') + ' could not be put in, and the page says so.' : '.'));
     } catch (e) {
-        ticket.drop();
         jdlLog('download-fail', { at: at });
-        toast('The journal could not be saved.');
+        ticket.fail('The journal could not be saved.');   // 1.6.4: said once the save dialog has closed; a save already under way has said its own
     } finally { jdlBusy(false); }
 }
 // The app's own question, as a promise: true for a yes. more is set as text under the question, its line breaks kept

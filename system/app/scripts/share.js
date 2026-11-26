@@ -147,20 +147,24 @@ function drawPicsLine() {
 }
 // [zipcheck:sharepicsline-end]
 function allChanged() { drawKinds(); drawTags(); drawPicsLine(); drawPicks(); }
+// [zipcheck:sharetotal-start]
 function drawKinds() {
-    var t = _s.tally, total = _s.data;
+    var t = _s.tally;
     SC.KINDS.forEach(function(k) {
         var e = t[k], box = kindBox(k), nEl = el('shareN_' + k), bEl = el('shareB_' + k), file = SC.FILE_KINDS.indexOf(k) >= 0;
         if (nEl) nEl.textContent = e.n > 0 ? String(e.n) : 'none';
         if (bEl) bEl.textContent = file && e.bytes > 0 ? (e.unknown ? 'over ' : '') + SC.sizeWords(e.bytes) : '';
         if (box) { box.disabled = e.n <= 0 && !(file && e.bytes > 0); if (box.disabled) box.checked = true; }
-        if (file && box && box.checked) total += e.bytes;
     });
-    if (_s.plan && _s.plan.sizes && kindBox('pictures') && kindBox('pictures').checked) outNow().forEach(function(p) { var b = _s.plan.sizes[p]; if (typeof b === 'number' && b > 0) total -= b; });   // 1.6.2: the pictures left out one by one
-    if (total < 0) total = 0;
+    // 1.6.4 (the hand test of 7a333010: "About 261 MB" of a file of 590 MB): the whole file is counted as the export makes it, each file by its
+    // own size as the saves folder answered it, the library packs it carries, data.json and the archive's own headers (sharecore exportSize);
+    // "At least" where a size could not be had
+    var on = function(k) { var b = kindBox(k); return !b || b.checked; };
+    var sz = SC.exportSize(_s.plan, on, on('pictures') ? outNow() : [], _s.data, false);
     var line = el('shareTotal');
-    if (line) line.textContent = 'About ' + SC.sizeWords(total) + ' in all.' + (_s.plan && _s.plan.unlisted ? ' The pictures no map uses yet could not be listed.' : '');
+    if (line) line.textContent = SC.sizeLine(sz.bytes, sz.unsure) + (_s.plan && _s.plan.unlisted ? ' The pictures no map uses yet could not be listed.' : '');
 }
+// [zipcheck:sharetotal-end]
 async function open(scope, share) {
     if (shown()) return;
     var gen = ++_s.gen, m = el('shareModal');

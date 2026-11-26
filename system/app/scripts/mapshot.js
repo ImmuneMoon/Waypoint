@@ -187,7 +187,12 @@ function shotGo() {
             shotHide();
             toast(shotDoneWords(p, r.lost, r.cut));
         });
-    }).catch(function(e) { if (ticket) ticket.drop(); fail(e); });
+    }).catch(function(e) {
+        // 1.6.4: with a save dialog open, the failure waits for it to close (savefile.js fail): a cancel then only makes the dialog ready again,
+        // and otherwise the dialog's own line says it could not be made, the notice saying what became of the file named
+        if (!ticket) { fail(e); return; }
+        ticket.fail('').then(function(how) { if (how === 'cancel') { if (my === _shot.gen) { _shot.busy = false; shotSync(); } return; } fail(e); });
+    });
     return true;
 }
 function shotStops() {
